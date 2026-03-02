@@ -1,0 +1,3 @@
+// @typokit/db-prisma
+export {};
+

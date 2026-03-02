@@ -1,3 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# TypoKit generated
+.typokit/
+__generated__/
+
+# Nx
+.nx/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
 # Ralph working files
 scripts/ralph/prd.json
 scripts/ralph/progress.txt

@@ -1,0 +1,3 @@
+// @typokit/testing
+export {};
+

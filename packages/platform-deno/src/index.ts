@@ -1,0 +1,3 @@
+// @typokit/platform-deno
+export {};
+

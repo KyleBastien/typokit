@@ -1,0 +1,24 @@
+{
+  "name": "@typokit/monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.30.3",
+  "description": "TypoKit — AI-Native Node.js Framework",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "nx run-many --target=build",
+    "test": "nx run-many --target=test",
+    "lint": "nx run-many --target=lint",
+    "typecheck": "nx run-many --target=typecheck"
+  },
+  "devDependencies": {
+    "nx": "^20.8.0",
+    "typescript": "^5.8.0",
+    "@rstest/core": "^0.0.1",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

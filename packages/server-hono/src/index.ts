@@ -1,0 +1,3 @@
+// @typokit/server-hono
+export {};
+

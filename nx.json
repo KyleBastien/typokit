@@ -1,0 +1,53 @@
+{
+  "$schema": "https://nx.dev/reference/nx-json",
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/dist"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p tsconfig.json",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p tsconfig.json",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["default", "^production"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "rstest run --passWithNoTests",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint src/",
+        "cwd": "{projectRoot}"
+      }
+    }
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/tsconfig.spec.json"
+    ],
+    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"]
+  },
+  "defaultBase": "main"
+}

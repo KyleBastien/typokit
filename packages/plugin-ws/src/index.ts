@@ -1,0 +1,3 @@
+// @typokit/plugin-ws
+export {};
+
