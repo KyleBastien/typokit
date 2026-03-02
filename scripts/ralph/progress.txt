@@ -776,3 +776,87 @@ Started: 03/01/2026 21:04:22
   - Use port 19800+ for test ports to avoid conflicts with other tests using default ports
   - CompiledRoute tree traversal needs to handle paramChild/wildcardChild separately from static children
 ---
+
+## 2026-03-02T09:31:00Z - US-043
+- Implemented @typokit/plugin-ws WebSocket support plugin
+- WsChannels contract interface mapping channel names to serverToClient/clientToServer message types
+- defineWsHandlers<TChannels>() function for typed handler definitions with onConnect/onMessage/onDisconnect
+- wsPlugin(options) factory function implementing TypoKitPlugin interface
+- Build hooks: afterTypeParse extracts WS channel contracts, emit generates validators and route table
+- WsConnectionManager class for managing active connections with broadcast, channel grouping
+- Message validation against clientToServer contracts with error reporting
+- handleWsUpgrade() for incoming WS connection handling with validation pipeline
+- extractWsChannels(), generateWsValidators(), generateWsRouteTable() build-time utilities
+- requireAuth option for auth middleware integration
+- 25 unit/integration tests covering all components
+- Files changed: packages/plugin-ws/src/index.ts, packages/plugin-ws/src/index.test.ts, packages/plugin-ws/package.json, packages/plugin-ws/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - No @types/node in plugin packages — use globalThis cast for TextDecoder, setInterval, clearInterval
+  - Plugin pattern: factory function returns TypoKitPlugin, register services in onStart via app.services
+  - Build hooks use closure variables to share state between afterTypeParse and emit (BuildContext has no get/set)
+  - WS channel detection uses @ws or @channel JSDoc tags on types, or direct serverToClient/clientToServer property pattern
+---
+
+## 2026-03-02T09:38:00Z - US-044
+- Implemented Fastify server adapter with full ServerAdapter interface
+- fastifyServer(options?) factory: options passed to Fastify constructor (logger, trustProxy, etc.)
+- registerRoutes() collects routes from compiled radix tree and registers as Fastify-native routes
+- normalizeRequest() converts FastifyRequest → TypoKitRequest (method, path, headers, body, query, params)
+- writeResponse() converts TypoKitResponse → FastifyReply (status, headers, body)
+- getNativeServer() returns raw Fastify instance for escape hatches (plugin registration etc.)
+- Request validation pipeline (params/query/body validators from ValidatorMap)
+- Response serialization pipeline (custom serializer from SerializerMap)
+- Middleware chain executes before handler per arch Section 6.3
+- 12 integration tests: routing, params, POST body, validation, serialization, middleware, 404, port 0
+- Files changed: packages/server-fastify/src/index.ts, packages/server-fastify/src/index.test.ts, packages/server-fastify/package.json, packages/server-fastify/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Fastify v5 deprecates direct maxParamLength option — use outerOptions instead
+  - Fastify uses pp.route({ method, url, handler }) for programmatic route registration
+  - Use pp.listen({ port: 0, host: '0.0.0.0' }) for auto-port, read via 
+ative.addresses()[0].port
+  - Fastify automatically parses JSON bodies — no need for manual body parsing in normalizeRequest
+  - Route tree traversal: collect flat route entries from radix tree (reconstructing paths) rather than doing runtime tree lookup
+---
+
+## 2026-03-02T09:45:53Z - US-045
+- Implemented Hono server adapter with full ServerAdapter interface
+- honoServer(options?) factory: options supports basePath
+- registerRoutes() collects routes from compiled radix tree and registers as Hono-native routes via app.on(method, path)
+- normalizeRequest() converts Hono Context -> TypoKitRequest (method, path, headers, body, query, params)
+- writeResponse() converts TypoKitResponse -> Hono Response object
+- getNativeServer() returns raw Hono instance for escape hatches
+- Request validation pipeline (params/query/body validators from ValidatorMap)
+- Response serialization pipeline (custom serializer from SerializerMap)
+- Middleware chain executes before handler per arch Section 6.3
+- Uses @hono/node-server for listen() with Node.js HTTP server
+- 12 integration tests: interface check, getNativeServer, routing, params, POST body, validation, serialization, middleware, 404, port 0, options
+- Files changed: packages/server-hono/src/index.ts, packages/server-hono/src/index.test.ts, packages/server-hono/package.json, packages/server-hono/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Hono uses app.on(method, path, handler) for dynamic method registration — app[method] doesn't work for 'head'
+  - Hono returns Response objects from route handlers (not imperative write like Fastify/Express)
+  - Hono params via c.req.param() returns all params as Record<string, string>
+  - Hono body parsing: use c.req.json() (async) — must be done before normalizeRequest
+  - @hono/node-server serve() returns a Node http.Server — use server.address().port for auto-port
+  - Hono route patterns use :param syntax same as TypoKit compiled routes
+  - For listen() with port 0, wait for 'listening' event on the Node server before returning handle
+---
+
+## 2026-03-02T09:54:00Z - US-046
+- Implemented Express server adapter at packages/server-express/
+- Factory function expressServer(options?) that implements ServerAdapter interface
+- registerRoutes() translates compiled route table into Express-native route registrations
+- normalizeRequest() converts Express Request to TypoKitRequest
+- writeResponse() converts TypoKitResponse to Express Response
+- getNativeServer() returns the raw Express app instance
+- JSON body parsing enabled via express.json() middleware
+- Uses node:http createServer for listen() with port 0 support in tests
+- 8 integration tests: adapter creation, GET/POST routing, parameterized routes, validation pipeline, missing handler error
+- Files changed: packages/server-express/src/index.ts, packages/server-express/src/index.test.ts, packages/server-express/package.json, packages/server-express/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Express 5.x works with @types/express ^5.0.0 — types include Application, Request, Response, Express
+  - Express route methods are lowercase (app.get, app.post) vs Fastify which accepts uppercase method in app.route()
+  - Express uses req.query (already parsed) vs Hono which needs manual URL parsing
+  - Express needs express.json() middleware explicitly for body parsing unlike Fastify which handles it natively
+  - Use node:http createServer(app) for Express listen() to get Server instance for port 0 auto-assignment
+  - Server adapter pattern is highly consistent across Fastify/Hono/Express — collectRoutes, runValidators, serializeResponse are identical
+---
