@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import starlightTypeDoc, { typeDocSidebarGroup } from "starlight-typedoc";
 
 export default defineConfig({
   site: "https://kylebastien.github.io",
@@ -10,6 +11,46 @@ export default defineConfig({
       social: {
         github: "https://github.com/typokit/typokit",
       },
+      plugins: [
+        starlightTypeDoc({
+          entryPoints: [
+            "../core",
+            "../types",
+            "../errors",
+            "../client",
+            "../client-react-query",
+            "../client-swr",
+            "../server-express",
+            "../server-fastify",
+            "../server-hono",
+            "../server-native",
+            "../db-drizzle",
+            "../db-kysely",
+            "../db-prisma",
+            "../db-raw",
+            "../plugin-debug",
+            "../plugin-ws",
+            "../transform-native",
+            "../transform-typia",
+            "../platform-bun",
+            "../platform-deno",
+            "../platform-node",
+            "../testing",
+            "../otel",
+            "../cli",
+          ],
+          tsconfig: "../../tsconfig.json",
+          output: "api-reference/generated",
+          sidebar: {
+            label: "API Reference",
+            collapsed: true,
+          },
+          typeDoc: {
+            entryPointStrategy: "packages",
+          },
+          errorOnEmptyDocumentation: false,
+        }),
+      ],
       sidebar: [
         {
           label: "Getting Started",
@@ -54,13 +95,7 @@ export default defineConfig({
             { label: "Inspect Commands", slug: "cli-reference/inspect" },
           ],
         },
-        {
-          label: "API Reference",
-          collapsed: true,
-          items: [
-            { label: "Overview", slug: "api-reference" },
-          ],
-        },
+        typeDocSidebarGroup,
         {
           label: "Architecture",
           collapsed: true,

@@ -18,6 +18,9 @@ __generated__/
 # Astro generated
 .astro/
 
+# TypeDoc generated API reference (regenerated on build)
+packages/docs/src/content/docs/api-reference/generated/
+
 # Nx
 .nx/
 
