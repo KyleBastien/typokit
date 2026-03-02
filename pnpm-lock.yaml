@@ -66,9 +66,23 @@ importers:
         specifier: workspace:*
         version: link:../types
 
-  packages/db-kysely: {}
+  packages/db-kysely:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
-  packages/db-prisma: {}
+  packages/db-prisma:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/db-raw: {}
 
