@@ -12,6 +12,8 @@ export { executeInspect, inspectRoutes, inspectRoute, inspectMiddleware, inspect
 export type { InspectOptions, InspectResult } from "./commands/inspect.js";
 export { executeGenerate, generateDb, generateClient, generateOpenapi, generateTests, generateClientCode } from "./commands/generate.js";
 export type { GenerateCommandOptions, GenerateResult } from "./commands/generate.js";
+export { executeMigrate, migrateGenerate, migrateDiff, migrateApply } from "./commands/migrate.js";
+export type { MigrateCommandOptions, MigrateResult } from "./commands/migrate.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -76,6 +78,10 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("    generate:client  Generate API client from contracts");
     logger.info("    generate:openapi Generate OpenAPI spec (--output <path>)");
     logger.info("    generate:tests   Regenerate contract tests");
+    logger.info("  migrate:<sub>      Database migration management");
+    logger.info("    migrate:generate Generate migration from type diff (--name <name>)");
+    logger.info("    migrate:diff     Show pending schema changes (--json for JSON)");
+    logger.info("    migrate:apply    Apply pending migrations (--force for destructive)");
     logger.info("  inspect <sub>      Inspect framework state (routes, schema, etc.)");
     logger.info("");
     logger.info("Options:");
@@ -159,6 +165,31 @@ export async function run(argv: string[]): Promise<number> {
     const subcommand = command.slice("generate:".length);
     const { executeGenerate: execGenerate } = await import("./commands/generate.js");
     const result = await execGenerate({
+      rootDir,
+      config,
+      logger,
+      subcommand,
+      flags,
+      verbose,
+    });
+
+    return result.success ? 0 : 1;
+  }
+
+  if (command.startsWith("migrate:")) {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const { loadConfig: loadConf } = await import("./config.js");
+    const config = await loadConf(rootDir);
+
+    const subcommand = command.slice("migrate:".length);
+    const { executeMigrate: execMigrate } = await import("./commands/migrate.js");
+    const result = await execMigrate({
       rootDir,
       config,
       logger,
