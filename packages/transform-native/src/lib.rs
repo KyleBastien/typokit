@@ -5,6 +5,7 @@ mod openapi_generator;
 mod schema_differ;
 mod test_stub_generator;
 mod typia_bridge;
+mod output_pipeline;
 
 use std::collections::HashMap;
 use napi::bindgen_prelude::*;
@@ -243,6 +244,101 @@ pub fn collect_validator_outputs(
         .collect();
 
     typia_bridge::collect_validator_outputs(&pairs)
+}
+
+/// Result of running the full output pipeline
+#[napi(object)]
+#[derive(Debug, Clone)]
+pub struct JsPipelineResult {
+    /// SHA-256 content hash of all input source files
+    pub content_hash: String,
+    /// Extracted type metadata (SchemaTypeMap-compatible)
+    pub types: HashMap<String, JsTypeMetadata>,
+    /// Compiled route table as TypeScript source
+    pub compiled_routes: String,
+    /// OpenAPI 3.1.0 spec as JSON string
+    pub openapi_spec: String,
+    /// Generated contract test stubs as TypeScript source
+    pub test_stubs: String,
+    /// Validator inputs ready for Typia bridge callback
+    pub validator_inputs: Vec<JsTypeValidatorInput>,
+}
+
+/// Compute a SHA-256 content hash of the given file paths and their contents.
+///
+/// Used for cache invalidation: if the hash matches a previous build, outputs
+/// can be reused without regeneration.
+#[napi]
+pub fn compute_content_hash(file_paths: Vec<String>) -> Result<String> {
+    output_pipeline::compute_content_hash(&file_paths)
+        .map_err(|e| Error::from_reason(e))
+}
+
+/// Run the full output pipeline: parse types, compile routes, generate OpenAPI,
+/// generate test stubs, and prepare validator inputs.
+///
+/// Returns all generated outputs plus a content hash for caching.
+/// Validators are returned as inputs — the caller should pass them to
+/// the Typia bridge callback and then call collectValidatorOutputs.
+#[napi]
+pub fn run_pipeline(
+    type_file_paths: Vec<String>,
+    route_file_paths: Vec<String>,
+) -> Result<JsPipelineResult> {
+    let result = output_pipeline::run_pipeline(&type_file_paths, &route_file_paths)
+        .map_err(|e| Error::from_reason(e))?;
+
+    // Convert internal types to JS types
+    let mut types: HashMap<String, JsTypeMetadata> = HashMap::new();
+    for (name, meta) in result.types {
+        let mut properties: HashMap<String, JsPropertyMetadata> = HashMap::new();
+        for (prop_name, prop) in meta.properties {
+            properties.insert(
+                prop_name,
+                JsPropertyMetadata {
+                    type_str: prop.type_str,
+                    optional: prop.optional,
+                },
+            );
+        }
+        types.insert(
+            name.clone(),
+            JsTypeMetadata {
+                name: meta.name,
+                properties,
+            },
+        );
+    }
+
+    let validator_inputs: Vec<JsTypeValidatorInput> = result
+        .validator_inputs
+        .into_iter()
+        .map(|input| {
+            let mut properties = HashMap::new();
+            for (name, prop) in input.properties {
+                properties.insert(
+                    name,
+                    JsPropertyMetadata {
+                        type_str: prop.type_str,
+                        optional: prop.optional,
+                    },
+                );
+            }
+            JsTypeValidatorInput {
+                name: input.name,
+                properties,
+            }
+        })
+        .collect();
+
+    Ok(JsPipelineResult {
+        content_hash: result.content_hash,
+        types,
+        compiled_routes: result.compiled_routes,
+        openapi_spec: result.openapi_spec,
+        test_stubs: result.test_stubs,
+        validator_inputs,
+    })
 }
 
 /// Helper to convert JsTypeMetadata to internal TypeMetadata

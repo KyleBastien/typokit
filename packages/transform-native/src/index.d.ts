@@ -14,6 +14,14 @@ export declare function collectValidatorOutputs(results: Array<Array<string>>): 
 export declare function compileRoutes(filePaths: Array<string>): string
 
 /**
+ * Compute a SHA-256 content hash of the given file paths and their contents.
+ *
+ * Used for cache invalidation: if the hash matches a previous build, outputs
+ * can be reused without regeneration.
+ */
+export declare function computeContentHash(filePaths: Array<string>): string
+
+/**
  * Diff two schema versions and produce a migration draft.
  *
  * Compares old_types against new_types to detect added/removed/modified
@@ -41,6 +49,22 @@ export interface JsMigrationDraft {
   sql: string
   destructive: boolean
   changes: Array<JsSchemaChange>
+}
+
+/** Result of running the full output pipeline */
+export interface JsPipelineResult {
+  /** SHA-256 content hash of all input source files */
+  contentHash: string
+  /** Extracted type metadata (SchemaTypeMap-compatible) */
+  types: Record<string, JsTypeMetadata>
+  /** Compiled route table as TypeScript source */
+  compiledRoutes: string
+  /** OpenAPI 3.1.0 spec as JSON string */
+  openapiSpec: string
+  /** Generated contract test stubs as TypeScript source */
+  testStubs: string
+  /** Validator inputs ready for Typia bridge callback */
+  validatorInputs: Array<JsTypeValidatorInput>
 }
 
 /** Property metadata matching @typokit/types PropertyMetadata shape */
@@ -84,3 +108,13 @@ export declare function parseAndExtractTypes(filePaths: Array<string>): Record<s
  * to the @typokit/transform-typia bridge callback.
  */
 export declare function prepareValidatorInputs(typeFilePaths: Array<string>): Array<JsTypeValidatorInput>
+
+/**
+ * Run the full output pipeline: parse types, compile routes, generate OpenAPI,
+ * generate test stubs, and prepare validator inputs.
+ *
+ * Returns all generated outputs plus a content hash for caching.
+ * Validators are returned as inputs — the caller should pass them to
+ * the Typia bridge callback and then call collectValidatorOutputs.
+ */
+export declare function runPipeline(typeFilePaths: Array<string>, routeFilePaths: Array<string>): JsPipelineResult

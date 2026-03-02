@@ -30,6 +30,15 @@ interface JsTypeValidatorInput {
   properties: Record<string, JsPropertyMetadata>;
 }
 
+interface JsPipelineResult {
+  contentHash: string;
+  types: Record<string, JsTypeMetadata>;
+  compiledRoutes: string;
+  openapiSpec: string;
+  testStubs: string;
+  validatorInputs: JsTypeValidatorInput[];
+}
+
 interface NativeBindings {
   parseAndExtractTypes(
     filePaths: string[]
@@ -51,6 +60,39 @@ interface NativeBindings {
   collectValidatorOutputs(
     results: string[][]
   ): Record<string, string>;
+  computeContentHash(filePaths: string[]): string;
+  runPipeline(
+    typeFilePaths: string[],
+    routeFilePaths: string[]
+  ): JsPipelineResult;
+}
+
+/** Options for the output pipeline */
+export interface PipelineOptions {
+  /** Paths to TypeScript files containing type definitions */
+  typeFiles: string[];
+  /** Paths to TypeScript files containing route contracts */
+  routeFiles: string[];
+  /** Output directory (defaults to ".typokit") */
+  outputDir?: string;
+  /** Optional validator callback — receives type inputs, returns [name, code] pairs */
+  validatorCallback?: (
+    inputs: JsTypeValidatorInput[]
+  ) => Promise<[string, string][]> | [string, string][];
+  /** Path to cache hash file (defaults to ".typokit/.cache-hash") */
+  cacheFile?: string;
+}
+
+/** Result of a full pipeline run */
+export interface PipelineOutput {
+  /** Whether outputs were regenerated (false = cache hit) */
+  regenerated: boolean;
+  /** Content hash of source files */
+  contentHash: string;
+  /** Extracted type metadata */
+  types: SchemaTypeMap;
+  /** Files written to outputDir */
+  filesWritten: string[];
 }
 
 // Load the platform-specific native addon
@@ -245,6 +287,152 @@ export async function collectValidatorOutputs(
 ): Promise<Record<string, string>> {
   const native = await getNative();
   return native.collectValidatorOutputs(results);
+}
+
+/**
+ * Compute a SHA-256 content hash of source files.
+ *
+ * Used for cache invalidation: if the hash matches a previous build,
+ * outputs can be reused without regeneration.
+ *
+ * @param filePaths - Array of file paths to hash
+ * @returns Hex-encoded SHA-256 hash string
+ */
+export async function computeContentHash(
+  filePaths: string[],
+): Promise<string> {
+  const native = await getNative();
+  return native.computeContentHash(filePaths);
+}
+
+/**
+ * Run the full output pipeline with content-hash caching.
+ *
+ * Orchestrates all transform steps: parse types, compile routes, generate
+ * OpenAPI spec, generate test stubs, and prepare validator inputs. Writes
+ * all outputs to the `.typokit/` directory structure:
+ *
+ * - `.typokit/routes/compiled-router.ts` — Compiled radix tree
+ * - `.typokit/schemas/openapi.json` — OpenAPI 3.1.0 spec
+ * - `.typokit/tests/contract.test.ts` — Contract test stubs
+ * - `.typokit/validators/*.ts` — Typia validators (if callback provided)
+ *
+ * Content-hash caching: If the hash of all source files matches the cached
+ * hash, no outputs are regenerated. Force a rebuild by deleting `.typokit/.cache-hash`.
+ *
+ * @param options - Pipeline configuration
+ * @returns Pipeline output with metadata about what was generated
+ */
+export async function buildPipeline(
+  options: PipelineOptions,
+): Promise<PipelineOutput> {
+  const { join, dirname } = await import(/* @vite-ignore */ "path") as {
+    join: (...args: string[]) => string;
+    dirname: (p: string) => string;
+  };
+  const nodeFs = await import(/* @vite-ignore */ "fs") as {
+    existsSync: (p: string) => boolean;
+    mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
+    readFileSync: (p: string, encoding: string) => string;
+    writeFileSync: (p: string, data: string, encoding?: string) => void;
+  };
+
+  const native = await getNative();
+  const outputDir = options.outputDir ?? ".typokit";
+  const cacheFile = options.cacheFile ?? join(outputDir, ".cache-hash");
+
+  // 1. Compute content hash of all input files
+  const allPaths = [...options.typeFiles, ...options.routeFiles];
+  const contentHash = native.computeContentHash(allPaths);
+
+  // 2. Check cache
+  if (nodeFs.existsSync(cacheFile)) {
+    const cachedHash = nodeFs.readFileSync(cacheFile, "utf-8").trim();
+    if (cachedHash === contentHash) {
+      return {
+        regenerated: false,
+        contentHash,
+        types: {},
+        filesWritten: [],
+      };
+    }
+  }
+
+  // 3. Run native pipeline
+  const result = native.runPipeline(options.typeFiles, options.routeFiles);
+
+  // 4. Ensure output directories exist
+  const dirs = [
+    join(outputDir, "routes"),
+    join(outputDir, "schemas"),
+    join(outputDir, "tests"),
+    join(outputDir, "validators"),
+    join(outputDir, "client"),
+  ];
+  for (const dir of dirs) {
+    nodeFs.mkdirSync(dir, { recursive: true });
+  }
+
+  const filesWritten: string[] = [];
+
+  // 5. Write compiled routes
+  const routesPath = join(outputDir, "routes", "compiled-router.ts");
+  nodeFs.writeFileSync(routesPath, result.compiledRoutes, "utf-8");
+  filesWritten.push(routesPath);
+
+  // 6. Write OpenAPI spec
+  const openapiPath = join(outputDir, "schemas", "openapi.json");
+  nodeFs.writeFileSync(openapiPath, result.openapiSpec, "utf-8");
+  filesWritten.push(openapiPath);
+
+  // 7. Write test stubs
+  const testsPath = join(outputDir, "tests", "contract.test.ts");
+  nodeFs.writeFileSync(testsPath, result.testStubs, "utf-8");
+  filesWritten.push(testsPath);
+
+  // 8. Generate and write validators (if callback provided)
+  if (options.validatorCallback && result.validatorInputs.length > 0) {
+    const validatorResults = await options.validatorCallback(
+      result.validatorInputs,
+    );
+    const validatorOutputs = native.collectValidatorOutputs(validatorResults);
+    for (const [filePath, code] of Object.entries(validatorOutputs)) {
+      const fullPath = filePath.startsWith(outputDir)
+        ? filePath
+        : join(outputDir, filePath.replace(/^\.typokit\//, ""));
+      const dir = dirname(fullPath);
+      nodeFs.mkdirSync(dir, { recursive: true });
+      nodeFs.writeFileSync(fullPath, code, "utf-8");
+      filesWritten.push(fullPath);
+    }
+  }
+
+  // 9. Write cache hash
+  nodeFs.mkdirSync(dirname(cacheFile), { recursive: true });
+  nodeFs.writeFileSync(cacheFile, contentHash, "utf-8");
+  filesWritten.push(cacheFile);
+
+  // 10. Convert types to SchemaTypeMap
+  const types: SchemaTypeMap = {};
+  for (const [name, meta] of Object.entries(result.types)) {
+    types[name] = {
+      name: meta.name,
+      properties: {},
+    };
+    for (const [propName, prop] of Object.entries(meta.properties)) {
+      types[name].properties[propName] = {
+        type: prop.type,
+        optional: prop.optional,
+      };
+    }
+  }
+
+  return {
+    regenerated: true,
+    contentHash,
+    types,
+    filesWritten,
+  };
 }
 
 /** Convert SchemaTypeMap to JsTypeMetadata format for native binding */

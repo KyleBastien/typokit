@@ -27,6 +27,14 @@
   "dependencies": {
     "@typokit/types": "workspace:*"
   },
+  "optionalDependencies": {
+    "@typokit/transform-native-win32-x64-msvc": "0.1.0",
+    "@typokit/transform-native-darwin-x64": "0.1.0",
+    "@typokit/transform-native-darwin-arm64": "0.1.0",
+    "@typokit/transform-native-linux-x64-gnu": "0.1.0",
+    "@typokit/transform-native-linux-arm64-gnu": "0.1.0",
+    "@typokit/transform-native-linux-x64-musl": "0.1.0"
+  },
   "napi": {
     "binaryName": "index",
     "targets": [

@@ -8,6 +8,8 @@ dist/
 # Rust/napi-rs build artifacts
 target/
 *.node
+packages/transform-native/index.js
+packages/transform-native/false
 
 # TypoKit generated
 .typokit/

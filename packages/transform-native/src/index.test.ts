@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@rstest/core";
-import { parseAndExtractTypes, compileRoutes, generateOpenApi, diffSchemas, generateTestStubs, prepareValidatorInputs, collectValidatorOutputs } from "./index.js";
+import { parseAndExtractTypes, compileRoutes, generateOpenApi, diffSchemas, generateTestStubs, prepareValidatorInputs, collectValidatorOutputs, computeContentHash, buildPipeline } from "./index.js";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
@@ -512,5 +512,313 @@ describe("collectValidatorOutputs", () => {
 
     expect(output[".typokit/validators/user.ts"]).toContain("validateUser");
     expect(output[".typokit/validators/blog-post.ts"]).toContain("validateBlogPost");
+  });
+});
+
+describe("computeContentHash", () => {
+  it("should produce deterministic hash regardless of file order", async () => {
+    const f1 = createTempTsFile("interface A { id: string; }");
+    const f2 = createTempTsFile("interface B { id: string; }");
+    try {
+      const hash1 = await computeContentHash([f1, f2]);
+      const hash2 = await computeContentHash([f2, f1]);
+      expect(hash1).toBe(hash2);
+      expect(hash1.length).toBe(64); // SHA-256 hex
+    } finally {
+      cleanupFile(f1);
+      cleanupFile(f2);
+    }
+  });
+
+  it("should change when file content changes", async () => {
+    const filePath = createTempTsFile("interface A { id: string; }");
+    try {
+      const hash1 = await computeContentHash([filePath]);
+      fs.writeFileSync(filePath, "interface A { id: string; name: string; }", "utf-8");
+      const hash2 = await computeContentHash([filePath]);
+      expect(hash1).not.toBe(hash2);
+    } finally {
+      cleanupFile(filePath);
+    }
+  });
+});
+
+describe("buildPipeline", () => {
+  function createTempDir(): string {
+    const tmpDir = os.tmpdir();
+    const dir = path.join(tmpDir, `typokit-pipeline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  function cleanupDir(dir: string): void {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+
+  it("should generate all outputs to .typokit/ directory", async () => {
+    const typeSource = `
+/**
+ * @table users
+ */
+interface User {
+  /** @id @generated */
+  id: string;
+  /** @format email @unique */
+  email: string;
+  /** @minLength 2 @maxLength 100 */
+  name: string;
+  age?: number;
+  active: boolean;
+}
+`;
+    const routeSource = `
+interface UsersRoutes {
+  "GET /users": RouteContract<void, void, void, void>;
+  "POST /users": RouteContract<void, void, { email: string; name: string }, void>;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, void>;
+  "PUT /users/:id": RouteContract<{ id: string }, void, { name: string }, void>;
+  "DELETE /users/:id": RouteContract<{ id: string }, void, void, void>;
+}
+`;
+    const typeFile = createTempTsFile(typeSource);
+    const routeFile = createTempTsFile(routeSource);
+    const outputDir = createTempDir();
+    const typokitDir = path.join(outputDir, ".typokit");
+
+    try {
+      const result = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [routeFile],
+        outputDir: typokitDir,
+      });
+
+      // Should have regenerated
+      expect(result.regenerated).toBe(true);
+      expect(result.contentHash.length).toBe(64);
+      expect(result.filesWritten.length).toBeGreaterThanOrEqual(3);
+
+      // Types should be extracted
+      expect(result.types["User"]).toBeDefined();
+      expect(result.types["User"].properties["id"]).toBeDefined();
+      expect(result.types["User"].properties["email"]).toBeDefined();
+
+      // Compiled routes should exist
+      const routesPath = path.join(typokitDir, "routes", "compiled-router.ts");
+      expect(fs.existsSync(routesPath)).toBe(true);
+      const routesContent = fs.readFileSync(routesPath, "utf-8");
+      expect(routesContent).toContain("routeTree");
+      expect(routesContent).toContain("users");
+
+      // OpenAPI spec should exist
+      const openapiPath = path.join(typokitDir, "schemas", "openapi.json");
+      expect(fs.existsSync(openapiPath)).toBe(true);
+      const openapiContent = fs.readFileSync(openapiPath, "utf-8");
+      const spec = JSON.parse(openapiContent);
+      expect(spec.openapi).toBe("3.1.0");
+      expect(spec.paths["/users"]).toBeDefined();
+      expect(spec.paths["/users/{id}"]).toBeDefined();
+
+      // Test stubs should exist
+      const testsPath = path.join(typokitDir, "tests", "contract.test.ts");
+      expect(fs.existsSync(testsPath)).toBe(true);
+      const testsContent = fs.readFileSync(testsPath, "utf-8");
+      expect(testsContent).toContain("GET /users");
+      expect(testsContent).toContain("POST /users");
+
+      // Cache hash should exist
+      const cachePath = path.join(typokitDir, ".cache-hash");
+      expect(fs.existsSync(cachePath)).toBe(true);
+      expect(fs.readFileSync(cachePath, "utf-8").trim()).toBe(result.contentHash);
+
+      // Directories should be created
+      expect(fs.existsSync(path.join(typokitDir, "validators"))).toBe(true);
+      expect(fs.existsSync(path.join(typokitDir, "client"))).toBe(true);
+    } finally {
+      cleanupFile(typeFile);
+      cleanupFile(routeFile);
+      cleanupDir(outputDir);
+    }
+  });
+
+  it("should skip regeneration on cache hit", async () => {
+    const typeSource = `
+interface Task {
+  id: string;
+  title: string;
+  done: boolean;
+}
+`;
+    const routeSource = `
+interface TaskRoutes {
+  "GET /tasks": RouteContract<void, void, void, void>;
+}
+`;
+    const typeFile = createTempTsFile(typeSource);
+    const routeFile = createTempTsFile(routeSource);
+    const outputDir = createTempDir();
+    const typokitDir = path.join(outputDir, ".typokit");
+
+    try {
+      // First build
+      const result1 = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [routeFile],
+        outputDir: typokitDir,
+      });
+      expect(result1.regenerated).toBe(true);
+
+      // Second build — same inputs, should hit cache
+      const result2 = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [routeFile],
+        outputDir: typokitDir,
+      });
+      expect(result2.regenerated).toBe(false);
+      expect(result2.contentHash).toBe(result1.contentHash);
+      expect(result2.filesWritten.length).toBe(0);
+    } finally {
+      cleanupFile(typeFile);
+      cleanupFile(routeFile);
+      cleanupDir(outputDir);
+    }
+  });
+
+  it("should regenerate when source files change", async () => {
+    const typeSource1 = `
+interface Task {
+  id: string;
+  title: string;
+}
+`;
+    const routeSource = `
+interface TaskRoutes {
+  "GET /tasks": RouteContract<void, void, void, void>;
+}
+`;
+    const typeFile = createTempTsFile(typeSource1);
+    const routeFile = createTempTsFile(routeSource);
+    const outputDir = createTempDir();
+    const typokitDir = path.join(outputDir, ".typokit");
+
+    try {
+      // First build
+      const result1 = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [routeFile],
+        outputDir: typokitDir,
+      });
+      expect(result1.regenerated).toBe(true);
+
+      // Modify source file
+      fs.writeFileSync(typeFile, `
+interface Task {
+  id: string;
+  title: string;
+  done: boolean;
+}
+`, "utf-8");
+
+      // Second build — should regenerate
+      const result2 = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [routeFile],
+        outputDir: typokitDir,
+      });
+      expect(result2.regenerated).toBe(true);
+      expect(result2.contentHash).not.toBe(result1.contentHash);
+    } finally {
+      cleanupFile(typeFile);
+      cleanupFile(routeFile);
+      cleanupDir(outputDir);
+    }
+  });
+
+  it("should generate validators when callback is provided", async () => {
+    const typeSource = `
+interface User {
+  id: string;
+  name: string;
+}
+`;
+    const typeFile = createTempTsFile(typeSource);
+    const outputDir = createTempDir();
+    const typokitDir = path.join(outputDir, ".typokit");
+
+    try {
+      const result = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [],
+        outputDir: typokitDir,
+        validatorCallback: (inputs) => {
+          return inputs.map((input) => [
+            input.name,
+            `export function validate${input.name}(input: unknown) { return true; }`,
+          ] as [string, string]);
+        },
+      });
+
+      expect(result.regenerated).toBe(true);
+      // Validator files should be written
+      const validatorsDir = path.join(typokitDir, "validators");
+      const validatorFiles = fs.readdirSync(validatorsDir);
+      expect(validatorFiles.length).toBeGreaterThanOrEqual(1);
+      expect(validatorFiles.some((f: string) => f.endsWith(".ts"))).toBe(true);
+    } finally {
+      cleanupFile(typeFile);
+      cleanupDir(outputDir);
+    }
+  });
+
+  it("should handle large schema efficiently (50 types + 20 routes < 500ms)", async () => {
+    // Generate 50 type interfaces
+    const typeLines: string[] = [];
+    for (let i = 0; i < 50; i++) {
+      typeLines.push(`interface Type${i} {
+  id: string;
+  name: string;
+  email: string;
+  age: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  score?: number;
+}`);
+    }
+    const typeFile = createTempTsFile(typeLines.join("\n\n"));
+
+    // Generate 20 route contracts
+    const routeLines: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      routeLines.push(`interface Route${i} {
+  "GET /items${i}": RouteContract<void, void, void, void>;
+  "POST /items${i}": RouteContract<void, void, void, void>;
+  "GET /items${i}/:id": RouteContract<{ id: string }, void, void, void>;
+}`);
+    }
+    const routeFile = createTempTsFile(routeLines.join("\n\n"));
+    const outputDir = createTempDir();
+    const typokitDir = path.join(outputDir, ".typokit");
+
+    try {
+      const start = Date.now();
+      const result = await buildPipeline({
+        typeFiles: [typeFile],
+        routeFiles: [routeFile],
+        outputDir: typokitDir,
+      });
+      const elapsed = Date.now() - start;
+
+      expect(result.regenerated).toBe(true);
+      expect(Object.keys(result.types).length).toBe(50);
+      expect(elapsed).toBeLessThan(500);
+    } finally {
+      cleanupFile(typeFile);
+      cleanupFile(routeFile);
+      cleanupDir(outputDir);
+    }
   });
 });
