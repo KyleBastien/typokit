@@ -1,6 +1,289 @@
 ---
 title: Server Adapters
-description: Connect TypoKit to different server runtimes.
+description: How TypoKit separates your application logic from the HTTP layer through pluggable server adapters.
 ---
 
-This page is coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+TypoKit is **not** an HTTP server. It is a typed application framework that compiles your route contracts, validators, and middleware into a portable route table — then delegates actual HTTP handling to a **server adapter**.
+
+This separation means you can swap HTTP frameworks without changing a single handler, middleware, or contract.
+
+## The Ownership Boundary
+
+Understanding what TypoKit owns versus what the adapter owns is key to using the system effectively.
+
+| Concern | Owner | Details |
+|---------|-------|---------|
+| Request validation | **TypoKit** | Compiled Typia validators run on every request |
+| Response serialization | **TypoKit** | fast-json-stringify for typed output |
+| Typed middleware pipeline | **TypoKit** | `defineMiddleware` with context type-narrowing |
+| Context creation | **TypoKit** | `ctx.log`, `ctx.fail()`, `ctx.user`, `ctx.requestId` |
+| Error handling | **TypoKit** | `AppError` → structured `ErrorResponse` |
+| Request lifecycle tracing | **TypoKit** | OpenTelemetry spans per request |
+| Debug sidecar integration | **TypoKit** | Dev-mode diagnostics |
+| Compiled route table | **TypoKit** | Portable radix-tree data structure |
+| HTTP parsing & connections | **Adapter** | Keep-alive, chunked encoding, etc. |
+| Route registration | **Adapter** | Translates compiled route table → framework-native routes |
+| Platform-specific optimizations | **Adapter** | `Bun.serve()`, `Deno.serve()`, etc. |
+| Framework-native middleware | **Adapter** | Fastify plugins, Hono middleware, Express middleware |
+
+<Aside type="tip">
+Because TypoKit owns validation, serialization, and error handling, your application behavior is **identical** across all adapters. Only the HTTP transport layer changes.
+</Aside>
+
+## Request Processing Order
+
+Every request flows through the same pipeline regardless of which adapter you choose:
+
+```
+Incoming HTTP Request
+         │
+┌────────▼─────────────┐
+│   Server Adapter      │
+│                       │
+│  1. HTTP parsing      │
+│  2. Framework-native  │
+│     middleware (CORS,  │
+│     compression, etc) │
+│  3. Normalize request │
+│     → TypoKitRequest  │
+└────────┬─────────────┘
+         │
+┌────────▼─────────────┐
+│   TypoKit Core        │
+│                       │
+│  4. Typed middleware   │
+│     chain (sorted by  │
+│     priority)         │
+│  5. Request           │
+│     validation        │
+│  6. Handler execution │
+│  7. Response          │
+│     serialization     │
+│  8. Error handling    │
+│  9. OTel span close   │
+└────────┬─────────────┘
+         │
+┌────────▼─────────────┐
+│   Server Adapter      │
+│                       │
+│  10. Write HTTP       │
+│      response         │
+└──────────────────────┘
+```
+
+<Aside type="note">
+Framework-native middleware (step 2) runs **before** TypoKit normalization. This is where you attach framework-level concerns like CORS, compression, or rate limiting. TypoKit's typed middleware (step 4) runs **after** normalization on the fully-typed `TypoKitRequest`.
+</Aside>
+
+## The ServerAdapter Interface
+
+Every adapter implements this interface from `@typokit/core`:
+
+```typescript
+export interface ServerAdapter {
+  name: string;
+
+  // Translate compiled route table into framework-native routes
+  registerRoutes(
+    routeTable: CompiledRouteTable,
+    handlerMap: HandlerMap,
+    middlewareChain: MiddlewareChain,
+    validatorMap?: ValidatorMap,
+    serializerMap?: SerializerMap,
+  ): void;
+
+  // Start the HTTP server
+  listen(port: number): Promise<ServerHandle>;
+
+  // Convert framework-native request → TypoKitRequest
+  normalizeRequest(raw: unknown): TypoKitRequest;
+
+  // Convert TypoKitResponse → framework-native response
+  writeResponse(raw: unknown, response: TypoKitResponse): void;
+
+  // Escape hatch for framework-native plugins/server instance
+  getNativeServer?(): unknown;
+}
+```
+
+The `registerRoutes` method receives the **compiled route table** — a portable radix-tree data structure — and translates it into whatever the underlying framework needs. The `normalizeRequest` and `writeResponse` methods handle the conversion between framework-specific types and TypoKit's normalized types.
+
+## Available Adapters
+
+### Native Server (`@typokit/server-native`)
+
+The default adapter. Zero external dependencies. Uses the compiled radix tree directly for O(k) route lookup where k is the number of path segments.
+
+```typescript
+import { createApp } from '@typokit/core';
+import { NativeAdapter } from '@typokit/server-native';
+
+const app = createApp({
+  adapter: new NativeAdapter(),
+});
+
+app.register(userRoutes);
+app.register(postRoutes);
+
+await app.listen(3000);
+```
+
+**Best for:** New projects, simple APIs, maximum performance, minimal dependency footprint.
+
+### Fastify (`@typokit/server-fastify`)
+
+Integrates with an existing or new Fastify instance. Walks the compiled route table and registers each route with Fastify's own router, then hands off to TypoKit's pipeline for validation and handling.
+
+```typescript
+import { createApp } from '@typokit/core';
+import { FastifyAdapter } from '@typokit/server-fastify';
+import Fastify from 'fastify';
+
+const fastify = Fastify({ logger: true });
+
+// Use Fastify plugins as usual
+await fastify.register(import('@fastify/cors'), { origin: '*' });
+await fastify.register(import('@fastify/compress'));
+
+const app = createApp({
+  adapter: new FastifyAdapter(fastify),
+});
+
+app.register(userRoutes);
+await app.listen(3000);
+```
+
+**Best for:** Teams already using Fastify, or needing Fastify's plugin ecosystem.
+
+### Hono (`@typokit/server-hono`)
+
+Runs anywhere Hono runs — Node.js, Bun, Deno, and Cloudflare Workers.
+
+```typescript
+import { createApp } from '@typokit/core';
+import { HonoAdapter } from '@typokit/server-hono';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+
+const hono = new Hono();
+hono.use('*', cors());
+
+const app = createApp({
+  adapter: new HonoAdapter(hono),
+});
+
+app.register(userRoutes);
+await app.listen(3000);
+```
+
+**Best for:** Multi-runtime deployments, edge computing, Cloudflare Workers.
+
+### Express (`@typokit/server-express`)
+
+Migration path for teams moving from Express to TypoKit.
+
+```typescript
+import { createApp } from '@typokit/core';
+import { ExpressAdapter } from '@typokit/server-express';
+import express from 'express';
+import cors from 'cors';
+
+const expressApp = express();
+expressApp.use(cors());
+expressApp.use(express.json());
+
+const app = createApp({
+  adapter: new ExpressAdapter(expressApp),
+});
+
+app.register(userRoutes);
+await app.listen(3000);
+```
+
+**Best for:** Incremental migration from Express, teams with existing Express middleware they need to keep.
+
+## When to Use Native vs Bring-Your-Own
+
+Use the **native adapter** when:
+- Starting a new project from scratch
+- You want the smallest possible dependency tree
+- You don't need framework-specific plugins
+- Maximum performance matters (direct radix-tree lookup, no framework overhead)
+
+Use a **framework adapter** when:
+- You have an existing codebase using that framework
+- You need framework-specific plugins (e.g., Fastify's schema-based serialization, Express session middleware)
+- You're incrementally adopting TypoKit — mount TypoKit routes alongside existing framework routes
+- Your deployment target requires it (e.g., Hono for Cloudflare Workers)
+
+<Aside type="tip">
+Regardless of which adapter you choose, your **contracts**, **handlers**, and **typed middleware** remain identical. Only the adapter setup code changes.
+</Aside>
+
+## Platform Adapters: A Separate Axis
+
+Platform adapters and server adapters are **orthogonal** concerns. Platform adapters handle JavaScript runtime differences (Node.js, Bun, Deno). Server adapters handle HTTP framework choice. You choose both independently.
+
+### Compatibility Matrix
+
+|                       | Node.js | Bun | Deno |
+|-----------------------|---------|-----|------|
+| **TypoKit Native**    | ✅      | ✅  | ✅   |
+| **Fastify**           | ✅      | ✅ (compat) | ❌   |
+| **Hono**              | ✅      | ✅  | ✅   |
+| **Express**           | ✅      | ✅ (compat) | ❌   |
+
+Platform adapter packages:
+- `@typokit/platform-node` — Uses Node.js `http` / `http2` modules
+- `@typokit/platform-bun` — Uses `Bun.serve()` for maximum Bun performance
+- `@typokit/platform-deno` — Uses `Deno.serve()` for native Deno support
+
+<Aside type="note">
+Fastify and Express run on Bun via Node.js compatibility mode (marked "compat" above). They work but don't leverage Bun-native APIs. For full Bun performance, use the Native or Hono adapter with `@typokit/platform-bun`.
+</Aside>
+
+### Configuring the Platform
+
+```typescript
+import { createApp } from '@typokit/core';
+import { NativeAdapter } from '@typokit/server-native';
+import { BunPlatform } from '@typokit/platform-bun';
+
+const app = createApp({
+  adapter: new NativeAdapter(),
+  platform: new BunPlatform(),
+});
+
+await app.listen(3000);
+```
+
+When no platform is specified, TypoKit auto-detects the current runtime.
+
+## The `getNativeServer()` Escape Hatch
+
+All adapters provide an optional `getNativeServer()` method that returns the underlying framework instance. Use this when you need direct access to framework-specific APIs:
+
+```typescript
+const app = createApp({
+  adapter: new FastifyAdapter(fastify),
+});
+
+// Access the raw Fastify instance
+const nativeFastify = app.adapter.getNativeServer();
+nativeFastify.addHook('onClose', async () => {
+  await db.close();
+});
+```
+
+<Aside type="caution">
+Using `getNativeServer()` ties your code to a specific framework. Keep framework-specific code isolated and well-documented so it's easy to swap later.
+</Aside>
+
+## Next Steps
+
+- [**Building a Custom Server Adapter**](/typokit/guides/custom-server-adapter/) — Step-by-step guide to implementing the `ServerAdapter` interface
+- [**Middleware and Context**](/typokit/core-concepts/middleware-and-context/) — How typed middleware integrates with the adapter pipeline
+- [**Error Handling**](/typokit/core-concepts/error-handling/) — How errors flow through the adapter layer
+- [**Building Your First API**](/typokit/guides/building-first-api/) — End-to-end tutorial using the native adapter
