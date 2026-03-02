@@ -1,0 +1,73 @@
+# TypoKit
+
+> A schema-first, type-safe API framework for TypeScript that generates validators, database schemas, OpenAPI specs, and client SDKs from your TypeScript types — with zero runtime reflection.
+
+TypoKit follows five core tenets: schema-first (types are the source of truth), zero-cost validation (compile-time via Typia), adapter pattern (swap servers/databases freely), deterministic builds (same input → same output), and AI-inspectable at every layer.
+
+## Docs
+
+- [Quickstart](https://kylebastien.github.io/typokit/getting-started/quickstart/): Get started with TypoKit in 5 minutes
+- [Project Structure](https://kylebastien.github.io/typokit/getting-started/project-structure/): File layout and conventions for a TypoKit project
+
+## Core Concepts
+
+- [Schema-First Types](https://kylebastien.github.io/typokit/core-concepts/schema-first-types/): How TypeScript types drive the entire framework
+- [Routing and Handlers](https://kylebastien.github.io/typokit/core-concepts/routing-and-handlers/): Route contracts, handler functions, and the compiled router
+- [Middleware and Context](https://kylebastien.github.io/typokit/core-concepts/middleware-and-context/): Typed middleware pipeline and request context
+- [Error Handling](https://kylebastien.github.io/typokit/core-concepts/error-handling/): Structured errors with machine-readable context
+- [Server Adapters](https://kylebastien.github.io/typokit/core-concepts/server-adapters/): Express, Fastify, Hono, and native HTTP adapters
+- [Database Adapters](https://kylebastien.github.io/typokit/core-concepts/database-adapters/): Drizzle, Kysely, Prisma, and raw SQL adapters
+- [Plugins](https://kylebastien.github.io/typokit/core-concepts/plugins/): Build-time and runtime plugin hooks
+- [Testing](https://kylebastien.github.io/typokit/core-concepts/testing/): Auto-generated contract tests and integration testing
+- [Observability](https://kylebastien.github.io/typokit/core-concepts/observability/): Structured logging, OpenTelemetry, and debug sidecar
+
+## Guides
+
+- [Building Your First API](https://kylebastien.github.io/typokit/guides/building-first-api/): Step-by-step tutorial building a CRUD API
+- [Custom Server Adapter](https://kylebastien.github.io/typokit/guides/custom-server-adapter/): Build your own server adapter
+- [Custom Plugin](https://kylebastien.github.io/typokit/guides/custom-plugin/): Build a custom plugin with build-time and runtime hooks
+- [Migration from Express/Fastify](https://kylebastien.github.io/typokit/guides/migration/): Incremental adoption guide
+
+## CLI Reference
+
+- [Scaffolding & Dev](https://kylebastien.github.io/typokit/cli-reference/scaffolding-dev/): init, add route, add service, build, dev
+- [Generate, Migrate & Test](https://kylebastien.github.io/typokit/cli-reference/generate-migrate-test/): generate:db, generate:client, generate:openapi, generate:tests, migrate:*, test
+- [Inspect](https://kylebastien.github.io/typokit/cli-reference/inspect/): routes, schema, middleware, dependencies, errors, performance
+
+## Architecture
+
+- [Architecture Overview](https://kylebastien.github.io/typokit/architecture/overview/): High-level architecture, package map, and design decisions
+- [Build Pipeline](https://kylebastien.github.io/typokit/architecture/build-pipeline/): Rust transform stages, tapable hooks, and caching
+- [Compiled Router](https://kylebastien.github.io/typokit/architecture/compiled-router/): Radix tree construction and O(k) route matching
+
+## AI Agents
+
+- [AI Agent Integration](https://kylebastien.github.io/typokit/ai-agents/integration/): Five-phase agent workflow, inspect commands, debug sidecar, and structured errors
+- [Machine-Readable Docs](https://kylebastien.github.io/typokit/ai-agents/machine-readable/): llms.txt, --json flag, OpenAPI spec, and generated file artifacts
+
+## Packages
+
+- [@typokit/core](https://github.com/typokit/typokit/tree/main/packages/core): App creation, routing, middleware pipeline, plugin system
+- [@typokit/types](https://github.com/typokit/typokit/tree/main/packages/types): Shared TypeScript type definitions and interfaces
+- [@typokit/errors](https://github.com/typokit/typokit/tree/main/packages/errors): Structured error types with machine-readable context
+- [@typokit/cli](https://github.com/typokit/typokit/tree/main/packages/cli): CLI tool — init, build, dev, generate, migrate, inspect, test
+- [@typokit/server-native](https://github.com/typokit/typokit/tree/main/packages/server-native): Node.js native HTTP server adapter
+- [@typokit/server-express](https://github.com/typokit/typokit/tree/main/packages/server-express): Express server adapter
+- [@typokit/server-fastify](https://github.com/typokit/typokit/tree/main/packages/server-fastify): Fastify server adapter
+- [@typokit/server-hono](https://github.com/typokit/typokit/tree/main/packages/server-hono): Hono server adapter
+- [@typokit/db-drizzle](https://github.com/typokit/typokit/tree/main/packages/db-drizzle): Drizzle ORM database adapter
+- [@typokit/db-kysely](https://github.com/typokit/typokit/tree/main/packages/db-kysely): Kysely database adapter
+- [@typokit/db-prisma](https://github.com/typokit/typokit/tree/main/packages/db-prisma): Prisma database adapter
+- [@typokit/db-raw](https://github.com/typokit/typokit/tree/main/packages/db-raw): Raw SQL database adapter
+- [@typokit/client](https://github.com/typokit/typokit/tree/main/packages/client): Type-safe HTTP client generated from route contracts
+- [@typokit/client-react-query](https://github.com/typokit/typokit/tree/main/packages/client-react-query): React Query hooks generated from route contracts
+- [@typokit/client-swr](https://github.com/typokit/typokit/tree/main/packages/client-swr): SWR hooks generated from route contracts
+- [@typokit/transform-native](https://github.com/typokit/typokit/tree/main/packages/transform-native): Rust-based native transform pipeline (napi-rs)
+- [@typokit/transform-typia](https://github.com/typokit/typokit/tree/main/packages/transform-typia): Typia integration for zero-cost validators
+- [@typokit/platform-node](https://github.com/typokit/typokit/tree/main/packages/platform-node): Node.js platform adapter
+- [@typokit/platform-bun](https://github.com/typokit/typokit/tree/main/packages/platform-bun): Bun platform adapter
+- [@typokit/platform-deno](https://github.com/typokit/typokit/tree/main/packages/platform-deno): Deno platform adapter
+- [@typokit/otel](https://github.com/typokit/typokit/tree/main/packages/otel): OpenTelemetry integration (traces, logs, metrics)
+- [@typokit/testing](https://github.com/typokit/typokit/tree/main/packages/testing): Test utilities and contract test generation
+- [@typokit/plugin-debug](https://github.com/typokit/typokit/tree/main/packages/plugin-debug): Debug sidecar plugin with introspection endpoints
+- [@typokit/plugin-ws](https://github.com/typokit/typokit/tree/main/packages/plugin-ws): WebSocket plugin with type-safe events

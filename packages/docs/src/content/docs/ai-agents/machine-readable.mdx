@@ -1,6 +1,264 @@
 ---
 title: Machine-Readable Docs
-description: Machine-readable documentation and llms.txt for AI agents.
+description: Machine-readable documentation formats, llms.txt, and structured introspection APIs for AI agents to programmatically discover TypoKit's API surface.
 ---
 
-This page is coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+TypoKit provides multiple machine-readable interfaces so AI agents can discover the API surface, understand schemas, and navigate the codebase **without parsing HTML**. This page documents every structured output format available.
+
+<Aside type="tip">
+  Start with `/llms.txt` for a high-level overview, then use `typokit inspect --json` commands for live project introspection.
+</Aside>
+
+---
+
+## llms.txt — LLM-Friendly Documentation Index
+
+TypoKit publishes two files following the [llmstxt.org](https://llmstxt.org/) convention:
+
+| File | URL | Purpose |
+|------|-----|---------|
+| `llms.txt` | [`/typokit/llms.txt`](/typokit/llms.txt) | Concise summary with links to key docs pages |
+| `llms-full.txt` | [`/typokit/llms-full.txt`](/typokit/llms-full.txt) | Expanded content suitable for LLM context windows |
+
+### llms.txt Format
+
+The `llms.txt` file contains:
+
+- **H1** — Project name
+- **Blockquote** — One-sentence summary
+- **Overview** — Key concepts and architecture summary
+- **H2 sections** — Categorized links to documentation pages
+
+AI agents can fetch `/llms.txt` to discover the documentation structure, then follow links to specific pages for detail.
+
+### llms-full.txt Format
+
+The `llms-full.txt` file expands on `llms.txt` with inline content for each section — package descriptions, CLI command summaries, and architecture highlights — so an agent can load a single file into its context window and get a comprehensive understanding of TypoKit without making additional HTTP requests.
+
+---
+
+## The `--json` Flag — Structured CLI Output
+
+Every `typokit inspect` subcommand supports a `--json` flag that outputs structured JSON instead of human-readable text. This is the **primary interface** for AI agents doing live project introspection.
+
+```bash
+# All inspect commands accept --json
+typokit inspect routes --json
+typokit inspect route "GET /users/:id" --json
+typokit inspect middleware --json
+typokit inspect dependencies --json
+typokit inspect schema --json
+typokit inspect errors --json
+typokit inspect performance --json
+typokit inspect server --json
+typokit inspect build-pipeline --json
+```
+
+### Example: Route Inspection
+
+```bash
+typokit inspect routes --json
+```
+
+```json
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/users/:id",
+      "handler": "src/handlers/users.ts:getUser",
+      "middleware": ["auth", "validate"],
+      "params": { "id": "string" },
+      "requestSchema": null,
+      "responseSchema": "User"
+    }
+  ],
+  "count": 1
+}
+```
+
+### Example: Schema Inspection
+
+```bash
+typokit inspect schema --json
+```
+
+```json
+{
+  "schemas": {
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      },
+      "required": ["id", "name", "email"]
+    }
+  }
+}
+```
+
+### Example: Error Inspection
+
+```bash
+typokit inspect errors --json
+```
+
+```json
+{
+  "errors": [
+    {
+      "type": "VALIDATION_ERROR",
+      "schemaName": "CreateUserInput",
+      "failures": [
+        {
+          "path": "$.email",
+          "expected": "string (email format)",
+          "received": "number",
+          "suggestion": "Change field 'email' from number to a valid email string"
+        }
+      ],
+      "sourceFile": "src/types/user.ts",
+      "line": 12
+    }
+  ]
+}
+```
+
+<Aside type="note">
+  Build-time inspect commands (`routes`, `schema`, `dependencies`, `middleware`, `build-pipeline`) read from `.typokit/` on disk and do not require a running server. Runtime commands (`errors`, `performance`, `server`) query the debug sidecar.
+</Aside>
+
+---
+
+## OpenAPI Spec — Machine-Readable API Description
+
+The `typokit generate:openapi` command produces a complete OpenAPI 3.1 specification from your route contracts and type definitions.
+
+```bash
+# Generate the OpenAPI spec
+typokit generate:openapi
+
+# Output location (default)
+cat .typokit/openapi.json
+```
+
+The generated spec includes:
+
+- **All routes** with method, path, and operation IDs
+- **Request/response schemas** derived from TypeScript types via Typia
+- **Parameter definitions** for path, query, and header params
+- **Error responses** with structured error schemas
+- **Component schemas** for all shared types
+
+### Using the OpenAPI Spec
+
+AI agents can use the OpenAPI spec to:
+
+1. **Discover endpoints** — Parse `paths` to enumerate all available API routes
+2. **Understand request shapes** — Read `requestBody` schemas to construct valid payloads
+3. **Validate responses** — Compare actual responses against `responses` schemas
+4. **Generate clients** — Feed the spec to code generators like `openapi-typescript`
+
+```bash
+# Generate and pipe to a tool
+typokit generate:openapi && cat .typokit/openapi.json | jq '.paths | keys'
+```
+
+---
+
+## Debug Sidecar — Runtime JSON Endpoints
+
+When running with `@typokit/plugin-debug`, a sidecar HTTP server exposes structured JSON endpoints on port **9800** (configurable via `--debug-port`).
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/_debug/routes` | GET | Compiled route table with handler metadata |
+| `/_debug/middleware` | GET | Middleware stack with priority ordering |
+| `/_debug/errors` | GET | Recent errors with structured context |
+| `/_debug/performance` | GET | Request timing percentiles and route-level stats |
+| `/_debug/health` | GET | Server health status and uptime |
+| `/_debug/dependencies` | GET | Package dependency graph |
+| `/_debug/traces` | GET | Recent OpenTelemetry trace spans |
+| `/_debug/logs` | GET | Recent structured log entries |
+
+All endpoints return JSON. Example:
+
+```bash
+# Query routes from the debug sidecar
+curl http://localhost:9800/_debug/routes | jq .
+
+# Get recent errors with structured context
+curl http://localhost:9800/_debug/errors | jq '.errors[] | {type, schemaName, failures}'
+```
+
+<Aside type="caution">
+  The debug sidecar runs in **dev mode** by default (no authentication). In production, set `debugMode: "production"` to require a bearer token. See the [Observability guide](/typokit/core-concepts/observability/) for configuration details.
+</Aside>
+
+---
+
+## Generated File Artifacts
+
+The build pipeline writes machine-readable artifacts to `.typokit/`:
+
+| File | Format | Contents |
+|------|--------|----------|
+| `.typokit/routes.json` | JSON | Compiled route table |
+| `.typokit/schemas.json` | JSON | All extracted type schemas |
+| `.typokit/openapi.json` | JSON | OpenAPI 3.1 specification |
+| `.typokit/validators.ts` | TypeScript | Generated Typia validators |
+| `.typokit/db-schema.ts` | TypeScript | Generated database schema (Drizzle/Kysely/Prisma) |
+| `.typokit/tests/*.test.ts` | TypeScript | Auto-generated contract tests |
+
+Agents can read these files directly from disk without running any commands:
+
+```bash
+# Read the route table
+cat .typokit/routes.json | jq '.routes[] | {method, path}'
+
+# Read all type schemas
+cat .typokit/schemas.json | jq 'keys'
+
+# Get the OpenAPI spec version and info
+cat .typokit/openapi.json | jq '{openapi: .openapi, title: .info.title, version: .info.version}'
+```
+
+---
+
+## Agent Workflow with Machine-Readable Outputs
+
+A typical AI agent session combining these interfaces:
+
+```bash
+# 1. Discover project structure
+typokit inspect routes --json > /tmp/routes.json
+typokit inspect schema --json > /tmp/schemas.json
+
+# 2. Understand a specific route
+typokit inspect route "POST /users" --json
+
+# 3. Make a type change
+# ... edit src/types/user.ts ...
+
+# 4. Rebuild and check
+typokit build
+typokit inspect errors --json
+
+# 5. If errors, read structured failure context
+# The JSON includes path, expected, received, and suggestion fields
+# for each validation failure — enabling targeted self-correction
+
+# 6. Run tests
+typokit test --json
+
+# 7. Generate updated OpenAPI spec
+typokit generate:openapi
+```
+
+<Aside type="tip">
+  For the complete agent integration guide including the five-phase workflow pattern, see [AI Agent Integration](/typokit/ai-agents/integration/).
+</Aside>
