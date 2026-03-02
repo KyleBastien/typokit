@@ -20,5 +20,14 @@
   ],
   "private": true,
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/core": "workspace:*",
+    "@typokit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typokit/server-native": "workspace:*",
+    "@typokit/platform-node": "workspace:*"
+  }
 }
