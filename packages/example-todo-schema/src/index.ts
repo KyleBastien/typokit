@@ -166,7 +166,7 @@ export interface UsersRoutes {
 export interface TodosRoutes {
   "GET /todos": RouteContract<
     void,
-    { page?: number; pageSize?: number; userId?: string },
+    { page?: number; pageSize?: number; userId?: string; completed?: boolean },
     void,
     PaginatedResponse<PublicTodo>
   >;

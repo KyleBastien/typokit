@@ -138,6 +138,21 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/example-todo-server:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@typokit/example-todo-schema':
+        specifier: workspace:*
+        version: link:../example-todo-schema
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/nx:
     dependencies:
       '@nx/devkit':

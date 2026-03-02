@@ -29,7 +29,8 @@
       "@typokit/client-swr": ["packages/client-swr/src/index.ts"],
       "@typokit/types": ["packages/types/src/index.ts"],
       "@typokit/errors": ["packages/errors/src/index.ts"],
-      "@typokit/example-todo-schema": ["packages/example-todo-schema/src/index.ts"]
+      "@typokit/example-todo-schema": ["packages/example-todo-schema/src/index.ts"],
+      "@typokit/example-todo-server": ["packages/example-todo-server/src/index.ts"]
     }
   },
   "references": [
@@ -59,7 +60,8 @@
     { "path": "packages/turbo" },
     { "path": "packages/client-react-query" },
     { "path": "packages/client-swr" },
-    { "path": "packages/example-todo-schema" }
+    { "path": "packages/example-todo-schema" },
+    { "path": "packages/example-todo-server" }
   ],
   "files": [],
   "include": []
