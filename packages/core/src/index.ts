@@ -1,3 +1,3 @@
 // @typokit/core
-export {};
+export { type ServerAdapter } from "./adapters/server.js";
 

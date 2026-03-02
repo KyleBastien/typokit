@@ -35,7 +35,11 @@ importers:
 
   packages/client-swr: {}
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/db-drizzle: {}
 
