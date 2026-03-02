@@ -1,6 +1,457 @@
 ---
 title: Testing
-description: Test your TypoKit applications effectively.
+description: Understand TypoKit's testing architecture — auto-generated contract tests, the test client and integration suite, test factories with valid/invalid variants, and CI consistency guarantees.
 ---
 
-This page is coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+## Philosophy: If the Schema Defines the Contract, TypoKit Can Test It
+
+TypoKit treats tests as a **first-class output of the schema**, not an afterthought. Since your type definitions already encode validation rules, required fields, and response shapes, TypoKit generates contract tests automatically — the same way it generates validators, database schemas, and OpenAPI specs.
+
+This means:
+
+1. **Contract tests are free** — Every route gets validation coverage the moment you define it.
+2. **Factories respect constraints** — Test data generators honor `@format`, `@minLength`, `@maximum`, and other JSDoc tags automatically.
+3. **Integration tests are isolated** — Each test gets a fresh server and in-memory database, with no shared mutable state.
+
+<Aside type="tip">
+  You never write tests to verify that "a missing required field returns 400." TypoKit generates those automatically from the schema. Your manual tests focus on **business logic** — the things only you know about.
+</Aside>
+
+## Auto-Generated Contract Tests
+
+When you run `typokit generate:tests` (or it runs automatically before `typokit test`), TypoKit inspects your route contracts and generates one test file per route group:
+
+```
+__generated__/
+  users.contract.test.ts
+  posts.contract.test.ts
+  auth.contract.test.ts
+```
+
+Routes are grouped by their first path segment — all `/users/*` routes go into `users.contract.test.ts`.
+
+### What Gets Generated
+
+Each route produces three levels of test coverage:
+
+1. **Valid input** — Sends a well-formed request and expects the configured success status (default 200).
+2. **Missing required fields** — Omits each required field one at a time and expects 400.
+3. **Invalid field formats** — Sends malformed values (bad emails, invalid UUIDs, out-of-range numbers, invalid enum values) and expects 400.
+
+### Example Generated Test
+
+```typescript
+// __generated__/users.contract.test.ts
+// Auto-generated from route schemas — do not edit
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createTestClient } from "@typokit/testing";
+import { app } from "../src/app";
+
+let client;
+
+beforeAll(async () => {
+  client = await createTestClient(app);
+});
+
+afterAll(async () => {
+  await client.close();
+});
+
+describe("POST /users", () => {
+  it("accepts valid request", async () => {
+    const res = await client.post("/users", {
+      body: {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        role: "member",
+      },
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects missing required field: name", async () => {
+    const res = await client.post("/users", {
+      body: { email: "jane@example.com", role: "member" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects missing required field: email", async () => {
+    const res = await client.post("/users", {
+      body: { name: "Jane Doe", role: "member" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects invalid email format", async () => {
+    const res = await client.post("/users", {
+      body: { name: "Jane Doe", email: "not-an-email", role: "member" },
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /users/:id", () => {
+  it("accepts valid request", async () => {
+    const res = await client.get("/users/550e8400-e29b-41d4-a716-446655440000");
+    expect(res.status).toBe(200);
+  });
+});
+```
+
+<Aside type="note">
+  Contract tests are **deterministic** — the same schema always generates identical test code. Routes are sorted by method + path, and test values are generated from a seeded PRNG, so regeneration never produces spurious diffs.
+</Aside>
+
+### Smart Regeneration
+
+TypoKit tracks schema hashes in `.typokit/build-cache.json`. When you run `typokit test`, it checks whether schemas have changed since the last generation and auto-runs `generate:tests` if needed. You never have to remember to regenerate.
+
+## The Test Client
+
+The test client provides a typed HTTP interface for making requests against your app in tests.
+
+### `createTestClient(app)`
+
+Starts the app on a random available port and returns a lightweight HTTP client:
+
+```typescript
+import { createTestClient } from "@typokit/testing";
+import { app } from "../src/app";
+
+const client = await createTestClient(app);
+
+// Simple GET
+const res = await client.get("/users/123");
+console.log(res.status); // 200
+console.log(res.body);   // { id: "123", name: "Jane Doe", ... }
+
+// POST with body, query params, and headers
+const res = await client.post("/users", {
+  body: { name: "Jane Doe", email: "jane@example.com" },
+  query: { notify: "true" },
+  headers: { "X-Request-Id": "test-123" },
+});
+
+// Always clean up
+await client.close();
+```
+
+Available methods: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`.
+
+### `request<TContract>()`
+
+For full type safety, use the contract-based request helper:
+
+```typescript
+import { request } from "@typokit/testing";
+import { createUserContract } from "../src/routes/users/contracts";
+
+const res = await request<typeof createUserContract>(client, {
+  body: { name: "Jane Doe", email: "jane@example.com" },
+});
+// res.body is typed as the contract's TResponse
+```
+
+### Test Response Shape
+
+Every response from the test client has this shape:
+
+```typescript
+interface TestResponse<T> {
+  status: number;
+  body: T;
+  headers: Record<string, string>;
+}
+```
+
+## Integration Suite
+
+For tests that need a real database, `createIntegrationSuite` manages the full lifecycle — server, database, and seed data — with complete isolation between tests.
+
+### `createIntegrationSuite(app, options)`
+
+```typescript
+import { createIntegrationSuite } from "@typokit/testing";
+import { app } from "../src/app";
+
+const suite = await createIntegrationSuite(app, {
+  database: true,       // spin up in-memory database
+  seed: "standard",     // apply named seed fixtures
+});
+
+// suite.client — same test client API as above
+// suite.db — in-memory database handle
+```
+
+### In-Memory Database API
+
+When `database: true`, the suite provides a database handle for direct data inspection:
+
+```typescript
+// Insert test data directly
+await suite.db.insert("users", {
+  id: "test-1",
+  name: "Jane Doe",
+  email: "jane@example.com",
+});
+
+// Query data
+const users = await suite.db.findAll("users");
+const user = await suite.db.findById("users", "test-1");
+
+// List available tables
+const tables = await suite.db.tables();
+
+// Clear a single table or all tables
+await suite.db.clearTable("users");
+await suite.db.clear();
+```
+
+### Seed Fixtures
+
+Register reusable seed data sets that can be applied by name:
+
+```typescript
+import { registerSeed } from "@typokit/testing";
+
+registerSeed("standard", async (db) => {
+  await db.insert("users", { id: "u1", name: "Admin", email: "admin@example.com" });
+  await db.insert("users", { id: "u2", name: "Member", email: "member@example.com" });
+  await db.insert("posts", { id: "p1", title: "Hello World", authorId: "u1" });
+});
+```
+
+Then reference it in your suite:
+
+```typescript
+const suite = await createIntegrationSuite(app, {
+  database: true,
+  seed: "standard", // applies the registered seed
+});
+```
+
+<Aside type="caution">
+  Each test gets a **fresh** server and database instance. There is no shared state between tests — this is by design to ensure tests are fully isolated and can run in parallel.
+</Aside>
+
+## Test Factories
+
+Test factories generate realistic, schema-compliant data from your type metadata. They respect all JSDoc constraints automatically.
+
+### `createFactory<T>(metadata)`
+
+```typescript
+import { createFactory } from "@typokit/testing";
+import { UserMetadata } from "../.typokit/schemas/User";
+
+const userFactory = createFactory<User>(UserMetadata);
+
+// Build a single valid instance
+const user = userFactory.build();
+// { id: "550e8400-...", name: "aBcDeFgH", email: "test_a1b2@example.com", ... }
+
+// Build with overrides
+const admin = userFactory.build({ role: "admin", name: "Admin User" });
+
+// Build multiple instances
+const users = userFactory.buildMany(10);
+```
+
+### Invalid Variants
+
+The `buildInvalid` method generates an instance where exactly one field has an invalid value — perfect for testing validation:
+
+```typescript
+// Invalid email format
+const badEmail = userFactory.buildInvalid("email");
+// { id: "550e8400-...", name: "aBcDeFgH", email: "not-an-email", ... }
+
+// Invalid enum value
+const badRole = userFactory.buildInvalid("role");
+// { id: "550e8400-...", name: "aBcDeFgH", email: "test@example.com", role: "INVALID_ENUM", ... }
+```
+
+### How Factories Respect Constraints
+
+Factories read JSDoc tags from the type metadata and generate values accordingly:
+
+| JSDoc Tag | Factory Behavior |
+|-----------|-----------------|
+| `@format email` | Generates `test_{seed}@example.com` |
+| `@format uuid` | Generates valid UUIDv4 |
+| `@format date` | Generates ISO date string |
+| `@format url` | Generates `https://example.com/{seed}` |
+| `@minLength N` / `@maxLength N` | Constrains string length |
+| `@minimum N` / `@maximum N` | Constrains numeric range |
+| `@enum` | Picks from valid enum values |
+| `@id @generated` | Generates auto-increment or UUID based on format |
+
+<Aside type="tip">
+  Factory data is **deterministic** — the same metadata always produces the same values via a seeded Mulberry32 PRNG. This means tests are reproducible across runs and machines.
+</Aside>
+
+## Schema Matcher
+
+TypoKit provides a custom test matcher for validating responses against compiled schemas:
+
+```typescript
+import { registerSchemaValidators, toMatchSchema } from "@typokit/testing";
+import { validators } from "../.typokit/validators";
+
+// Register once in your test setup
+registerSchemaValidators(validators);
+
+// Use in tests (works with Jest, Vitest, and Rstest)
+expect(res.body).toMatchSchema("User");
+expect(res.body).toMatchSchema("CreateUserInput");
+```
+
+When validation fails, the matcher provides path-based error messages:
+
+```
+Expected value to match schema "User":
+  - $.email: expected string with format "email", received "not-an-email"
+  - $.age: expected number >= 0, received -1
+```
+
+## CLI Test Commands
+
+TypoKit provides three test commands that auto-detect your test runner (Vitest, Jest, or Rstest):
+
+### `typokit test`
+
+Runs **all** tests — both generated contract tests and your manual tests:
+
+```bash
+typokit test
+```
+
+This command:
+1. Checks if schemas have changed since last generation
+2. Auto-runs `generate:tests` if needed
+3. Detects your test runner from config files (`vitest.config.*`, `jest.config.*`, `rstest.config.*`)
+4. Runs the full test suite
+
+### `typokit test:contracts`
+
+Runs **only** auto-generated contract tests:
+
+```bash
+typokit test:contracts
+```
+
+Filters to `__generated__/**/*.contract.test.ts` files. Useful for quick validation that your routes match their schemas.
+
+### `typokit test:integration`
+
+Runs **only** integration tests:
+
+```bash
+typokit test:integration
+```
+
+Filters to `tests/integration/**` files. These are your hand-written tests that exercise business logic with real database access.
+
+### Common Options
+
+```bash
+# Force a specific test runner
+typokit test --runner vitest
+
+# Verbose output
+typokit test --verbose
+
+# Run a specific test file
+typokit test users.contract.test.ts
+```
+
+<Aside type="note">
+  If no runner config is found, TypoKit defaults to Vitest. You can always override with `--runner`.
+</Aside>
+
+## CI Consistency Guarantees
+
+TypoKit's testing system is designed for reliable CI from day one:
+
+### Idempotent Generation
+
+The same schema always generates identical test code. There is no randomness, no timestamps, and no environment-dependent values in generated tests. If you regenerate and `git diff` shows no changes, your tests are in sync.
+
+### Isolated Tests
+
+- **Contract tests** spin up a fresh server per file via `createTestClient`
+- **Integration tests** get an independent server + in-memory database via `createIntegrationSuite`
+- **No shared mutable state** between tests by default
+- Database tests use transaction rollback per test for clean isolation
+
+### Flaky Test Detection
+
+When TypoKit detects a test that passes and fails inconsistently across 3 runs, it flags it as flaky. Flaky tests are reported separately in the output so they don't block your CI pipeline while you investigate.
+
+### Deterministic Factories
+
+Factory data is generated from a seeded PRNG (Mulberry32), so the same factory call always produces the same values. No `Math.random()`, no `Date.now()` — just predictable, reproducible test data.
+
+## Putting It All Together
+
+Here's a typical test workflow for a TypoKit app:
+
+```typescript
+// tests/integration/users.test.ts
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createIntegrationSuite, createFactory } from "@typokit/testing";
+import { app } from "../../src/app";
+import { UserMetadata } from "../../.typokit/schemas/User";
+
+const userFactory = createFactory(UserMetadata);
+
+describe("User management", () => {
+  let suite;
+
+  beforeAll(async () => {
+    suite = await createIntegrationSuite(app, {
+      database: true,
+      seed: "standard",
+    });
+  });
+
+  afterAll(async () => {
+    await suite.client.close();
+  });
+
+  it("creates a user with valid data", async () => {
+    const input = userFactory.build({ role: "member" });
+    const res = await suite.client.post("/users", { body: input });
+
+    expect(res.status).toBe(201);
+    expect(res.body.email).toBe(input.email);
+
+    // Verify in database
+    const dbUser = await suite.db.findById("users", res.body.id);
+    expect(dbUser).toBeDefined();
+    expect(dbUser.name).toBe(input.name);
+  });
+
+  it("rejects duplicate email", async () => {
+    const input = userFactory.build();
+
+    await suite.client.post("/users", { body: input });
+    const res = await suite.client.post("/users", { body: input });
+
+    expect(res.status).toBe(409);
+  });
+});
+```
+
+<Aside type="tip">
+  Auto-generated contract tests cover the **structural** correctness of your API (validation, status codes, field requirements). Your manual integration tests cover **behavioral** correctness (business rules, data persistence, edge cases). Together, they give you comprehensive coverage with minimal effort.
+</Aside>
+
+## Next Steps
+
+- [Building Your First API](/typokit/guides/building-first-api/) — hands-on tutorial that includes writing tests
+- [Error Handling](/typokit/core-concepts/error-handling/) — how validation errors propagate to test responses
+- [CLI Reference: Test Commands](/typokit/cli-reference/generate-migrate-test/) — full command options and flags
