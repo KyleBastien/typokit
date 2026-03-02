@@ -356,3 +356,64 @@ Started: 03/02/2026 09:17:20
   - Runner-specific patterns differ: Vitest uses un __generated__/, Jest uses --testPathPattern
   - 351 pages total after build (same count — replaced a stub page)
 ---
+## 2026-03-02T19:08 - US-023
+- Wrote comprehensive CLI reference for Inspect commands at packages/docs/src/content/docs/cli-reference/inspect.mdx
+- Covers 9 subcommands: routes, route, middleware, dependencies/deps, schema, errors, performance, server, build-pipeline
+- Each command includes: syntax, flags, description of what it does, example JSON output
+- Separated into Build-Time Commands (read from disk) and Runtime Commands (query debug sidecar)
+- Documents global flags: --json, --format json, --debug-port, --root, --verbose
+- Includes AI agent integration section with common workflow examples
+- Uses Starlight Aside components for tips, notes, cautions
+- Cross-links to AI Agent Integration guide
+- Files changed: packages/docs/src/content/docs/cli-reference/inspect.mdx
+- **Learnings for future iterations:**
+  - AC says cli/inspect.mdx but sidebar uses cli-reference/inspect slug -- use existing file and slug
+  - Inspect commands split into build-time (read generated files) and runtime (query debug sidecar on port 9800)
+  - Default debug sidecar port is 9800 (not 9229 as mentioned in plugin-debug docs for a different port)
+  - inspect.ts uses dynamic imports for path/fs/http modules to stay platform-agnostic
+  - deps is an alias for dependencies subcommand
+  - 351 pages total after build (same count -- replaced a stub page)
+---
+
+## 2026-03-02T19:17 - US-024
+- Wrote comprehensive Architecture Overview page at packages/docs/src/content/docs/architecture/overview.mdx
+- Covers: high-level architecture Mermaid diagram (schema -> build -> runtime tiers), package responsibilities table (30 packages across 10 categories: core, transform, server adapters, platform adapters, db adapters, testing/observability, plugins, client generation, build tooling), build pipeline flow diagram with 6 AsyncSeriesHook phases, request processing sequence diagram (10-step flow through server adapter -> TypoKit core -> handler), key design decisions table (8 decisions with rationale and trade-offs), links to deep-dive pages
+- Uses Starlight components: Aside (tip, note)
+- Uses Mermaid diagrams: graph TD, flowchart LR, sequenceDiagram
+- Cross-links to build-pipeline, compiled-router, quickstart, building-first-api
+- Files changed: packages/docs/src/content/docs/architecture/overview.mdx
+- **Learnings for future iterations:**
+  - Mermaid diagrams render natively in Starlight without additional configuration
+  - Package count is 30 (excluding example-* packages and docs)
+  - Architecture pages should link to the repo's typokit-arch.md as the canonical full architecture document
+  - 351 pages total after build (same count -- replaced a stub page)
+---
+
+## 2026-03-02T19:21 - US-025
+- Wrote comprehensive Build Pipeline deep dive page at packages/docs/src/content/docs/architecture/build-pipeline.mdx
+- Covers all acceptance criteria: Rust transform pipeline stages (parse, extract, route table, OpenAPI, test stubs, schema diff, Typia callback, write), napi-rs boundary and Typia integration, .typokit/ output directory structure, tapable hook system with AsyncSeriesHook and build phase hooks, build performance targets, content-hash caching
+- Uses Starlight components: Aside, Steps, Tabs/TabItem for build tool integration examples
+- Files changed: packages/docs/src/content/docs/architecture/build-pipeline.mdx
+- **Learnings for future iterations:**
+  - The typokit-arch.md file in repo root is the authoritative source for all architecture details
+  - Section 12 of typokit-arch.md covers the build pipeline exhaustively (sections 12.1-12.12)
+  - Starlight Steps component works well for sequential pipeline stages
+  - Tabs component is useful for showing alternative configurations (Standalone/Nx/Turborepo)
+  - Architecture deep dive pages benefit from ASCII diagrams for showing data flow between Rust and JS boundaries
+---
+
+## 2026-03-02T19:27 - US-026
+- Wrote comprehensive Compiled Router deep dive documentation at packages/docs/src/content/docs/architecture/compiled-router.mdx
+- Covers: radix tree construction at build time (Rust), runtime consumption (TypeScript), compiled router output format with code examples
+- Explains static vs parameterized route lookup with O(k) complexity
+- Documents edge cases: param vs static priority, wildcard/catch-all, trailing slashes, 405 handling
+- Includes performance targets table (static lookup < 100ns, param lookup < 200ns, load time < 1ms)
+- Includes benchmark comparison with Express, Fastify, and Hono
+- Shows how each server adapter (native, Fastify, Hono) consumes the compiled router differently using Tabs component
+- Files changed: packages/docs/src/content/docs/architecture/compiled-router.mdx
+- **Learnings for future iterations:**
+  - The existing stub file was at compiled-router.mdx (not router.mdx as AC suggested) — always check existing files and sidebar slugs
+  - Use Tabs/TabItem components for showing adapter-specific code examples (consistent with build-pipeline.mdx style)
+  - Steps component works well for sequential processes (tree construction, runtime matching)
+  - Radix tree / compiled router details are spread across typokit-arch.md sections 4, 6.7, 12, and the build-pipeline.mdx
+---
