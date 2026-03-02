@@ -3,6 +3,8 @@ Started: 03/01/2026 21:04:22
 ---
 
 ## Codebase Patterns
+- Use globalThis cast for crypto access (same pattern as process/fetch) — no @types/node means no global type declarations
+- rstest 0.0.1 does NOT support `vi` (vitest mocks) — use manual spy patterns (e.g., `fetchCalls` array) for mocking
 - ValidatorMap maps string refs to ValidatorFn — mirrors HandlerMap pattern; RouteHandler.validators is optional
 - SerializerMap follows same pattern as ValidatorMap — string ref in RouteHandler.serializer pointing to SerializerFn in map
 - Validation runs after route matching, before handler — prefix field errors with params./query./body. for attribution
@@ -37,6 +39,7 @@ Started: 03/01/2026 21:04:22
 - TypeMetadata has optional `jsdoc?: Record<string, string>` at both type level and property level — DB adapters use this for @table, @id, @generated, @unique, @default
 - DB adapters GENERATE code (string output), don't import ORM libs at runtime — output is GeneratedOutput[]
 - DatabaseAdapter interface is in @typokit/core (adapters/database.ts), not @typokit/types
+- Plugin sidecar servers use @typokit/platform-node createServer directly — not server-native adapter
 
 ## 2026-03-02T05:04:30Z - US-001
 - Initialized Nx monorepo with pnpm workspaces
@@ -515,6 +518,7 @@ Started: 03/01/2026 21:04:22
   - DB adapters don't import drizzle-orm at runtime — they GENERATE code that uses it
   - toSnakeCase + pluralize convention for table names when no @table JSDoc tag
   - DatabaseAdapter interface is in @typokit/core (not @typokit/types) — add both as workspace deps
+- Plugin sidecar servers use @typokit/platform-node createServer directly — not server-native adapter
 ---
 
 ## 2026-03-02T08:17:00Z - US-029
@@ -579,4 +583,196 @@ Started: 03/01/2026 21:04:22
   - Testing package needs @typokit/server-native + @typokit/platform-node as devDeps for integration tests
   - Use port 0 pattern for auto-assigned ports, read via nativeServer.address().port
   - ESLint catches unused imports in test files — prefix unused params with _
+---
+
+## 2026-03-02T08:37:51Z - US-033
+- Implemented `createIntegrationSuite(app, options)` function in `packages/testing/src/integration-suite.ts`
+- Creates isolated server + in-memory database per suite instance
+- Options: `database: boolean` to spin up in-memory DB, `seed: string` for named seed fixtures
+- `suite.setup()` starts server and seeds DB, `suite.teardown()` stops server and cleans up
+- `suite.client` returns typed test client, `suite.db` returns in-memory database
+- Includes `registerSeed()` / `getSeed()` for named seed fixture registration
+- InMemoryDatabase supports insert, findAll, findById, clearTable, clear, tables
+- Returns copies from findAll/findById to prevent mutation of internal state
+- Files changed: packages/testing/src/integration-suite.ts (new), packages/testing/src/integration-suite.test.ts (new), packages/testing/src/index.ts (re-exports)
+- 25 tests pass (15 new integration-suite tests + 10 existing test-client tests)
+- **Learnings for future iterations:**
+  - Integration suites reuse `createTestClient` from existing test client module
+  - Each suite creates its own app instance — do not share app objects between suites
+  - In-memory database is a simple Map-based store, not tied to any ORM adapter
+  - Seed registry is global (module-level Map) — register seeds before creating suites
+---
+
+## 2026-03-02T08:42:00Z - US-034
+- Implemented createFactory<T>(metadata, options) in packages/testing/src/factory.ts
+- Factory.build(overrides?) produces valid instances with random data from TypeMetadata
+- Factory.buildMany(count, overrides?) produces multiple instances
+- Factory.buildInvalid(field) produces instance with specific field invalid
+- Seeded PRNG (mulberry32) for deterministic output (same seed = same data)
+- JSDoc constraint support: @format email/url/uuid/date-time, @minLength, @maxLength, @minimum, @maximum
+- String union type support (picks random valid value from union)
+- Array type support (string[] generates array of strings)
+- 17 unit tests covering: valid build, formats, constraints, overrides, buildMany, buildInvalid, determinism, arrays
+- Files changed: packages/testing/src/factory.ts (new), packages/testing/src/factory.test.ts (new), packages/testing/src/index.ts
+- **Learnings for future iterations:**
+  - TypeMetadata.properties[x].jsdoc holds constraint tags for data generation
+  - mulberry32 is a simple seedable PRNG that works well for deterministic test data
+  - Factory uses a fresh PRNG per build() call from same seed for determinism; buildMany uses single PRNG for variety
+  - String union types can be parsed by splitting on | and stripping quotes
+  - ESLint is clean with import type for type-only imports from @typokit/types
+---
+
+## 2026-03-02T08:48:00Z - US-035
+- Implemented toMatchSchema(schemaName) custom matcher in packages/testing/src/schema-matcher.ts
+- registerSchemaValidators() registers compiled ValidatorFn instances by schema name
+- getSchemaValidator() retrieves by name with descriptive errors listing available schemas
+- matchSchema() core logic validates input and produces field-level error details
+- toMatchSchema() returns { pass, message() } compatible with Jest, Vitest, and Rstest expect.extend()
+- Clear error messages show path, expected type, and actual value for each failing field
+- 19 unit tests covering: registration, retrieval errors, valid PublicUser pass, invalid fail, field error details, .not context, expect.extend integration
+- Files changed: packages/testing/src/schema-matcher.ts (new), packages/testing/src/schema-matcher.test.ts (new), packages/testing/src/index.ts (exports)
+- **Learnings for future iterations:**
+  - Jest/Vitest/Rstest all share the same expect.extend({ matcherName: fn }) API — matcher returns { pass, message() }
+  - The 	his context in matchers has isNot for .not assertions — but the framework handles negation automatically
+  - ValidatorFn returns ValidationResult with errors?: ValidationFieldError[] — path, expected, actual fields
+  - Rstest's expect.extend works identically to Jest/Vitest — no adapter differences needed
+---
+
+## 2026-03-02T08:52:00Z - US-036
+- Implemented generateContractTests() in packages/testing/src/contract-generator.ts
+- Routes grouped by path prefix into __generated__/*.contract.test.ts files
+- Test-runner-agnostic: supports Jest, Vitest, Rstest import styles via runner option
+- detectTestRunner() auto-detects runner from package.json deps/scripts
+- For each route generates: valid input → expected status, missing required fields → 400, invalid field formats → 400
+- Tests use createTestClient(app) and toMatchSchema() from @typokit/testing
+- Idempotent: same schema always generates identical output (deterministic sorting)
+- DO NOT EDIT header on all generated files
+- Supports custom expectedStatus, optional responseSchema assertions
+- Handles GET (no body) and POST/PUT/PATCH (with body) routes differently
+- 27 unit tests covering all acceptance criteria
+- Files changed: packages/testing/src/contract-generator.ts (new), packages/testing/src/contract-generator.test.ts (new), packages/testing/src/index.ts (exports)
+- **Learnings for future iterations:**
+  - Contract test generator works with ContractTestRoute[] + SchemaTypeMap — decoupled from compile step
+  - Group routes by first path segment for file organization (e.g., /users/* → users.contract.test.ts)
+  - Jest imports from @jest/globals, Vitest from vitest, Rstest from @rstest/core
+  - ESLint catches unused type imports in test files — only import types actually used
+  - beforeAll/afterAll pattern for test client lifecycle avoids spinning up a server per test
+  - Invalid value generation: use "not-an-email" for email format, wrong-type values for number/boolean
+---
+
+## 2026-03-02T08:59:00Z - US-037
+- Implemented type-safe fetch client in `packages/client/src/index.ts`
+- createClient<TRoutes>(options) factory creating TypeSafeClient with typed get/post/put/patch/delete methods
+- ExtractParams<T> type-level utility for inferring path params from route patterns
+- RouteMap type mapping paths to per-method RouteContracts
+- Request interceptors (sync and async) for auth headers etc.
+- ClientError class extending AppError for non-OK responses
+- Error responses with ErrorResponse body throw typed AppError subclasses via createAppError
+- env.d.ts declares fetch/URL/RequestInit/Response types for platform-agnostic builds
+- 13 unit tests: client construction, GET/POST/PUT/DELETE, path params, query params, JSON body, headers, error handling, interceptors
+- Files changed: packages/client/package.json, packages/client/tsconfig.json, packages/client/src/index.ts, packages/client/src/index.test.ts, packages/client/src/env.d.ts
+- **Learnings for future iterations:**
+  - rstest 0.0.1 does NOT support `vi` (vitest mock utilities) — use manual fetch spy pattern with `fetchCalls` array instead
+  - For platform-agnostic packages needing fetch/URL/Headers, create `env.d.ts` with ambient type declarations (no DOM lib, no @types/node)
+  - Use `ResponseLike` interface instead of `Response` in env.d.ts to avoid conflicts with any lib that does declare Response
+  - Type-level conditional types for MethodRequestOptions get complex — test with explicit type assertions in test file
+---
+
+## 2026-03-02T09:06:07Z - US-038
+- Implemented StructuredLogger class in packages/otel/src/logger.ts implementing Logger interface from @typokit/types
+- ctx.log API with all six levels: trace, debug, info, warn, error, fatal
+- Log entries automatically include: traceId, route, phase, requestId, serverAdapter name
+- Log entries are structured JSON (LogEntry type in types.ts)
+- Default sink: StdoutSink writes JSON to stdout (zero config)
+- Log level configurable via LoggingConfig.level (defaults: info in production, debug in development)
+- Sensitive field redaction via LoggingConfig.redact (glob-style patterns like *.password)
+- Child logger support via .child() for adding metadata per-phase
+- Multiple sinks support (TestSink for testing, StdoutSink for production)
+- 17 unit tests covering all levels, metadata enrichment, level filtering, redaction (nested + arrays), child loggers, multi-sink
+- Files changed: packages/otel/package.json, packages/otel/tsconfig.json, packages/otel/src/index.ts, packages/otel/src/types.ts, packages/otel/src/logger.ts, packages/otel/src/redact.ts, packages/otel/src/index.test.ts
+- **Learnings for future iterations:**
+  - @typokit/otel depends on @typokit/types for the Logger interface — keep StructuredLogger in sync with Logger
+  - Use globalThis cast pattern for process.env/process.stdout access (no @types/node in this package)
+  - LogSink interface enables testability — inject TestSink[] to capture entries without stdout noise
+  - redactFields works recursively on nested objects and arrays of objects
+  - StdoutSink uses process.stdout.write (not console.log) to avoid extra formatting
+---
+
+## 2026-03-02T09:10:40Z - US-039
+- Implemented OpenTelemetry tracing in packages/otel/src/tracing.ts
+- Span class: mutable span with traceId, spanId, parentSpanId, name, kind, attributes, status, timing
+- Tracer class: manages spans per request — startRootSpan(), startSpan(), flush(), getSpans()
+- Span hierarchy: root span (server kind) → child spans (internal kind) for middleware, validation, handler, serialization
+- Trace ID auto-generated (32-char hex) and propagated across all spans
+- Three exporters: ConsoleSpanExporter (stdout JSON), OtlpSpanExporter (HTTP POST to OTLP endpoint), NoopSpanExporter
+- resolveTracingConfig() normalizes TelemetryConfig into TracingConfig (handles boolean or object tracing option)
+- createRequestTracer() factory for per-request tracer with TelemetryConfig
+- TracingConfig, TelemetryConfig, SpanData, SpanStatus, SpanExporter types added to types.ts
+- 36 unit tests covering: ID generation, span lifecycle, attributes, status, parent-child hierarchy, tracer flush/export, config resolution, exporter creation
+- Files changed: packages/otel/src/tracing.ts (new), packages/otel/src/tracing.test.ts (new), packages/otel/src/types.ts, packages/otel/src/index.ts
+- **Learnings for future iterations:**
+  - Use globalThis cast pattern for crypto access (same as process): (globalThis as unknown as { crypto?: ... }).crypto
+  - No @types/node means no global crypto/fetch types — always wrap with globalThis casts
+  - OtlpSpanExporter uses fire-and-forget fetch with .catch(() => {}) for non-blocking export
+  - SpanData is the serializable interface; Span is the mutable class that converts to SpanData via toData()
+  - Tracer.flush() auto-ends any open spans before exporting
+---
+
+
+## 2026-03-02T09:15:07Z - US-040
+- Implemented MetricsCollector class in packages/otel/src/metrics.ts
+- Three metric instruments: http.server.request.duration (histogram), http.server.active_requests (gauge), http.server.error_count (counter)
+- All metrics labeled with route, method, status code via MetricLabels interface
+- Three metric exporters: ConsoleMetricExporter (stdout JSON), OtlpMetricExporter (HTTP POST to OTLP endpoint), NoopMetricExporter
+- resolveMetricsConfig() normalizes TelemetryConfig into MetricsConfig (handles boolean or object metrics option)
+- createMetricsCollector() factory for app-level metrics with TelemetryConfig
+- TelemetryConfig.metrics now supports boolean | MetricsConfig (updated types.ts)
+- telemetry.serviceName sets the OTel resource service name
+- MetricData, MetricLabels, HistogramDataPoint, GaugeDataPoint, CounterDataPoint types added to types.ts
+- 27 unit tests covering all acceptance criteria
+- Files changed: packages/otel/src/metrics.ts (new), packages/otel/src/metrics.test.ts (new), packages/otel/src/types.ts, packages/otel/src/index.ts
+- **Learnings for future iterations:**
+  - MetricData has a 	ype field (histogram/gauge/counter) — avoid spreading MetricData into objects with a 	ype property (TS2783 duplicate property error)
+  - Metric exporters follow same pattern as SpanExporters — Console/Otlp/Noop trio
+  - resolveMetricsConfig mirrors resolveTracingConfig — same pattern for boolean | object normalization
+  - MetricsCollector tracks active requests as a simple counter (increment on start, decrement on end, floor at 0)
+---
+
+## 2026-03-02T09:19:30Z - US-041
+- Implemented OTel Log Bridge in packages/otel/src/log-bridge.ts
+- OtelLogSink class implements LogSink, pushes structured log entries to OTel Collector via OTLP HTTP POST
+- Log entries include traceId and spanId (from data field) for trace correlation
+- Severity mapping: trace=1, debug=5, info=9, warn=13, error=17, fatal=21 per OTel spec
+- Route, phase, requestId, serverAdapter sent as OTLP attributes; extra data fields prefixed with data.*
+- createOtelLogSink() factory: opt-in, returns OtelLogSink only when telemetry.tracing is enabled
+- Derives /v1/logs endpoint from /v1/traces endpoint automatically
+- Fire-and-forget fetch with .catch(() => {}) for non-blocking export (same pattern as OtlpSpanExporter)
+- Works alongside StdoutSink (both active simultaneously via multi-sink StructuredLogger)
+- 17 unit tests covering: OTLP format, trace context, severity mapping, attributes, missing fetch, opt-in config, endpoint derivation, serviceName, integration with StructuredLogger
+- Files changed: packages/otel/src/log-bridge.ts (new), packages/otel/src/log-bridge.test.ts (new), packages/otel/src/index.ts (exports)
+- **Learnings for future iterations:**
+  - OTel log severity numbers: TRACE=1, DEBUG=5, INFO=9, WARN=13, ERROR=17, FATAL=21
+  - OTLP logs endpoint is /v1/logs (same base as /v1/traces and /v1/metrics)
+  - spanId can be passed via LogEntry.data.spanId for correlation — the bridge extracts it as a top-level OTLP field
+  - OtelLogSink follows same fire-and-forget pattern as OtlpSpanExporter and OtlpMetricExporter
+  - createOtelLogSink reuses resolveTracingConfig() to determine if tracing is enabled (opt-in check)
+---
+
+## 2026-03-02T09:23:00Z - US-042
+- Implemented @typokit/plugin-debug with full debug sidecar server
+- debugPlugin(options) factory function implementing TypoKitPlugin interface
+- Sidecar HTTP server on separate port (default 9800) using @typokit/platform-node createServer
+- Dev mode: no auth, binds to 0.0.0.0; Production mode: API key via X-Debug-Key, IP/CIDR allowlist, rate limiting, binds to 127.0.0.1
+- 8 debug endpoints: routes, middleware, performance (p50/p95/p99), errors, health, dependencies, traces, logs
+- All read-only (405 on non-GET), with redaction support via @typokit/otel redactFields
+- onSchemaChange hook clears cached route map; onError hook records errors
+- Services API (_debug) for recording errors, traces, logs, performance data, route table
+- 18 integration tests: lifecycle, all endpoints, production security (API key auth), redaction
+- Files changed: packages/plugin-debug/src/index.ts, packages/plugin-debug/src/index.test.ts, packages/plugin-debug/package.json, packages/plugin-debug/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Plugin debug sidecar uses @typokit/platform-node createServer directly (not server-native) for a standalone HTTP server
+  - otel dist may be stale — rebuild with 	sc -p tsconfig.json in packages/otel before typechecking dependents
+  - Plugin exposes data collection via app.services["_debug"] — other plugins/middleware can call recordError/recordTrace/etc.
+  - Use port 19800+ for test ports to avoid conflicts with other tests using default ports
+  - CompiledRoute tree traversal needs to handle paramChild/wildcardChild separately from static children
 ---
