@@ -126,3 +126,21 @@ Started: 03/01/2026 21:04:22
   - ESLint enforces no unused destructured params — prefix with `_` (e.g., `_query`) for intentionally unused params in tests
   - Void contract fields use `undefined as void` when calling handlers in tests
 ---
+
+## 2026-03-02T05:50:00Z - US-009
+- Implemented `createApp()` factory function in `packages/core/src/app.ts`
+- `createApp({ server, middleware?, routes, plugins?, logging?, telemetry? })` returns `TypoKitApp`
+- `RouteGroup` interface: `{ prefix, handlers, middleware? }`
+- Plugin lifecycle: `onStart` -> `server.listen()` -> `onReady`; `onStop` -> `server.close()` on `app.close()`
+- `app.listen(port)` delegates to server adapter
+- `app.getNativeServer()` delegates to server adapter
+- `createErrorMiddleware()` auto-registered - catches `AppError` -> `ErrorResponse`, unknown -> 500
+- 20 unit tests covering app creation, route registration, server delegation, plugin lifecycle order, error middleware
+- Files changed: packages/core/src/app.ts (new), packages/core/src/app.test.ts (new), packages/core/src/index.ts
+- **Learnings for future iterations:**
+  - `AppInstance` is constructed from the server adapter name and registered plugins - keep it minimal
+  - Error middleware follows the `(req, ctx, next) -> Response` pattern from `MiddlewareFn` in types, not the `Middleware` interface from middleware.ts
+  - ESLint will flag unused imports including type imports - only import what's directly used in the file
+  - Plugin hooks run in registration order - plugins array order matters
+  - `app.close()` is safe to call without `app.listen()` - handle null serverHandle gracefully
+---
