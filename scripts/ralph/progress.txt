@@ -178,6 +178,21 @@ Started: 03/02/2026 09:17:20
   - Extended error format includes sourceFile, schemaFile, relatedTests fields specifically designed for AI agent consumption
   - 351 pages total after build (same count — replaced a stub page)
 ---
+## 2026-03-02T18:22 - US-015
+- Wrote comprehensive Core Concept page for Testing at packages/docs/src/content/docs/core-concepts/testing.mdx
+- Covers: schema-first testing philosophy, auto-generated contract tests (3 coverage levels: valid input, missing fields, invalid formats), createTestClient with typed HTTP methods, createIntegrationSuite with in-memory database and seed fixtures, createFactory with build/buildMany/buildInvalid methods, toMatchSchema custom matcher, CLI commands (typokit test, test:contracts, test:integration), CI consistency guarantees (idempotent generation, isolated tests, flaky detection, deterministic factories), full integration test example
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to building-first-api, error-handling, generate-migrate-test CLI reference
+- Files changed: packages/docs/src/content/docs/core-concepts/testing.mdx
+- **Learnings for future iterations:**
+  - Contract test generation groups routes by first path segment and outputs one test file per group to __generated__/
+  - createFactory uses seeded Mulberry32 PRNG for deterministic data generation respecting all JSDoc constraints
+  - createIntegrationSuite provides both suite.client (HTTP) and suite.db (direct DB access) for full-stack testing
+  - Schema matcher (toMatchSchema) works with Jest, Vitest, and Rstest — framework-agnostic
+  - CLI auto-detects test runner from config files; defaults to Vitest if none found
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
 ## 2026-03-02T18:10 - US-012
 - Wrote comprehensive Core Concept page for Server Adapters at packages/docs/src/content/docs/core-concepts/server-adapters.mdx
 - Covers: philosophy (TypoKit is not an HTTP server), ownership boundary table (TypoKit vs adapter responsibilities), request processing order diagram (10-step flow), ServerAdapter interface definition, all 4 adapters (Native, Fastify, Hono, Express) with full usage examples, when to use native vs bring-your-own decision guide, platform adapters as orthogonal axis with compatibility matrix, getNativeServer() escape hatch
@@ -222,5 +237,88 @@ Started: 03/02/2026 09:17:20
   - Plugin-debug exposes 8 endpoints on a separate sidecar port (default 9229) with dev/production security modes
   - Plugin-ws hooks into both build-time (afterTypeParse + emit for codegen) and runtime (onStart/onReady/onStop for connection management)
   - No onRequest/onResponse hooks by design — plugins use defineMiddleware() during onStart for per-request logic
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T18:27 - US-016
+- Wrote comprehensive Core Concept page for Observability and Debugging at packages/docs/src/content/docs/core-concepts/observability.mdx
+- Covers: structured logging via ctx.log with automatic traceId/route/phase enrichment, Logger API and log entry structure, log configuration with field redaction, log sinks (Stdout/OTel/DebugSidecar), OpenTelemetry integration (@typokit/otel) with auto-instrumented spans and span exporters, log-to-span bridging with OTel severity mapping, request lifecycle trace format (full JSON example), debug sidecar (@typokit/plugin-debug) with 12 endpoints and dev vs production security modes, typokit inspect CLI commands with --json flag, structured error context for AI agents with extended failure details, observability signal flow diagram
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to error-handling, middleware-and-context, plugins, building-first-api
+- Files changed: packages/docs/src/content/docs/core-concepts/observability.mdx
+- **Learnings for future iterations:**
+  - StructuredLogger in @typokit/otel emits to 3 sinks simultaneously: Stdout, OtelLogSink, and DebugSidecar
+  - OTel log severity mapping: trace=1, debug=5, info=9, warn=13, error=17, fatal=21
+  - Debug sidecar has 12 endpoints (not 8 as mentioned in US-014 progress) -- includes /_debug/server, /_debug/build-pipeline, /_debug/spans, /_debug/logs
+  - typokit inspect commands mirror debug sidecar endpoints but work from CLI without a running sidecar
+  - Extended AI error context includes failures[] array with path, expected, received, suggestion fields
+  - 351 pages total after build (same count -- replaced a stub page)
+---
+
+## 2026-03-02T18:33 - US-017
+- Wrote comprehensive step-by-step tutorial at packages/docs/src/content/docs/guides/building-first-api.mdx
+- Tutorial builds a Notes API (not todos) with 5 CRUD endpoints: POST/GET/GET/:id/PUT/:id/DELETE/:id
+- Covers 10 steps: scaffold project, define entity type with JSDoc, define route contracts, implement handlers, add auth middleware with context narrowing, register routes in app.ts, generate database schema with Drizzle, start dev server and test with curl, run auto-generated contract tests, write integration tests
+- Each step includes the file path, full code listing, and expected output
+- Uses native server + Drizzle adapter (most common path per AC)
+- Includes curl commands for every endpoint plus validation/auth error testing
+- Uses Starlight components: Aside (tip, note, caution), Steps, Tabs/TabItem
+- Cross-links to middleware-and-context, error-handling, server-adapters, observability, quickstart
+- Files changed: packages/docs/src/content/docs/guides/building-first-api.mdx
+- **Learnings for future iterations:**
+  - Guide pages should use Steps component for numbered tutorial flow — gives clear visual progression
+  - The existing stub files at guides/ are already configured in the sidebar at astro.config.mjs; no sidebar changes needed
+  - AC said `first-api.mdx` but sidebar already references `building-first-api` slug — use the existing file
+  - Tutorial content should go deeper than quickstart but reference it as prerequisite
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T18:39 - US-018
+- Wrote comprehensive guide for building custom server adapters at packages/docs/src/content/docs/guides/custom-server-adapter.mdx
+- Covers: full ServerAdapter interface with method-by-method explanation, key types (TypoKitRequest, TypoKitResponse, CompiledRoute, ServerHandle), 6-step walkthrough building a "Micro" adapter (package setup, collectRoutes tree walker, normalizeRequest, writeResponse, registerRoutes with middleware chain, wiring into app), compiled route table radix tree structure explanation, testing guidance with 4 test examples, common pitfalls section
+- Uses Starlight components: Aside (tip, note, caution), Steps
+- Cross-links to server-adapters concept page, middleware-and-context, building-first-api
+- Files changed: packages/docs/src/content/docs/guides/custom-server-adapter.mdx
+- **Learnings for future iterations:**
+  - collectRoutes() is NOT an exported utility -- each adapter implements its own version internally; document this clearly
+  - CompiledRouteTable is just an alias for CompiledRoute (the root node); the tree uses children/paramChild/wildcardChild
+  - Route lookup priority is: static children -> parameterized child -> wildcard child
+  - params field in TypoKitRequest starts empty in normalizeRequest(); URL params are injected by the framework router
+  - ServerHandle.close() must be async -- important for graceful shutdown with request draining
+  - 351 pages total after build (same count -- replaced a stub page)
+---
+
+## 2026-03-02T18:45 - US-019
+- Wrote comprehensive custom plugin development guide at packages/docs/src/content/docs/guides/custom-plugin.mdx
+- Builds a request-timing plugin (plugin-timing) step by step across 11 steps: project setup, plugin skeleton, build-time hooks (afterRouteTable), runtime services (app.services DI), onReady warmup, onError tracking, graceful shutdown, CLI commands (timing:report), introspection endpoints (/_inspect/timing), framework-native middleware via getNativeServer(), plugin registration in createApp()
+- Includes build pipeline hook reference table, complete plugin source code, and design guidelines section
+- Uses Starlight components: Aside (tip, note, caution), Steps
+- Cross-links to plugins concept page, middleware-and-context, building-first-api
+- Files changed: packages/docs/src/content/docs/guides/custom-plugin.mdx
+- **Learnings for future iterations:**
+  - AC says custom-plugin.mdx but sidebar slug is guides/custom-plugin — the stub file already existed at the correct path
+  - Plugin state should live in closure scope (factory function), not on AppInstance — this is a key design pattern
+  - Official plugins prefix services with underscore (_debug, _ws); custom plugins should use unprefixed names
+  - defineMiddleware() priority: lower numbers run first; use negative priority for instrumentation middleware
+  - getNativeServer() is available via app instance for framework-native middleware registration
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T18:55 - US-020
+- Wrote comprehensive migration guide at packages/docs/src/content/docs/guides/migration.mdx
+- Covers incremental adoption path for both Express and Fastify projects
+- Express: install @typokit/server-express, pass existing app via expressServer({ app }), add TypoKit routes alongside legacy ones
+- Fastify: install @typokit/server-fastify, use getNativeServer() to register existing plugins and legacy routes
+- Explains middleware coexistence: framework-native middleware runs first (CORS, helmet, compression), TypoKit typed middleware runs after normalization for TypoKit routes only
+- Includes request processing order diagram, migration checklist, FAQ section
+- What changes vs stays the same comparison table
+- Uses Starlight components: Aside (tip, note, caution), Steps, Tabs/TabItem
+- Cross-links to server-adapters, middleware-and-context, error-handling, building-first-api
+- Files changed: packages/docs/src/content/docs/guides/migration.mdx
+- **Learnings for future iterations:**
+  - Express adapter accepts existing app instance via expressServer({ app: myExistingApp }) — key migration pattern
+  - Fastify adapter uses getNativeServer() for accessing native Fastify instance for plugins/legacy routes
+  - Framework-native middleware runs BEFORE TypoKit normalization; TypoKit middleware runs AFTER — only for TypoKit routes
+  - Legacy routes and TypoKit routes coexist because they're registered on the same framework instance
   - 351 pages total after build (same count — replaced a stub page)
 ---
