@@ -132,6 +132,19 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/example-todo-client:
+    dependencies:
+      '@typokit/client':
+        specifier: workspace:*
+        version: link:../client
+      '@typokit/example-todo-schema':
+        specifier: workspace:*
+        version: link:../example-todo-schema
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.13
+
   packages/example-todo-db:
     dependencies:
       '@typokit/example-todo-schema':

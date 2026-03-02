@@ -25,7 +25,8 @@ export interface RouteDefinition<
 }
 
 /** Map of path patterns to their route definitions per method */
-export type RouteMap = Record<string, Partial<Record<HttpMethod, RouteContract>>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type RouteMap = Record<string, Partial<Record<HttpMethod, RouteContract<any, any, any, any>>>>;
 
 // ─── Client Options ─────────────────────────────────────────
 
@@ -77,13 +78,15 @@ type ContractFor<
   M extends HttpMethod,
 > = P extends keyof TRoutes
   ? M extends keyof TRoutes[P]
-    ? TRoutes[P][M] extends RouteContract ? TRoutes[P][M] : never
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? TRoutes[P][M] extends RouteContract<any, any, any, any> ? TRoutes[P][M] : never
     : never
   : never;
 
 /** Build the options type for a given contract + path */
 type MethodRequestOptions<
-  TContract extends RouteContract,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  TContract extends RouteContract<any, any, any, any>,
   _TPath extends string,
 > = TContract extends RouteContract<infer TParams, infer TQuery, infer TBody, infer _TResponse>
   ? (TParams extends void
@@ -104,7 +107,8 @@ type MethodRequestOptions<
   : never;
 
 /** Extract the response type from a contract */
-type ResponseFor<TContract extends RouteContract> =
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ResponseFor<TContract extends RouteContract<any, any, any, any>> =
   TContract extends RouteContract<infer _P, infer _Q, infer _B, infer TResponse> ? TResponse : never;
 
 // ─── Client Interface ───────────────────────────────────────

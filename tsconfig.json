@@ -89,6 +89,9 @@
       ],
       "@typokit/example-todo-db": [
         "packages/example-todo-db/src/index.ts"
+      ],
+      "@typokit/example-todo-client": [
+        "packages/example-todo-client/src/index.ts"
       ]
     }
   },
@@ -176,6 +179,9 @@
     },
     {
       "path": "packages/example-todo-server"
+    },
+    {
+      "path": "packages/example-todo-client"
     }
   ],
   "files": [],
