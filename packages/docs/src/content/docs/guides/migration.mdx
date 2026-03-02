@@ -1,6 +1,410 @@
 ---
 title: Migration from Express/Fastify
-description: Migrate your existing Express or Fastify application to TypoKit.
+description: Incrementally adopt TypoKit in your existing Express or Fastify application — no big-bang rewrite required.
 ---
 
-This page is coming soon.
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+TypoKit is designed for **incremental adoption**. You don't need to rewrite your existing Express or Fastify app — you install the matching server adapter, wrap your existing app instance, and start adding TypoKit routes alongside your current ones. Existing routes, middleware, and plugins keep working exactly as before.
+
+<Aside type="tip">
+  If you're starting a brand-new project, skip this guide and head to the [Quickstart](/typokit/getting-started/quickstart/) or [Building Your First API](/typokit/guides/building-first-api/) instead.
+</Aside>
+
+---
+
+## What Changes vs. What Stays the Same
+
+| Stays the Same | Changes (for new routes) |
+|---|---|
+| Existing routes and handlers | Request validation is automatic (compiled from types) |
+| Framework-native middleware (CORS, helmet, compression) | Error handling uses structured `AppError` hierarchy |
+| Database connections and ORM setup | Handlers receive fully typed `HandlerInput` |
+| Authentication strategies | Response serialization uses `fast-json-stringify` |
+| Static file serving, view engines | Middleware can narrow context types |
+| Deployment and hosting setup | Route contracts define the API surface declaratively |
+
+Your existing code runs untouched. New routes written with TypoKit get type safety, automatic validation, generated tests, and observability — but old routes are unaffected.
+
+---
+
+## Migrating from Express
+
+<Steps>
+
+1. **Install the TypoKit Express adapter and CLI:**
+
+   <Tabs>
+     <TabItem label="pnpm">
+     ```bash
+     pnpm add @typokit/core @typokit/server-express @typokit/errors
+     pnpm add -D @typokit/cli
+     ```
+     </TabItem>
+     <TabItem label="npm">
+     ```bash
+     npm install @typokit/core @typokit/server-express @typokit/errors
+     npm install -D @typokit/cli
+     ```
+     </TabItem>
+   </Tabs>
+
+2. **Wrap your existing Express app:**
+
+   You likely have an `app.ts` or `index.ts` that creates an Express instance. Pass it to `expressServer()` so TypoKit registers its routes on the same app:
+
+   ```typescript title="src/app.ts"
+   import express from "express";
+   import cors from "cors";
+   import helmet from "helmet";
+   import compression from "compression";
+   import { createApp } from "@typokit/core";
+   import { expressServer } from "@typokit/server-express";
+
+   // Your existing Express app — nothing changes here
+   const expressApp = express();
+   expressApp.use(cors());
+   expressApp.use(helmet());
+   expressApp.use(compression());
+   expressApp.use(express.json());
+
+   // Your existing routes keep working
+   expressApp.get("/health", (req, res) => {
+     res.json({ status: "ok" });
+   });
+
+   expressApp.get("/legacy/users", (req, res) => {
+     // ... your existing handler logic
+     res.json({ users: [] });
+   });
+
+   // Wrap with TypoKit — new routes get type safety and validation
+   const app = createApp({
+     server: expressServer({ app: expressApp }),
+     routes: [
+       // Add TypoKit route groups here as you migrate
+     ],
+   });
+
+   app.listen(3000);
+   ```
+
+   <Aside type="note">
+     When you pass `{ app: expressApp }`, TypoKit registers its routes on your existing Express instance. All your existing routes, middleware, and error handlers continue to work.
+   </Aside>
+
+3. **Add your first TypoKit route alongside existing ones:**
+
+   Create a schema-first type and route contract for a new endpoint:
+
+   ```typescript title="src/types/todo.ts"
+   /**
+    * @table todos
+    */
+   export interface Todo {
+     /** @id @generated */
+     id: string;
+     title: string;
+     completed: boolean;
+     /** @generated */
+     createdAt: Date;
+   }
+
+   export type CreateTodoInput = Omit<Todo, "id" | "createdAt">;
+   ```
+
+   ```typescript title="src/routes/todos/contracts.ts"
+   import type { RouteContract } from "@typokit/core";
+   import type { Todo, CreateTodoInput } from "../../types/todo.js";
+
+   export const createTodo: RouteContract<void, void, CreateTodoInput, Todo> = {
+     method: "POST",
+     path: "/todos",
+   };
+
+   export const listTodos: RouteContract<void, void, void, Todo[]> = {
+     method: "GET",
+     path: "/todos",
+   };
+   ```
+
+   ```typescript title="src/routes/todos/handlers.ts"
+   import { defineHandlers } from "@typokit/core";
+   import * as contracts from "./contracts.js";
+
+   export default defineHandlers<typeof contracts>({
+     createTodo: async ({ body, ctx }) => {
+       // Your implementation here
+       const todo = await db.insert("todos", body);
+       return todo;
+     },
+     listTodos: async ({ ctx }) => {
+       return await db.select("todos");
+     },
+   });
+   ```
+
+4. **Register the new route group:**
+
+   ```typescript title="src/app.ts" {5-6,17-19}
+   import express from "express";
+   import cors from "cors";
+   import { createApp } from "@typokit/core";
+   import { expressServer } from "@typokit/server-express";
+   import todosHandlers from "./routes/todos/handlers.js";
+   import { logging } from "./middleware/logging.js";
+
+   const expressApp = express();
+   expressApp.use(cors());
+   expressApp.use(express.json());
+
+   // Existing routes
+   expressApp.get("/health", (req, res) => res.json({ status: "ok" }));
+
+   const app = createApp({
+     server: expressServer({ app: expressApp }),
+     middleware: [logging],
+     routes: [
+       { prefix: "/api", handlers: todosHandlers },
+     ],
+   });
+
+   app.listen(3000);
+   ```
+
+   Now `GET /health` is still handled by Express directly, while `POST /api/todos` and `GET /api/todos` go through TypoKit's typed pipeline with automatic validation.
+
+5. **Migrate routes incrementally:**
+
+   There's no pressure to migrate everything at once. A typical migration timeline looks like:
+
+   - **Week 1**: Wrap existing app, add TypoKit to one new endpoint
+   - **Week 2–4**: Write new features as TypoKit routes, gaining test generation and validation
+   - **Month 2+**: Optionally migrate high-value existing routes to gain type safety
+   - **Eventually**: Remove legacy routes once they've been migrated (or keep them — it's fine)
+
+</Steps>
+
+---
+
+## Migrating from Fastify
+
+<Steps>
+
+1. **Install the TypoKit Fastify adapter:**
+
+   <Tabs>
+     <TabItem label="pnpm">
+     ```bash
+     pnpm add @typokit/core @typokit/server-fastify @typokit/errors
+     pnpm add -D @typokit/cli
+     ```
+     </TabItem>
+     <TabItem label="npm">
+     ```bash
+     npm install @typokit/core @typokit/server-fastify @typokit/errors
+     npm install -D @typokit/cli
+     ```
+     </TabItem>
+   </Tabs>
+
+2. **Create a TypoKit app with the Fastify adapter:**
+
+   Unlike Express, Fastify's plugin system means you configure options through the adapter and then register your existing plugins on the native instance:
+
+   ```typescript title="src/app.ts"
+   import { createApp } from "@typokit/core";
+   import { fastifyServer } from "@typokit/server-fastify";
+   import fastifyCors from "@fastify/cors";
+   import fastifyHelmet from "@fastify/helmet";
+   import fastifyCompress from "@fastify/compress";
+   import type { FastifyInstance } from "fastify";
+
+   const app = createApp({
+     server: fastifyServer({ logger: true, trustProxy: true }),
+     routes: [
+       // Add TypoKit route groups here
+     ],
+   });
+
+   // Access the native Fastify instance for existing plugins
+   const fastify = app.getNativeServer() as FastifyInstance;
+
+   // Your existing Fastify plugins keep working
+   fastify.register(fastifyCors, { origin: true });
+   fastify.register(fastifyHelmet);
+   fastify.register(fastifyCompress);
+
+   // Your existing Fastify routes keep working
+   fastify.get("/health", async () => {
+     return { status: "ok" };
+   });
+
+   fastify.get("/legacy/users", async (request, reply) => {
+     // ... your existing handler logic
+     return { users: [] };
+   });
+
+   app.listen(3000);
+   ```
+
+   <Aside type="note">
+     `getNativeServer()` returns the raw Fastify instance. Register plugins, decorators, and legacy routes on it just as you always have.
+   </Aside>
+
+3. **Add TypoKit routes alongside existing ones:**
+
+   Define typed contracts and handlers the same way as the Express example above:
+
+   ```typescript title="src/app.ts" {3-4,11-13}
+   import { createApp } from "@typokit/core";
+   import { fastifyServer } from "@typokit/server-fastify";
+   import todosHandlers from "./routes/todos/handlers.js";
+   import { requireAuth } from "./middleware/auth.js";
+   import type { FastifyInstance } from "fastify";
+
+   const app = createApp({
+     server: fastifyServer({ logger: true }),
+     routes: [
+       {
+         prefix: "/api",
+         handlers: todosHandlers,
+         middleware: [requireAuth],
+       },
+     ],
+   });
+
+   // Existing Fastify routes and plugins
+   const fastify = app.getNativeServer() as FastifyInstance;
+   fastify.register(fastifyCors);
+   fastify.get("/health", async () => ({ status: "ok" }));
+
+   app.listen(3000);
+   ```
+
+4. **Migrate routes incrementally:**
+
+   The same incremental approach applies. Existing Fastify routes registered via the native instance work alongside TypoKit route groups. Migrate routes to TypoKit contracts when you want automatic validation, generated tests, or typed middleware.
+
+</Steps>
+
+---
+
+## How Middleware Coexists
+
+Understanding the request processing order is key to a smooth migration:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1. HTTP connection received                         │
+│  2. Framework-native middleware runs                  │
+│     (CORS, helmet, compression, rate limiting)       │
+│  3. Route matching                                    │
+│     ├── Legacy route? → Framework handles directly   │
+│     └── TypoKit route? → Continue to step 4          │
+│  4. Request normalization → TypoKitRequest            │
+│  5. TypoKit middleware chain                          │
+│     (auth, logging, context enrichment)              │
+│  6. Compiled validators (params, query, body)         │
+│  7. Handler execution                                 │
+│  8. Response serialization                            │
+│  9. Response writing                                  │
+└─────────────────────────────────────────────────────┘
+```
+
+<Aside type="caution">
+  Framework-native middleware (Express `app.use()`, Fastify plugins) runs **before** TypoKit's normalization step. This means CORS headers, compression, and rate limiting work exactly as they do today — no changes needed.
+</Aside>
+
+### Express Middleware
+
+Your existing Express middleware keeps its registration order and runs before TypoKit sees the request:
+
+```typescript
+// These run first, for ALL requests (legacy and TypoKit routes)
+expressApp.use(cors());
+expressApp.use(helmet());
+expressApp.use(compression());
+expressApp.use(express.json());
+
+// TypoKit's typed middleware runs only for TypoKit routes, after normalization
+const app = createApp({
+  server: expressServer({ app: expressApp }),
+  middleware: [logging, requireAuth],  // Typed, context-narrowing middleware
+  routes: [/* ... */],
+});
+```
+
+### Fastify Plugins
+
+Fastify plugins registered on the native instance run in Fastify's encapsulation order:
+
+```typescript
+const fastify = app.getNativeServer() as FastifyInstance;
+
+// These run first, for ALL requests
+fastify.register(fastifyCors);
+fastify.register(fastifyRateLimit, { max: 100 });
+fastify.register(fastifyCompress);
+
+// TypoKit middleware runs only for TypoKit routes, after normalization
+```
+
+### What About Error Handling?
+
+For **TypoKit routes**, errors are handled by TypoKit's built-in error middleware:
+- `AppError` subclasses produce structured JSON responses with appropriate status codes
+- Typia validation errors are formatted with field-level details
+- Unknown errors return `500 Internal Server Error` in production
+
+For **legacy routes**, your existing error handlers continue to work as before. TypoKit does not interfere with framework-native error handling for routes it doesn't own.
+
+<Aside type="tip">
+  You can gradually migrate to `ctx.fail()` for error handling in new routes while keeping `res.status(400).json(...)` in legacy routes. Both patterns work simultaneously.
+</Aside>
+
+---
+
+## Migration Checklist
+
+Use this checklist as you migrate:
+
+- [ ] Install `@typokit/core`, the matching server adapter, and `@typokit/cli`
+- [ ] Wrap your existing app (Express) or create the adapter (Fastify)
+- [ ] Verify existing routes and middleware still work
+- [ ] Define your first type with JSDoc annotations
+- [ ] Create a route contract and handler
+- [ ] Register the route group in `createApp()`
+- [ ] Run `typokit generate` to produce validators and DB schema
+- [ ] Run `typokit test:contracts` to get auto-generated tests for free
+- [ ] Add more routes as TypoKit route groups over time
+- [ ] Optionally migrate legacy routes when convenient
+
+---
+
+## Frequently Asked Questions
+
+### Can I use both Express/Fastify routes and TypoKit routes on the same paths?
+
+TypoKit routes are registered with a prefix (e.g., `/api`), so they don't conflict with legacy routes unless you intentionally register them at the same path. If there's a conflict, the framework's route registration order determines which handler runs.
+
+### Do I need to change my database setup?
+
+No. TypoKit's database adapters are optional — they generate schema files from your types, but you're not required to use them. You can continue using your existing ORM, query builder, or raw SQL for both legacy and new routes.
+
+### What about authentication?
+
+Your existing auth middleware (Passport, custom JWT verification, etc.) still runs at the framework level. For TypoKit routes, you can also create a typed `defineMiddleware` that narrows the context with user information — see the [Middleware and Context](/typokit/core-concepts/middleware-and-context/) page for details.
+
+### Can I eventually remove the framework adapter?
+
+Yes. Once all routes are migrated to TypoKit contracts, you can switch from `expressServer()` or `fastifyServer()` to the `nativeServer()` adapter for maximum performance and zero framework dependencies. The TypoKit route definitions don't change — only the server adapter in `createApp()`.
+
+---
+
+## Next Steps
+
+- [Server Adapters](/typokit/core-concepts/server-adapters/) — understand the adapter architecture in depth
+- [Middleware and Context](/typokit/core-concepts/middleware-and-context/) — learn how typed middleware works
+- [Error Handling](/typokit/core-concepts/error-handling/) — see how `ctx.fail()` and `AppError` work
+- [Building Your First API](/typokit/guides/building-first-api/) — full tutorial for new TypoKit routes
