@@ -42,7 +42,14 @@ importers:
         specifier: workspace:*
         version: link:../types
 
-  packages/client: {}
+  packages/client:
+    dependencies:
+      '@typokit/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/client-react-query: {}
 
@@ -101,7 +108,11 @@ importers:
 
   packages/nx: {}
 
-  packages/otel: {}
+  packages/otel:
+    dependencies:
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/platform-bun: {}
 
@@ -143,7 +154,24 @@ importers:
         specifier: ^22.0.0
         version: 22.19.13
 
-  packages/testing: {}
+  packages/testing:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.13
+      '@typokit/platform-node':
+        specifier: workspace:*
+        version: link:../platform-node
+      '@typokit/server-native':
+        specifier: workspace:*
+        version: link:../server-native
 
   packages/transform-native:
     dependencies:
