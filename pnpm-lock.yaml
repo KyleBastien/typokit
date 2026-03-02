@@ -114,7 +114,11 @@ importers:
         specifier: workspace:*
         version: link:../types
 
-  packages/platform-bun: {}
+  packages/platform-bun:
+    dependencies:
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/platform-deno: {}
 
