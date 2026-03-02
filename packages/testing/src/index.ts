@@ -1,7 +1,19 @@
-// @typokit/testing — Test Client
+// @typokit/testing — Test Client & Integration Suite
 
 import type { TypoKitApp } from "@typokit/core";
 import type { RouteContract } from "@typokit/types";
+
+export {
+  createIntegrationSuite,
+  registerSeed,
+  getSeed,
+} from "./integration-suite.js";
+export type {
+  IntegrationSuite,
+  IntegrationSuiteOptions,
+  InMemoryDatabase,
+  SeedFn,
+} from "./integration-suite.js";
 
 // ─── Response Type ───────────────────────────────────────────
 
