@@ -18,6 +18,15 @@ export type {
 export { createFactory } from "./factory.js";
 export type { Factory, FactoryOptions } from "./factory.js";
 
+export {
+  toMatchSchema,
+  matchSchema,
+  registerSchemaValidators,
+  getSchemaValidator,
+  clearSchemaValidators,
+} from "./schema-matcher.js";
+export type { SchemaMatchResult, SchemaMatchers } from "./schema-matcher.js";
+
 // ─── Response Type ───────────────────────────────────────────
 
 /** Response returned by test client methods */
