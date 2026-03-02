@@ -4,6 +4,9 @@ Started: 03/01/2026 21:04:22
 
 ## Codebase Patterns
 - Nx plugins need executors.json + generators.json at package root, with executors/generators fields in package.json
+- RouteMap and helper types (ContractFor, ResponseFor, MethodRequestOptions) use `RouteContract<any, any, any, any>` constraints — bare `RouteContract` defaults to void params which breaks with specific contracts
+- TypeScript interfaces lack implicit index signatures — use `type` alias for types that must satisfy `Record<string, X>` constraints
+- PaginatedResponse nests pagination fields under `.pagination` sub-object (not top-level)
 - Route contract interfaces (UsersRoutes etc.) lack index signatures — use mapped types `{ [K in keyof T]: H<K> }` instead of `HandlerDefs<T>` generic for handler typing
 - `ctx.fail()` returns `never` but TS needs explicit `return ctx.fail(...)` for proper control-flow narrowing
 - `defineMiddleware<T>` requires T to have `[key: string]: unknown` index signature on custom context interfaces
@@ -1037,4 +1040,36 @@ ative.addresses()[0].port
   - ctx.fail() throws AppError which propagates to platform-node's catch returning 500 — wrap handlers with try/catch for proper status codes
   - ServerAdapter.getNativeServer() is optional — use `adapter.getNativeServer?.()` with optional chaining
   - For parameterized route contract tests, seed data must be created within each test since routes like GET /users/:id need a real ID
+---
+
+## 2026-03-02T11:04:00Z - US-057
+- Created @typokit/example-todo-client package with type-safe API client
+- TodoAppRoutes type maps schema's "METHOD /path" contracts to client's RouteMap format
+- createTodoClient() factory wraps createClient<TodoAppRoutes> for one-line instantiation
+- Demo script (demo.ts) shows full typed workflow: CRUD users and todos with autocomplete on paths, params, query, body, response
+- 6 unit tests covering client creation, type exports, route path validation, and method type checking
+- Fixed @typokit/client RouteMap and helper type constraints to accept RouteContract with non-void type parameters
+- Files changed: packages/example-todo-client/ (new), packages/client/src/index.ts, tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - RouteMap was defined as Record<string, Partial<Record<HttpMethod, RouteContract>>> where RouteContract defaults to void params — must use RouteContract<any, any, any, any> for generic constraints
+  - ContractFor and ResponseFor helper types also need <any, any, any, any> constraints (not bare RouteContract)
+  - TypeScript interfaces don't have implicit index signatures — use 	ype alias instead of interface for types that need to satisfy Record constraints
+  - PaginatedResponse nests total/page/totalPages under .pagination sub-object
+  - Project references require dependent packages to be built (	sc -b --force) before consumer packages can typecheck
+---
+
+## 2026-03-02T11:15:00Z - US-058
+- Implemented OpenAPI 3.1.0 spec generator for the reference todo app
+- generateOpenApiSpec() builds complete spec from route contracts with all schemas, paths, parameters, and error responses
+- Component schemas: PublicUser, PublicTodo, CreateUserInput, UpdateUserInput, CreateTodoInput, UpdateTodoInput, ErrorResponse, Pagination, PaginatedPublicUserResponse, PaginatedPublicTodoResponse
+- All 10 routes mapped (5 user + 5 todo) with proper path/query params, request bodies, and typed responses
+- generate:openapi npm script writes spec to ./dist/openapi.json
+- 15 validation tests covering spec structure, all routes, schemas, parameters, refs, constraints
+- Files changed: packages/example-todo-server/src/generate-openapi.ts (new), packages/example-todo-server/src/openapi.test.ts (new), packages/example-todo-server/package.json
+- **Learnings for future iterations:**
+  - OpenAPI 3.1 uses JSON Schema 2020-12 natively — $ref and 	ype can coexist at same level
+  - Path parameters in OpenAPI use {id} syntax vs :id in route contracts — need conversion
+  - PaginatedResponse wraps items in data array with pagination sub-object — match this in OpenAPI schema
+  - rstest runs generate-openapi.ts side effects (file writes) during test execution — the script's main() runs on import
+  - Manual browser verification needed for Swagger UI rendering (no browser tools available)
 ---
