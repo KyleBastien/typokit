@@ -29,3 +29,10 @@ export {
   type HandlerDefs,
   defineHandlers,
 } from "./handler.js";
+export {
+  type RouteGroup,
+  type CreateAppOptions,
+  type TypoKitApp,
+  createApp,
+  createErrorMiddleware,
+} from "./app.js";
