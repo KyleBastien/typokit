@@ -27,6 +27,17 @@ export {
 } from "./schema-matcher.js";
 export type { SchemaMatchResult, SchemaMatchers } from "./schema-matcher.js";
 
+export {
+  generateContractTests,
+  detectTestRunner,
+} from "./contract-generator.js";
+export type {
+  ContractTestRoute,
+  ContractTestOptions,
+  ContractTestOutput,
+  TestRunner,
+} from "./contract-generator.js";
+
 // ─── Response Type ───────────────────────────────────────────
 
 /** Response returned by test client methods */
