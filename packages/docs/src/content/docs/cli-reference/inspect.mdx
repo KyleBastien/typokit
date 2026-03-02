@@ -1,6 +1,484 @@
 ---
 title: Inspect Commands
-description: CLI commands for inspecting your TypoKit project.
+description: CLI reference for TypoKit inspect subcommands — query routes, middleware, schemas, errors, performance, and build pipeline as structured JSON for AI introspection.
 ---
 
-This page is coming soon.
+import { Aside } from "@astrojs/starlight/components";
+
+Reference for `typokit inspect` subcommands that query framework internal state and emit structured JSON for AI agent consumption, debugging, and introspection.
+
+Every subcommand accepts these **global flags**:
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON instead of human-readable text |
+| `--format json` | Alias for `--json` |
+| `--debug-port <port>` | Debug sidecar port for runtime commands (default: `9800`) |
+| `--root <dir>` | Project root directory (default: current working directory) |
+| `--verbose`, `-v` | Show detailed output |
+
+<Aside type="tip">
+  Build-time commands (`routes`, `route`, `middleware`, `dependencies`, `schema`, `build-pipeline`) read from generated files on disk — run `typokit build` first. Runtime commands (`errors`, `performance`, `server`) query the debug sidecar and require a running server with `@typokit/plugin-debug` enabled.
+</Aside>
+
+---
+
+## Build-Time Commands
+
+These commands read from generated artifacts in the output directory (default: `.typokit/`) and do not require a running server.
+
+### `typokit inspect routes`
+
+List all registered routes with their HTTP methods, paths, parameters, and associated schemas.
+
+**Syntax**
+
+```bash
+typokit inspect routes [--json]
+```
+
+**What it does**
+
+1. Reads the compiled router output from `.typokit/routes/compiled-router.ts`
+2. Parses route definitions from the radix tree structure
+3. Enriches with schema information from the OpenAPI spec at `.typokit/schemas/openapi.json` (if available)
+4. Outputs the full route table
+
+**Example**
+
+```bash
+typokit inspect routes --json
+```
+
+```json
+[
+  {
+    "method": "GET",
+    "path": "/users",
+    "query": { "page": "integer", "limit": "integer" },
+    "response": "UserListResponse"
+  },
+  {
+    "method": "POST",
+    "path": "/users",
+    "body": "CreateUserRequest",
+    "response": "User"
+  },
+  {
+    "method": "GET",
+    "path": "/users/:id",
+    "params": ["id"],
+    "response": "User"
+  },
+  {
+    "method": "PUT",
+    "path": "/users/:id",
+    "params": ["id"],
+    "body": "UpdateUserRequest",
+    "response": "User"
+  },
+  {
+    "method": "DELETE",
+    "path": "/users/:id",
+    "params": ["id"]
+  }
+]
+```
+
+<Aside type="note">
+  If no compiled routes are found, the command returns an error: `"No compiled routes found. Run 'typokit build' first."`
+</Aside>
+
+---
+
+### `typokit inspect route`
+
+Get detailed information for a single route by its method and path.
+
+**Syntax**
+
+```bash
+typokit inspect route "<METHOD> <path>" [--json]
+```
+
+**Arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `route key` | Route identifier in `"METHOD /path"` format (e.g., `"GET /users/:id"`) |
+
+**Example**
+
+```bash
+typokit inspect route "GET /users/:id" --json
+```
+
+```json
+{
+  "method": "GET",
+  "path": "/users/:id",
+  "params": ["id"],
+  "response": "User",
+  "middleware": ["authMiddleware", "cacheMiddleware"],
+  "handler": "getUserById"
+}
+```
+
+<Aside type="caution">
+  The route key must be quoted and include both the HTTP method and path separated by a space. If the route is not found, the command returns an error with the key you searched for.
+</Aside>
+
+---
+
+### `typokit inspect middleware`
+
+List the full middleware chain with priorities and types.
+
+**Syntax**
+
+```bash
+typokit inspect middleware [--json]
+```
+
+**What it does**
+
+1. Reads middleware references from the compiled router output
+2. Extracts middleware names and registration order
+3. Includes the built-in `errorMiddleware` (always present)
+
+**Example**
+
+```bash
+typokit inspect middleware --json
+```
+
+```json
+[
+  { "name": "corsMiddleware", "priority": 0, "type": "registered" },
+  { "name": "authMiddleware", "priority": 1, "type": "registered" },
+  { "name": "loggingMiddleware", "priority": 2, "type": "registered" },
+  { "name": "errorMiddleware", "priority": 3, "type": "built-in" }
+]
+```
+
+<Aside type="tip">
+  Middleware executes in priority order — lower numbers run first. The `type` field distinguishes between your registered middleware and TypoKit built-ins.
+</Aside>
+
+---
+
+### `typokit inspect dependencies`
+
+Display the `@typokit/*` dependency graph for your project.
+
+**Syntax**
+
+```bash
+typokit inspect dependencies [--json]
+typokit inspect deps [--json]
+```
+
+**What it does**
+
+1. Reads `package.json` at the project root
+2. If in a monorepo, scans all `packages/*/package.json` files
+3. Extracts `@typokit/*` dependencies for each package
+4. Returns the full dependency graph
+
+**Example**
+
+```bash
+typokit inspect deps --json
+```
+
+```json
+[
+  {
+    "name": "@app/server",
+    "dependsOn": ["@typokit/core", "@typokit/server-native", "@typokit/platform-node"]
+  },
+  {
+    "name": "@app/db",
+    "dependsOn": ["@typokit/core", "@typokit/db-drizzle"]
+  },
+  {
+    "name": "@app/schema",
+    "dependsOn": ["@typokit/core"]
+  },
+  {
+    "name": "@app/client",
+    "dependsOn": ["@typokit/client"]
+  }
+]
+```
+
+---
+
+### `typokit inspect schema`
+
+Look up a type definition and see where it is used across your routes.
+
+**Syntax**
+
+```bash
+typokit inspect schema <TypeName> [--json]
+```
+
+**Arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `TypeName` | The name of the schema type to look up (e.g., `User`, `CreateUserRequest`) |
+
+**What it does**
+
+1. Reads the generated OpenAPI spec from `.typokit/schemas/openapi.json`
+2. Finds the matching schema in `components.schemas`
+3. Extracts property types, optionality, and JSDoc tags
+4. Identifies all routes that reference this schema
+
+**Example**
+
+```bash
+typokit inspect schema User --json
+```
+
+```json
+{
+  "name": "User",
+  "properties": {
+    "id": { "type": "string" },
+    "email": { "type": "string" },
+    "name": { "type": "string" },
+    "role": { "type": "string", "optional": true },
+    "createdAt": { "type": "string" }
+  },
+  "usedIn": [
+    "GET /users",
+    "GET /users/:id",
+    "POST /users",
+    "PUT /users/:id"
+  ]
+}
+```
+
+<Aside type="note">
+  If the OpenAPI spec has not been generated yet, you will see: `"No OpenAPI spec found. Run 'typokit build' first."` If the type name doesn't match any schema, the error includes the name you searched for.
+</Aside>
+
+---
+
+### `typokit inspect build-pipeline`
+
+Show the build pipeline hook order, registered plugin taps, and last build status.
+
+**Syntax**
+
+```bash
+typokit inspect build-pipeline [--json]
+```
+
+**What it does**
+
+1. Returns the 6 standard build pipeline hooks in execution order
+2. Attempts to load registered plugins and detect their hook taps
+3. Reports the last build status (`cached` or `no build found`)
+4. Shows the configured output directory
+
+**Example**
+
+```bash
+typokit inspect build-pipeline --json
+```
+
+```json
+{
+  "hooks": [
+    { "name": "beforeTransform", "order": 1, "description": "Register additional type sources before parsing" },
+    { "name": "afterTypeParse", "order": 2, "description": "Inspect or modify the schema type map after parsing" },
+    { "name": "afterValidators", "order": 3, "description": "Add custom validators after Typia generation" },
+    { "name": "afterRouteTable", "order": 4, "description": "Post-process the compiled route table" },
+    { "name": "emit", "order": 5, "description": "Plugins emit their own artifacts" },
+    { "name": "done", "order": 6, "description": "Cleanup, reporting, and finalization" }
+  ],
+  "registeredTaps": [
+    { "hookName": "afterTypeParse", "tapName": "plugin-ws", "order": 1 },
+    { "hookName": "emit", "tapName": "plugin-ws", "order": 2 },
+    { "hookName": "afterRouteTable", "tapName": "plugin-debug", "order": 1 }
+  ],
+  "lastBuildStatus": "cached",
+  "outputDir": ".typokit"
+}
+```
+
+<Aside type="tip">
+  The `registeredTaps` array shows which plugins have hooked into each build phase. If `@typokit/core` is not available, this array will be empty — the hooks list is always returned.
+</Aside>
+
+---
+
+## Runtime Commands
+
+These commands query the debug sidecar HTTP endpoint and require a running server with `@typokit/plugin-debug` enabled. Use `--debug-port` to specify a custom port (default: `9800`).
+
+<Aside type="caution">
+  If the debug sidecar is not running, these commands return an error: `"Could not connect to debug sidecar on port {port}. Is the server running with debug enabled?"`
+</Aside>
+
+### `typokit inspect errors`
+
+Fetch recent errors from the debug sidecar.
+
+**Syntax**
+
+```bash
+typokit inspect errors [--last <N>] [--json]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--last <N>` | Number of recent errors to return (default: `10`) |
+| `--json` | Output as JSON |
+
+**What it does**
+
+1. Connects to `http://localhost:{debugPort}/_debug/errors?last={N}`
+2. Returns the most recent error entries with trace IDs, codes, messages, and route context
+
+**Example**
+
+```bash
+typokit inspect errors --last 5 --json
+```
+
+```json
+[
+  {
+    "timestamp": "2026-03-02T14:23:01.456Z",
+    "traceId": "abc123def456",
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid email format",
+    "route": "POST /users",
+    "phase": "validation"
+  },
+  {
+    "timestamp": "2026-03-02T14:22:58.789Z",
+    "traceId": "789ghi012jkl",
+    "code": "NOT_FOUND",
+    "message": "User not found",
+    "route": "GET /users/:id",
+    "phase": "handler"
+  }
+]
+```
+
+---
+
+### `typokit inspect performance`
+
+Fetch latency percentiles for a specific route.
+
+**Syntax**
+
+```bash
+typokit inspect performance [--route <path>] [--json]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--route <path>` | Route path to query metrics for (default: `/`) |
+| `--json` | Output as JSON |
+
+**What it does**
+
+1. Connects to `http://localhost:{debugPort}/_debug/performance?route={path}`
+2. Returns p50, p95, p99 latency percentiles along with request count and average response time
+
+**Example**
+
+```bash
+typokit inspect performance --route "/users/:id" --json
+```
+
+```json
+{
+  "route": "/users/:id",
+  "p50": 2.3,
+  "p95": 8.7,
+  "p99": 24.1,
+  "count": 1847,
+  "avgMs": 3.9
+}
+```
+
+<Aside type="tip">
+  All latency values are in milliseconds. Use this to identify slow routes and track performance regressions.
+</Aside>
+
+---
+
+### `typokit inspect server`
+
+Query the active server adapter and platform status.
+
+**Syntax**
+
+```bash
+typokit inspect server [--json]
+```
+
+**What it does**
+
+1. Connects to `http://localhost:{debugPort}/_debug/health`
+2. Returns the server adapter type, platform runtime, status, and listen address
+
+**Example**
+
+```bash
+typokit inspect server --json
+```
+
+```json
+{
+  "adapter": "native",
+  "platform": "node",
+  "status": "running",
+  "port": 3000,
+  "host": "0.0.0.0"
+}
+```
+
+<Aside type="note">
+  When the server is not reachable, the command returns a fallback object with `"status": "not running"` and `"adapter": "unknown"`.
+</Aside>
+
+---
+
+## Using Inspect with AI Agents
+
+The `--json` flag on every subcommand makes `typokit inspect` ideal for AI agent integration. Agents can programmatically query routes, schemas, errors, and performance to understand and debug your API.
+
+**Common AI agent workflows:**
+
+```bash
+# Discover all routes and their schemas
+typokit inspect routes --json
+
+# Understand a specific type and where it's used
+typokit inspect schema CreateUserRequest --json
+
+# Check for recent errors after a change
+typokit inspect errors --last 20 --json
+
+# Verify build pipeline plugin registration
+typokit inspect build-pipeline --json
+
+# Get full detail on a single route
+typokit inspect route "POST /users" --json
+```
+
+See the [AI Agent Integration](/typokit/ai-agents/integration/) guide for complete patterns on using inspect commands in automated workflows.
