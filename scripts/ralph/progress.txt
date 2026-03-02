@@ -417,3 +417,50 @@ Started: 03/02/2026 09:17:20
   - Steps component works well for sequential processes (tree construction, runtime matching)
   - Radix tree / compiled router details are spread across typokit-arch.md sections 4, 6.7, 12, and the build-pipeline.mdx
 ---
+
+## 2026-03-02T19:32 - US-027
+- Wrote comprehensive AI Agent Integration guide at packages/docs/src/content/docs/ai-agents/integration.mdx
+- Covers: five-phase agent workflow (modify types -> generate -> test -> inspect errors -> self-correct), all typokit inspect commands with JSON output examples (routes, route, schema, middleware, dependencies, build-pipeline, errors, performance, server), debug sidecar HTTP endpoints with request/response examples (8 endpoints on port 9800), structured error context (validation failures with path/expected/received/suggestion, handler errors with source location, build errors), diff minimization strategy (file-per-concern layout, atomic changes, agent best practices table), end-to-end example adding a phone field to User entity
+- Uses Starlight components: Aside (tip, note, caution), Steps
+- Cross-links to inspect CLI reference, observability, error-handling, plugins, machine-readable docs
+- Files changed: packages/docs/src/content/docs/ai-agents/integration.mdx
+- **Learnings for future iterations:**
+  - Debug sidecar default port is 9800 (confirmed from inspect.mdx and plugin docs)
+  - Debug sidecar has 8 endpoints: routes, middleware, errors, performance, health, dependencies, traces, logs
+  - Structured errors include sourceFile, schemaName, failures[] with path/expected/received/suggestion fields
+  - Agent workflow is deterministic: same types always produce same generated output
+  - File-per-concern pattern is a key TypoKit design principle for AI agent compatibility
+  - 351 pages total after build (same count -- replaced a stub page)
+---
+
+## 2026-03-02T19:41 - US-028
+- Wrote comprehensive Machine-Readable Docs page at packages/docs/src/content/docs/ai-agents/machine-readable.mdx
+- Covers: llms.txt and llms-full.txt files (llmstxt.org convention), --json flag on all inspect commands with example JSON output (routes, schema, errors), OpenAPI spec generation via typokit generate:openapi, debug sidecar JSON endpoints table (8 endpoints on port 9800), generated file artifacts in .typokit/ directory, agent workflow combining all interfaces
+- Created packages/docs/public/llms.txt with structured summary: project overview, categorized doc links (Getting Started, Core Concepts, Guides, CLI Reference, Architecture, AI Agents), and all 24 publishable @typokit/* packages
+- Created packages/docs/public/llms-full.txt with expanded inline content: detailed package descriptions grouped by category, complete CLI command reference, architecture summary, and key concepts explained in-context
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to AI Agent Integration, Observability, inspect CLI reference
+- Files changed: packages/docs/src/content/docs/ai-agents/machine-readable.mdx, packages/docs/public/llms.txt (new), packages/docs/public/llms-full.txt (new)
+- **Learnings for future iterations:**
+  - llms.txt follows llmstxt.org format: H1 title, blockquote summary, H2 sections with link lists
+  - llms-full.txt expands on llms.txt with inline content so agents don't need to follow links
+  - Files in packages/docs/public/ are served at the site root (with base prefix for GitHub Pages)
+  - Sidebar already referenced ai-agents/machine-readable slug — no config changes needed
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T19:48 - US-029
+- Wrote comprehensive Contributing guide at packages/docs/src/content/docs/contributing/index.mdx
+- Covers: prerequisites (Node.js 24+, pnpm, Rust toolchain), setup steps, monorepo package map with all @typokit/* packages
+- Explains Nx workspace targets (build, test, lint, typecheck) with commands
+- Includes Rust native transform development section with NAPI-RS build instructions
+- Documents PR process, CI checks, code style, and conventional commits
+- Uses Starlight components: Aside, Steps, Tabs/TabItem for interactive docs
+- Links to architecture docs for deeper understanding
+- Files changed: packages/docs/src/content/docs/contributing/index.mdx
+- **Learnings for future iterations:**
+  - All packages use rstest as the test runner, not Jest or Vitest
+  - Rust transform uses @napi-rs/cli for cross-platform builds with pnpm build:native / build:native:release
+  - The nx graph command is useful for visualizing package dependencies
+  - nx affected commands help scope CI checks to impacted packages only
+---
