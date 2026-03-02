@@ -50,8 +50,7 @@ Started: 03/01/2026 21:04:22
 - DB adapters GENERATE code (string output), don't import ORM libs at runtime — output is GeneratedOutput[]
 - DatabaseAdapter interface is in @typokit/core (adapters/database.ts), not @typokit/types
 - Plugin sidecar servers use @typokit/platform-node createServer directly — not server-native adapter
-
-## 2026-03-02T05:04:30Z - US-001
+- Debug plugin `onStart` exposes `app.services["_debug"]` API (setRouteTable, setMiddleware) — use a bridge plugin after debug to feed route data
 - Initialized Nx monorepo with pnpm workspaces
 - Created 26 packages per typokit-arch.md Section 12.11
 - TypeScript project references with strict mode, path aliases for @typokit/*
@@ -1072,4 +1071,37 @@ ative.addresses()[0].port
   - PaginatedResponse wraps items in data array with pagination sub-object — match this in OpenAPI schema
   - rstest runs generate-openapi.ts side effects (file writes) during test execution — the script's main() runs on import
   - Manual browser verification needed for Swagger UI rendering (no browser tools available)
+---
+
+## 2026-03-02T11:21:00Z - US-059
+- Implemented debug sidecar demo in the reference app (example-todo-server)
+- Created `dev-server.ts` with `createDevTodoApp()` factory that wires `debugPlugin` on port 9800
+- Route table bridge plugin feeds compiled routes to debug sidecar via `app.services["_debug"].setRouteTable()`
+- Debug endpoints verified: `/_debug/routes`, `/_debug/health`, `/_debug/errors?since=1h`
+- Integration test (`debug-sidecar.test.ts`) covers all three endpoints with real HTTP requests
+- Files changed: `packages/example-todo-server/src/dev-server.ts` (new), `packages/example-todo-server/src/debug-sidecar.test.ts` (new), `packages/example-todo-server/src/index.ts`, `packages/example-todo-server/package.json`, `packages/example-todo-server/tsconfig.json`, `pnpm-lock.yaml`
+- **Learnings for future iterations:**
+  - Debug plugin's `onStart` exposes `app.services["_debug"]` with `setRouteTable`/`setMiddleware` — must be called explicitly by a bridge plugin after debug plugin runs
+  - Use a separate port (9801) for debug sidecar in tests to avoid port conflicts with other test suites
+  - rstest dynamic `import("http")` fails — use static `import http from "http"` in test files
+  - The `createApp` plugin execution order matters: debug plugin must be first so its `_debug` service is available for bridge plugins
+  - ESLint enforces no-unused-vars — prefix unused bindings with `_` or don't capture return values
+---
+
+## 2026-03-02T11:32:00Z - US-060
+- Implemented E2E test suite with real PostgreSQL database in packages/example-todo-server/src/e2e.test.ts
+- Full lifecycle coverage: create user → create todo → list by user → update → mark complete → delete
+- PostgreSQL state validation: rows written, UNIQUE constraint (23505), FK constraint (23503), NOT NULL (23502), enum values
+- Tests CASCADE delete behavior (user deletion cascades to todos)
+- Separate test:e2e script in package.json (not run by default test command)
+- CI workflow updated with PostgreSQL 16 service container in e2e job
+- E2E tests skip gracefully when DATABASE_URL is not set (passes with 1 skip test)
+- Files changed: packages/example-todo-server/src/e2e.test.ts (new), packages/example-todo-server/package.json, .github/workflows/ci.yml, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - `pg` module uses default export pattern in ESM: `import pg from "pg"; const { Client } = pg;`
+  - ESLint enforces `import type` for type-only imports — use `import type http from "http"` not `import http`
+  - PostgreSQL error codes: 23505 (unique_violation), 23503 (foreign_key_violation), 23502 (not_null_violation), 22P02 (invalid enum)
+  - rstest filters accept file paths directly: `rstest run src/e2e.test.ts` to run specific tests
+  - Use `CREATE TYPE IF NOT EXISTS` pattern via DO block for PostgreSQL enums
+  - GitHub Actions PostgreSQL service: use `postgres:16` image with health checks for reliable startup
 ---
