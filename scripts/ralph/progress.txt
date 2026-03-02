@@ -3,6 +3,8 @@ Started: 03/01/2026 21:04:22
 ---
 
 ## Codebase Patterns
+- ValidatorMap maps string refs to ValidatorFn — mirrors HandlerMap pattern; RouteHandler.validators is optional
+- Validation runs after route matching, before handler — prefix field errors with params./query./body. for attribution
 - Use `rstest run --passWithNoTests` for test commands (rstest 0.0.1 hangs without `run` subcommand)
 - Import test functions from `@rstest/core` (not `rstest`): `import { describe, it, expect } from "@rstest/core"`
 - Package tsconfigs extend `../../tsconfig.base.json` — don't put `paths` in base (causes TS5090). Paths live in root `tsconfig.json` with `baseUrl`.
@@ -15,7 +17,10 @@ Started: 03/01/2026 21:04:22
 - Error subclasses need `Object.setPrototypeOf(this, new.target.prototype)` for correct instanceof checks
 - ESLint enforces `import type` for type-only imports — separate value imports from type imports
 - No `@types/node` in core — use `globalThis` cast for `process.env` access, not bare `process`
+- Platform packages (platform-node/bun/deno) use `@types/node` in devDeps and node: imports — set all headers BEFORE res.writeHead()
 - Duck-type check for third-party errors (e.g. Typia TypeGuardError) by `error.name` + property shape, not imports
+- ESLint forbids inline `import("module").Type` casts — import types at top level instead
+- Use port 0 in integration tests for auto-assigned ports, read via `server.address().port`
 - Rust crate in transform-native: `Cargo.toml` + `build.rs` at package root, `.rs` files in `src/` alongside `.ts` files
 - napi-rs v3 + swc_ecma_ast v21 uses `Wtf8Atom` for string literals — use `.to_string_lossy()` not `Display`/`format!`
 - For native addon in ESM: use `createRequire` from `"module"` with an `env.d.ts` shim declaring `ImportMeta.url`
@@ -369,4 +374,109 @@ Started: 03/01/2026 21:04:22
   - SchemaChange and MigrationDraft types from @typokit/types are the canonical interfaces for migration data
   - Migration files use timestamp prefix (YYYYMMDDHHMMSS) for ordering - .applied file tracks which have been applied
   - ESLint catches unused type imports - use import type only for types actually referenced
+---
+
+## 2026-03-02T07:29:00Z - US-021
+- Implemented scaffold commands: typokit init, typokit add route, typokit add service
+- `typokit init [name]`: creates new project from template with package.json, tsconfig.json, src/app.ts, src/types.ts, directory structure matching Section 4.4 (routes/, middleware/, services/)
+- `typokit add route <name>`: scaffolds contracts.ts + handlers.ts + middleware.ts in src/routes/<name>/
+- `typokit add service <name>`: scaffolds <name>.service.ts in src/services/
+- Templates include CRUD route contracts, handler stubs with default export for app.ts registration, middleware skeleton
+- Server/DB adapter selection via --server and --db flags on init
+- 19 unit tests covering utility functions, template generation, dispatcher, and arch doc compliance
+- Files changed: packages/cli/src/commands/scaffold.ts (new), packages/cli/src/scaffold.test.ts (new), packages/cli/src/index.ts (updated exports + routing + help text)
+- **Learnings for future iterations:**
+  - Scaffold commands use `init` and `add` as top-level commands, not colon-separated (unlike generate:* and migrate:*)
+  - `add` uses positional[0] as subcommand type (route/service) and positional[1] as the name
+  - Templates reference @typokit/types for RouteContract, RouteHandler, RequestContext, MiddlewareFn
+  - Section 4.4 convention: routes/<name>/contracts.ts + handlers.ts + middleware.ts; services/<name>.service.ts
+  - All 127 tests pass (6 test files), typecheck and lint clean
+---
+
+## 2026-03-02T07:33:25Z - US-022
+- Implemented test commands in `packages/cli/src/commands/test.ts`
+- Three subcommands: `test` (all), `test:contracts`, `test:integration`
+- Auto-detection of test runner by checking for jest.config.*, vitest.config.*, rstest.config.* files
+- `--runner <jest|vitest|rstest>` flag overrides auto-detection
+- Schema change detection triggers contract test regeneration before running
+- Exit code reflects test runner exit code
+- Wired into `index.ts` run() function with help text
+- 21 unit tests in `test.test.ts`
+- Files changed: packages/cli/src/commands/test.ts, packages/cli/src/test.test.ts, packages/cli/src/index.ts
+- **Learnings for future iterations:**
+  - Test command follows same pattern as other CLI commands: dynamic imports for fs/path/child_process, CliLogger + TypoKitConfig options
+  - ESLint enforces no-unused-vars strictly — destructured but unused imports from dynamic import will fail lint
+  - schemasChanged uses .typokit/build-cache.json and __generated__/ dir existence to detect staleness
+  - spawnSync with ENOENT errors when test runner binary not found — handle gracefully
+---
+
+## 2026-03-02T07:37:50Z - US-023
+- Implemented tapable hook system: AsyncSeriesHookImpl class + createBuildPipeline() factory
+- AsyncSeriesHookImpl executes taps in registration order, supports async, exposes taps for introspection
+- createBuildPipeline() creates all 6 hook phases: beforeTransform, afterTypeParse, afterValidators, afterRouteTable, emit, done
+- getPipelineTaps() introspection helper returns all registered taps with hook name and order
+- BUILD_HOOK_PHASES constant for iteration over phases
+- Updated CLI build command to create pipeline, let plugins tap via onBuild(), fire hooks at correct phases
+- Updated inspect build-pipeline to show registeredTaps array
+- Added @typokit/core as CLI dependency + tsconfig reference
+- 19 new unit tests (76 total in core, 148 in CLI)
+- Files changed: packages/core/src/hooks.ts (new), packages/core/src/hooks.test.ts (new), packages/core/src/index.ts, packages/cli/src/commands/build.ts, packages/cli/src/commands/inspect.ts, packages/cli/package.json, packages/cli/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - CompiledRoute fields (paramChild, wildcardChild, children, handlers) are all optional — use undefined not null
+  - CLI needs core rebuilt (pnpm run build in core) before typecheck works due to dist/ exports
+  - BuildPipelineInstance type is the concrete implementation; BuildPipeline is the interface from plugin.ts
+  - Dynamic imports with type assertions need the target package's dist/ to exist for typecheck
+  - AsyncSeriesHookImpl.taps is readonly array — enables introspection without separate tracking
+---
+
+## 2026-03-02T07:44:00Z - US-024
+- Implemented @typokit/platform-node — Node.js Platform Adapter
+- createServer() wrapping node:http dispatches to a TypoKit request handler
+- normalizeRequest() parses IncomingMessage → TypoKitRequest (method, path, headers, query, JSON body)
+- writeResponse() serializes TypoKitResponse → ServerResponse (status, headers, JSON body auto-serialization)
+- getPlatformInfo() returns { runtime: "node", version: process.version }
+- PlatformInfo, NodeRequestHandler, NodeServerOptions, NodeServer interfaces exported
+- 7 unit tests: getPlatformInfo, normalizeRequest (GET + POST/JSON), writeResponse, createServer lifecycle, error handling, graceful close
+- Files changed: packages/platform-node/package.json, tsconfig.json, src/index.ts, src/index.test.ts, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Platform adapters provide runtime-specific HTTP module access — they're consumed by server adapters (e.g., server-native)
+  - Must set all headers (including auto content-type for JSON) BEFORE calling res.writeHead() — Node.js throws if headers set after writeHead
+  - Use port 0 and server.address() in tests for dynamic port allocation — avoids port conflicts
+  - @types/node goes in devDependencies for platform-node — this is the only package that directly uses node: imports
+  - Platform adapters are orthogonal to server adapters per arch doc Section 6.5
+---
+
+## 2026-03-02T07:49:00Z - US-025
+- Implemented @typokit/server-native with nativeServer() factory returning ServerAdapter
+- Radix tree traversal for O(k) route lookup: static children, paramChild, wildcardChild
+- 404 response for unmatched routes, 405 with Allow header for wrong HTTP method
+- Trailing slash normalization (/users/ matches /users)
+- normalizeRequest/writeResponse delegating to @typokit/platform-node
+- 14 integration tests covering routing, params, POST body, 404/405, trailing slashes
+- Files changed: packages/server-native/src/index.ts, packages/server-native/src/index.test.ts, packages/server-native/package.json, packages/server-native/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - ServerAdapter.normalizeRequest is sync but platform-node's is async — handle async normalization inside the server's request handler, expose sync normalizeRequest for already-parsed objects
+  - Use port 0 in tests to get auto-assigned ports, then read via server.address().port
+  - ESLint forbids inline import("module").Type casts — import the type at top level instead
+  - The MiddlewareChain from types has entries with { name, handler: MiddlewareFn } but core's executeMiddlewareChain expects MiddlewareEntry[] with { name, middleware: Middleware } — need to adapt between the two
+---
+
+## 2026-03-02T07:54:00Z - US-026
+- Implemented request validation pipeline in @typokit/server-native
+- Added validation types to @typokit/types: ValidatorFn, ValidatorMap, ValidationResult, ValidationFieldError
+- Added optional alidators field to RouteHandler interface (params/query/body string refs)
+- Updated ServerAdapter.registerRoutes in @typokit/core to accept optional ValidatorMap
+- Implemented unValidators() function that validates params, query, body before handler execution
+- Validation errors produce 400 ErrorResponse with field-level details, prefixed with params./query./body.
+- Multiple validator failures are aggregated into a single response
+- Backwards compatible: no validators = no validation (existing behavior preserved)
+- Exported unValidators and alidationErrorResponse utilities for reuse
+- Files changed: packages/types/src/index.ts, packages/core/src/adapters/server.ts, packages/server-native/src/index.ts, packages/server-native/src/index.test.ts
+- **Learnings for future iterations:**
+  - ValidatorMap is a Record<string, ValidatorFn> mapping validator refs to runtime functions — mirrors HandlerMap pattern
+  - RouteHandler.validators is optional with optional params/query/body fields — non-breaking addition
+  - Validation runs BEFORE handler execution but AFTER route matching and param extraction
+  - Field errors are prefixed with their source (params./query./body.) for clear error attribution
+  - ESLint enforces no unused imports — don't import types unless directly referenced in code (ValidatorFn was imported but only used in ValidatorMap type)
+  - ServerAdapter.registerRoutes 4th param is optional — backwards compatible with existing adapters
 ---
