@@ -3,10 +3,10 @@ title: TypoKit
 description: AI-Native Node.js Framework — type-safe, schema-first API development
 template: splash
 hero:
-  tagline: Build type-safe, schema-first APIs with the power of AI-native tooling. TypoKit generates routes, handlers, and clients from your schemas — so you ship faster with fewer bugs.
+  tagline: Write the type once. TypoKit generates your routes, handlers, validators, clients, and tests — all from a single schema definition.
   actions:
     - text: Get Started
-      link: /guides/quickstart/
+      link: /typokit/getting-started/quickstart/
       icon: right-arrow
       variant: primary
     - text: View on GitHub
@@ -14,3 +14,110 @@ hero:
       icon: external
       variant: minimal
 ---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Why TypoKit?
+
+Define your API contract once as a TypeScript type. TypoKit's Rust-powered build pipeline compiles it into route handlers, request validators, typed clients, and contract tests — with zero runtime overhead. Ship production-ready APIs in minutes, not days.
+
+<CardGrid>
+  <Card title="Schema-First Types" icon="document">
+    Define your entire API surface as TypeScript interfaces. Routes, params, bodies, and responses are all derived from a single source of truth — no drift, no duplication.
+  </Card>
+  <Card title="Rust Build Pipeline" icon="rocket">
+    A compiled Rust transform parses your schemas and generates optimized route tables, validators, and serializers. Incremental builds keep feedback loops fast.
+  </Card>
+  <Card title="Pluggable Server Adapters" icon="puzzle">
+    Run on Express, Fastify, Hono, or Node's native HTTP — swap adapters with a one-line config change. Your handler code stays the same.
+  </Card>
+  <Card title="Auto-Generated Tests" icon="approve-check-circle">
+    Contract tests are generated alongside your routes. Every endpoint is verified against its schema automatically — catch regressions before they ship.
+  </Card>
+  <Card title="AI-Native Debugging" icon="star">
+    Built-in observability and a debug plugin give AI agents structured context about your API. Traces, metrics, and error diagnostics are machine-readable by default.
+  </Card>
+  <Card title="Type-Safe Client SDK" icon="laptop">
+    Generate a fully typed client from your API schema. Works with React Query, SWR, or vanilla fetch — with autocomplete for every route and parameter.
+  </Card>
+</CardGrid>
+
+## See It in Action
+
+Define a type. Get everything else for free.
+
+<Tabs>
+  <TabItem label="Schema Definition">
+    ```ts title="types.ts"
+    export interface UserRoutes {
+      "GET /users": {
+        response: { id: string; name: string; email: string }[];
+      };
+      "GET /users/:id": {
+        params: { id: string };
+        response: { id: string; name: string; email: string };
+      };
+      "POST /users": {
+        body: { name: string; email: string };
+        response: { id: string; name: string; email: string };
+      };
+    }
+    ```
+  </TabItem>
+  <TabItem label="Generated Handler">
+    ```ts title="handlers.ts"
+    import { defineHandlers } from "@typokit/core";
+    import type { UserRoutes } from "./types";
+
+    export default defineHandlers<UserRoutes>({
+      "GET /users": async (ctx) => {
+        // ctx.response is typed as { id, name, email }[]
+        return ctx.db.users.findMany();
+      },
+      "GET /users/:id": async (ctx) => {
+        // ctx.params.id is typed as string
+        return ctx.db.users.findById(ctx.params.id);
+      },
+      "POST /users": async (ctx) => {
+        // ctx.body is typed as { name, email }
+        return ctx.db.users.create(ctx.body);
+      },
+    });
+    ```
+  </TabItem>
+  <TabItem label="Type-Safe Client">
+    ```ts title="client.ts"
+    import { createClient } from "@typokit/client";
+    import type { UserRoutes } from "./types";
+
+    const api = createClient<UserRoutes>({
+      baseUrl: "https://api.example.com",
+    });
+
+    // Fully typed — autocomplete for route, params, and response
+    const users = await api.get("/users");
+    const user = await api.get("/users/:id", { params: { id: "123" } });
+    const created = await api.post("/users", { body: { name: "Ada", email: "ada@example.com" } });
+    ```
+  </TabItem>
+</Tabs>
+
+## Who Is This For?
+
+<CardGrid>
+  <Card title="Framework Users" icon="seti:typescript">
+    Teams building Node.js APIs who want type safety without boilerplate. If you're tired of keeping your routes, validators, and client SDKs in sync — TypoKit does it for you.
+  </Card>
+  <Card title="AI Agent Developers" icon="seti:robot">
+    Build APIs that AI agents can discover, understand, and interact with. TypoKit generates machine-readable docs, structured error responses, and OpenTelemetry traces by default.
+  </Card>
+</CardGrid>
+
+## Start Building
+
+<CardGrid>
+  <LinkCard title="Quickstart" description="Create your first TypoKit API in under 5 minutes." href="/typokit/getting-started/quickstart/" />
+  <LinkCard title="Core Concepts" description="Understand schemas, routing, middleware, and more." href="/typokit/core-concepts/schema-first-types/" />
+  <LinkCard title="API Reference" description="Browse the full generated API documentation." href="/typokit/api-reference/" />
+  <LinkCard title="Architecture" description="Explore how the build pipeline and compiled router work." href="/typokit/architecture/overview/" />
+</CardGrid>
