@@ -11,6 +11,25 @@ interface JsTypeMetadata {
   properties: Record<string, JsPropertyMetadata>;
 }
 
+interface JsSchemaChange {
+  type: string;
+  entity: string;
+  field?: string;
+  details?: Record<string, string>;
+}
+
+interface JsMigrationDraft {
+  name: string;
+  sql: string;
+  destructive: boolean;
+  changes: JsSchemaChange[];
+}
+
+interface JsTypeValidatorInput {
+  name: string;
+  properties: Record<string, JsPropertyMetadata>;
+}
+
 interface NativeBindings {
   parseAndExtractTypes(
     filePaths: string[]
@@ -20,6 +39,18 @@ interface NativeBindings {
     routeFilePaths: string[],
     typeFilePaths: string[]
   ): string;
+  diffSchemas(
+    oldTypes: Record<string, JsTypeMetadata>,
+    newTypes: Record<string, JsTypeMetadata>,
+    migrationName: string
+  ): JsMigrationDraft;
+  generateTestStubs(filePaths: string[]): string;
+  prepareValidatorInputs(
+    typeFilePaths: string[]
+  ): JsTypeValidatorInput[];
+  collectValidatorOutputs(
+    results: string[][]
+  ): Record<string, string>;
 }
 
 // Load the platform-specific native addon
@@ -144,5 +175,95 @@ export async function generateOpenApi(
 ): Promise<string> {
   const native = await getNative();
   return native.generateOpenApi(routeFilePaths, typeFilePaths);
+}
+
+/**
+ * Diff two schema versions and produce a migration draft.
+ *
+ * Compares old types against new types to detect added, removed, and
+ * modified entities and fields. Generates SQL DDL stubs for the changes.
+ *
+ * @param oldTypes - Previous schema version
+ * @param newTypes - New schema version
+ * @param migrationName - Name for the migration draft
+ * @returns MigrationDraft with SQL, changes, and destructive flag
+ */
+export async function diffSchemas(
+  oldTypes: SchemaTypeMap,
+  newTypes: SchemaTypeMap,
+  migrationName: string,
+): Promise<JsMigrationDraft> {
+  const native = await getNative();
+  const oldJs = schemaTypeMapToJs(oldTypes);
+  const newJs = schemaTypeMapToJs(newTypes);
+  return native.diffSchemas(oldJs, newJs, migrationName);
+}
+
+/**
+ * Generate contract test scaffolding from route contract files.
+ *
+ * Parses route contracts and generates TypeScript test stubs with
+ * describe/it blocks for each route.
+ *
+ * @param filePaths - Array of file paths containing route contract interfaces
+ * @returns TypeScript test code string
+ */
+export async function generateTestStubs(
+  filePaths: string[],
+): Promise<string> {
+  const native = await getNative();
+  return native.generateTestStubs(filePaths);
+}
+
+/**
+ * Prepare type metadata for Typia validator generation.
+ *
+ * Converts parsed type metadata into a format suitable for passing
+ * to the @typokit/transform-typia bridge callback.
+ *
+ * @param typeFilePaths - Array of file paths containing type definitions
+ * @returns Array of type validator inputs
+ */
+export async function prepareValidatorInputs(
+  typeFilePaths: string[],
+): Promise<JsTypeValidatorInput[]> {
+  const native = await getNative();
+  return native.prepareValidatorInputs(typeFilePaths);
+}
+
+/**
+ * Collect validator code results into a file path map.
+ *
+ * Maps type names and their generated code to output file paths
+ * under .typokit/validators/.
+ *
+ * @param results - Array of [typeName, code] pairs
+ * @returns Map of file paths to validator code
+ */
+export async function collectValidatorOutputs(
+  results: [string, string][],
+): Promise<Record<string, string>> {
+  const native = await getNative();
+  return native.collectValidatorOutputs(results);
+}
+
+/** Convert SchemaTypeMap to JsTypeMetadata format for native binding */
+function schemaTypeMapToJs(
+  types: SchemaTypeMap,
+): Record<string, JsTypeMetadata> {
+  const result: Record<string, JsTypeMetadata> = {};
+  for (const [name, meta] of Object.entries(types)) {
+    result[name] = {
+      name: meta.name,
+      properties: {},
+    };
+    for (const [propName, prop] of Object.entries(meta.properties)) {
+      result[name].properties[propName] = {
+        type: prop.type,
+        optional: prop.optional,
+      };
+    }
+  }
+  return result;
 }
 
