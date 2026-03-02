@@ -20,6 +20,7 @@ Started: 03/02/2026 09:17:20
 - Set `errorOnEmptyDocumentation: false` since some packages may lack full JSDoc coverage
 - Starlight UI components (Tabs, Steps, Aside, etc.) import from `@astrojs/starlight/components` in MDX files
 - Internal doc links require the `base` prefix for GitHub Pages (e.g., `/typokit/path/to/page/`)
+- CLI reference AC file paths may differ from existing sidebar slugs — always use the existing slug and file location
 
 ## 2026-03-02T17:23 - US-001
 - Initialized Starlight docs package at packages/docs/
@@ -304,6 +305,22 @@ Started: 03/02/2026 09:17:20
   - 351 pages total after build (same count — replaced a stub page)
 ---
 
+## 2026-03-02T18:57 - US-021
+- Wrote comprehensive CLI reference for Scaffolding and Development commands at packages/docs/src/content/docs/cli-reference/scaffolding-dev.mdx
+- Covers 5 commands: typokit init, typokit add route, typokit add service, typokit build, typokit dev
+- Each command includes: syntax, arguments, flags, description of what it does, example usage with expected output, code examples for scaffolded files
+- Documents global flags (--root, --verbose), --debug-port for dev command
+- Uses Starlight Aside components for tips, notes, cautions
+- Cross-links to generate-migrate-test, inspect, quickstart, building-first-api
+- Files changed: packages/docs/src/content/docs/cli-reference/scaffolding-dev.mdx
+- **Learnings for future iterations:**
+  - AC says `cli/scaffolding.mdx` and `cli/development.mdx` but sidebar uses `cli-reference/scaffolding-dev` — use existing file and slug
+  - CLI commands are implemented in packages/cli/src/commands/*.ts with index.ts as entry point
+  - Global flags (--root, --verbose) apply to all commands; specific flags are per-command
+  - Dev command uses AST cache + dependency graph for incremental rebuilds; debug sidecar requires plugin-debug
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
 ## 2026-03-02T18:55 - US-020
 - Wrote comprehensive migration guide at packages/docs/src/content/docs/guides/migration.mdx
 - Covers incremental adoption path for both Express and Fastify projects
@@ -320,5 +337,22 @@ Started: 03/02/2026 09:17:20
   - Fastify adapter uses getNativeServer() for accessing native Fastify instance for plugins/legacy routes
   - Framework-native middleware runs BEFORE TypoKit normalization; TypoKit middleware runs AFTER — only for TypoKit routes
   - Legacy routes and TypoKit routes coexist because they're registered on the same framework instance
+  - 351 pages total after build (same count — replaced a stub page)
+---
+## 2026-03-02T19:02 - US-022
+- Wrote comprehensive CLI reference for Generate, Migrate, and Test commands at packages/docs/src/content/docs/cli-reference/generate-migrate-test.mdx
+- Covers 10 commands: generate:db, generate:client, generate:openapi, generate:tests, migrate:generate, migrate:diff, migrate:apply, test, test:contracts, test:integration
+- Each command includes: syntax, flags (including --json where applicable), description, example usage with expected output
+- Documents test runner auto-detection (Jest > Vitest > Rstest > fallback Vitest) and runner-specific patterns
+- Documents destructive migration handling (--force flag, DESTRUCTIVE annotations)
+- Uses Starlight Aside components for tips, notes, cautions
+- Cross-links to scaffolding-dev, inspect, building-first-api, database-adapters
+- Files changed: packages/docs/src/content/docs/cli-reference/generate-migrate-test.mdx
+- **Learnings for future iterations:**
+  - AC says create files at cli/generate.mdx, cli/migrate.mdx, cli/test.mdx but sidebar uses cli-reference/generate-migrate-test slug — use existing file
+  - All generate commands output to config.outputDir (default: .typokit/) — consistent pattern
+  - migrate:generate creates both .sql and .json metadata files with matching timestamps
+  - Test runner detection priority: Jest > Vitest > Rstest > fallback Vitest
+  - Runner-specific patterns differ: Vitest uses un __generated__/, Jest uses --testPathPattern
   - 351 pages total after build (same count — replaced a stub page)
 ---
