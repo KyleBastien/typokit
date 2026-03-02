@@ -148,3 +148,79 @@ Started: 03/02/2026 09:17:20
   - ctx.fail() is the standard error pattern in handlers (covered in detail in Error Handling page)
   - 351 pages total after build (same count — replaced a stub page)
 ---
+
+## 2026-03-02T18:04 - US-010
+- Wrote comprehensive Core Concept page for Middleware and Context at packages/docs/src/content/docs/core-concepts/middleware-and-context.mdx
+- Covers: RequestContext interface (ctx.fail, ctx.log, ctx.services, ctx.requestId), defineMiddleware<TAdded>() with full auth example, context type narrowing mechanism, executeMiddlewareChain internals, priority ordering (lower runs first), short-circuiting via ctx.fail(), global vs route-group registration, typed vs framework-native middleware distinction, request processing order diagram, common patterns (logging, tenant resolution, rate limiting)
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to routing-and-handlers, error-handling, server-adapters, building-first-api
+- Files changed: packages/docs/src/content/docs/core-concepts/middleware-and-context.mdx
+- **Learnings for future iterations:**
+  - The middleware-and-context.mdx file is the correct name (sidebar slug: core-concepts/middleware-and-context), not middleware.mdx as AC states
+  - defineMiddleware generic TAdded type must include index signature [key: string]: unknown for context spread compatibility
+  - executeMiddlewareChain sorts by priority (lower first, default 0), then accumulates returned objects via spread
+  - Middleware short-circuits by calling ctx.fail() which throws AppError — remaining middleware and handler don't execute
+  - Framework-native middleware (CORS, compression) runs BEFORE TypoKit normalization; typed middleware runs AFTER
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T18:08 - US-011
+- Wrote comprehensive Core Concept page for Error Handling at packages/docs/src/content/docs/core-concepts/error-handling.mdx
+- Covers: thrown errors philosophy (vs Result types), AppError class hierarchy (NotFoundError, ValidationError, UnauthorizedError, ForbiddenError, ConflictError), ctx.fail() usage as syntactic sugar, built-in error middleware (createErrorMiddleware), Typia validation error auto-formatting, dev mode vs production mode differences (stack trace exposure), structured error JSON for AI agents (traceId, route, phase, failures, sourceFile, schemaFile, relatedTests), best practices
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to middleware-and-context, routing-and-handlers, observability, building-first-api
+- Files changed: packages/docs/src/content/docs/core-concepts/error-handling.mdx
+- **Learnings for future iterations:**
+  - AppError class is in @typokit/errors package with 5 subclasses: NotFoundError (404), ValidationError (400), UnauthorizedError (401), ForbiddenError (403), ConflictError (409)
+  - ctx.fail() creates the appropriate AppError subclass based on status code and throws it — return type is `never`
+  - createErrorMiddleware() in @typokit/core handles 3 error categories: AppError, Typia validation errors, unknown errors
+  - Dev mode exposes stack traces and error messages; production returns generic "Internal Server Error" and logs full details server-side
+  - Extended error format includes sourceFile, schemaFile, relatedTests fields specifically designed for AI agent consumption
+  - 351 pages total after build (same count — replaced a stub page)
+---
+## 2026-03-02T18:10 - US-012
+- Wrote comprehensive Core Concept page for Server Adapters at packages/docs/src/content/docs/core-concepts/server-adapters.mdx
+- Covers: philosophy (TypoKit is not an HTTP server), ownership boundary table (TypoKit vs adapter responsibilities), request processing order diagram (10-step flow), ServerAdapter interface definition, all 4 adapters (Native, Fastify, Hono, Express) with full usage examples, when to use native vs bring-your-own decision guide, platform adapters as orthogonal axis with compatibility matrix, getNativeServer() escape hatch
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to custom-server-adapter guide, middleware-and-context, error-handling, building-first-api
+- Files changed: packages/docs/src/content/docs/core-concepts/server-adapters.mdx
+- **Learnings for future iterations:**
+  - ServerAdapter interface is defined in @typokit/core at packages/core/src/adapters/server.ts with 5 methods: registerRoutes, listen, normalizeRequest, writeResponse, getNativeServer
+  - Platform adapters (@typokit/platform-node, platform-bun, platform-deno) are separate from server adapters — orthogonal concerns that combine freely
+  - Native adapter uses compiled radix tree directly for O(k) route lookup; framework adapters translate the route table to framework-native registrations
+  - Fastify and Express work on Bun via compat mode but don't use Bun-native APIs; Hono and Native work natively on all 3 runtimes
+  - Framework-native middleware (CORS, compression) runs BEFORE TypoKit normalization; typed middleware runs AFTER
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T18:12 - US-013
+- Wrote comprehensive Core Concept page for Database Adapters at packages/docs/src/content/docs/core-concepts/database-adapters.mdx
+- Covers: philosophy (generate types, not queries — not an ORM), DatabaseAdapter interface (generate, diff, generateRepositories), comparison table of all 4 adapters (Drizzle, Kysely, Prisma, Raw SQL), full generated output examples for each, type metadata flow from JSDoc to DB schema, migration philosophy (drafts never auto-applied, destructive flagging), ownership boundary table, choosing an adapter guide
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links kept minimal (no broken links to unwritten pages)
+- Files changed: packages/docs/src/content/docs/core-concepts/database-adapters.mdx
+- **Learnings for future iterations:**
+  - DatabaseAdapter interface is in @typokit/core at packages/core/src/adapters/database.ts with generate(), diff(), and optional generateRepositories()
+  - All 4 DB adapters support both PostgreSQL and SQLite dialects via constructor option
+  - Drizzle generates per-table .ts files; Kysely generates single database.ts; Prisma generates schema.prisma; Raw SQL generates per-table .sql + types.ts
+  - MigrationDraft includes destructive boolean flag — CI blocks on destructive migrations until reviewed
+  - JSDoc tags @id, @generated, @unique, @maxLength, @default, @format, @table drive all database schema generation
+  - Naming: Type→Table uses pluralize+snake_case, Property→Column uses snake_case
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T18:17 - US-014
+- Wrote comprehensive Core Concept page for Plugins at packages/docs/src/content/docs/core-concepts/plugins.mdx
+- Covers: TypoKitPlugin interface with all hooks, BuildPipeline with 6 async series hooks (beforeTransform→afterTypeParse→afterValidators→afterRouteTable→emit→done), runtime lifecycle hooks (onStart→onReady→onError→onStop→onSchemaChange), plugin registration in createApp(), why no onRequest/onResponse hooks (use middleware instead), official plugins (@typokit/plugin-debug with 8 debug endpoints, @typokit/plugin-ws with build-time codegen + runtime connection management), full custom plugin example with services/CLI commands/inspect endpoints, design guidelines
+- Uses Starlight components: Aside (tip, note, caution)
+- Cross-links to middleware-and-context, custom-plugin-development guide
+- Files changed: packages/docs/src/content/docs/core-concepts/plugins.mdx
+- **Learnings for future iterations:**
+  - TypoKitPlugin interface is in packages/core/src/plugin.ts; BuildPipeline in packages/core/src/hooks.ts; createApp in packages/core/src/app.ts
+  - Build pipeline uses AsyncSeriesHook (tapable pattern) with 6 phases — plugins tap via pipeline.hooks.{phase}.tap(name, fn)
+  - Plugins register services on app.services during onStart (DI pattern); built-in services prefixed with underscore (_debug, _ws)
+  - Plugin-debug exposes 8 endpoints on a separate sidecar port (default 9229) with dev/production security modes
+  - Plugin-ws hooks into both build-time (afterTypeParse + emit for codegen) and runtime (onStart/onReady/onStop for connection management)
+  - No onRequest/onResponse hooks by design — plugins use defineMiddleware() during onStart for per-request logic
+  - 351 pages total after build (same count — replaced a stub page)
+---
