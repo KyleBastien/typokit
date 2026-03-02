@@ -1,4 +1,4 @@
-// @typokit/testing — Test Client & Integration Suite
+// @typokit/testing — Test Client, Integration Suite & Factories
 
 import type { TypoKitApp } from "@typokit/core";
 import type { RouteContract } from "@typokit/types";
@@ -14,6 +14,9 @@ export type {
   InMemoryDatabase,
   SeedFn,
 } from "./integration-suite.js";
+
+export { createFactory } from "./factory.js";
+export type { Factory, FactoryOptions } from "./factory.js";
 
 // ─── Response Type ───────────────────────────────────────────
 
