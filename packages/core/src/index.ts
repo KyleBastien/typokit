@@ -14,4 +14,12 @@ export {
   type AppInstance,
   type TypoKitPlugin,
 } from "./plugin.js";
-
+export {
+  type MiddlewareInput,
+  type Middleware,
+  type MiddlewareEntry,
+  defineMiddleware,
+  createPlaceholderLogger,
+  createRequestContext,
+  executeMiddlewareChain,
+} from "./middleware.js";
