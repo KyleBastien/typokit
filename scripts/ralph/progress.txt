@@ -104,3 +104,17 @@ Started: 03/02/2026 09:17:20
   - Internal links in Starlight docs need the `base` prefix (e.g., `/typokit/core-concepts/...`) for GitHub Pages deployment
   - Typecheck and build both pass with MDX component imports; no additional dependencies needed
 ---
+
+## 2026-03-02T17:49 - US-007
+- Wrote comprehensive project structure guide at packages/docs/src/content/docs/getting-started/project-structure.mdx
+- Covers: 4-package monorepo layout (@app/schema, @app/server, @app/db, @app/client), .typokit/ generated directory with all subdirectories explained, typokit.config.ts options, auto-generated vs user-maintained file table
+- Uses Starlight components: Aside (tip, caution), Tabs/TabItem for code examples
+- Includes file tree diagrams, dependency flow diagram, and configuration examples
+- Files changed: packages/docs/src/content/docs/getting-started/project-structure.mdx
+- **Learnings for future iterations:**
+  - The explore agent is very effective for gathering codebase architecture info from typokit-arch.md and example packages
+  - Project structure docs should clearly mark which files are auto-generated vs user-maintained — this is a key TypoKit concept
+  - The .typokit/ directory has 5 subdirectories: validators/, routes/, schemas/, tests/, client/
+  - typokit.config.ts uses defineConfig() from @typokit/cli with typeFiles, routeFiles, outputDir, distDir, compiler options
+  - Build produces 351 pages total (same as before — no new pages since this replaced a stub)
+---
