@@ -14,6 +14,7 @@
   "files": ["dist", "src"],
   "scripts": {
     "test": "rstest run --passWithNoTests",
+    "test:contracts": "rstest run --passWithNoTests src/__generated__/",
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -23,5 +24,11 @@
     "@typokit/errors": "workspace:*",
     "@typokit/example-todo-schema": "workspace:*",
     "@typokit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typokit/server-native": "workspace:*",
+    "@typokit/testing": "workspace:*",
+    "@typokit/platform-node": "workspace:*"
   }
 }
