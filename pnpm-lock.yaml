@@ -128,7 +128,27 @@ importers:
         specifier: ^22.0.0
         version: 22.19.13
 
-  packages/plugin-debug: {}
+  packages/plugin-debug:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@typokit/otel':
+        specifier: workspace:*
+        version: link:../otel
+      '@typokit/platform-node':
+        specifier: workspace:*
+        version: link:../platform-node
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.13
 
   packages/plugin-ws: {}
 
