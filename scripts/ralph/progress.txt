@@ -3,6 +3,8 @@ Started: 03/01/2026 21:04:22
 ---
 
 ## Codebase Patterns
+- Nx plugins need executors.json + generators.json at package root, with executors/generators fields in package.json
+- Bun platform uses Web API types (Request/Response/Headers) — declare in env.d.ts for non-Bun compile environments
 - Use globalThis cast for crypto access (same pattern as process/fetch) — no @types/node means no global type declarations
 - rstest 0.0.1 does NOT support `vi` (vitest mocks) — use manual spy patterns (e.g., `fetchCalls` array) for mocking
 - ValidatorMap maps string refs to ValidatorFn — mirrors HandlerMap pattern; RouteHandler.validators is optional
@@ -473,11 +475,13 @@ Started: 03/01/2026 21:04:22
 - Added validation types to @typokit/types: ValidatorFn, ValidatorMap, ValidationResult, ValidationFieldError
 - Added optional alidators field to RouteHandler interface (params/query/body string refs)
 - Updated ServerAdapter.registerRoutes in @typokit/core to accept optional ValidatorMap
-- Implemented unValidators() function that validates params, query, body before handler execution
+- Implemented 
+unValidators() function that validates params, query, body before handler execution
 - Validation errors produce 400 ErrorResponse with field-level details, prefixed with params./query./body.
 - Multiple validator failures are aggregated into a single response
 - Backwards compatible: no validators = no validation (existing behavior preserved)
-- Exported unValidators and alidationErrorResponse utilities for reuse
+- Exported 
+unValidators and alidationErrorResponse utilities for reuse
 - Files changed: packages/types/src/index.ts, packages/core/src/adapters/server.ts, packages/server-native/src/index.ts, packages/server-native/src/index.test.ts
 - **Learnings for future iterations:**
   - ValidatorMap is a Record<string, ValidatorFn> mapping validator refs to runtime functions — mirrors HandlerMap pattern
@@ -810,7 +814,8 @@ Started: 03/01/2026 21:04:22
 - 12 integration tests: routing, params, POST body, validation, serialization, middleware, 404, port 0
 - Files changed: packages/server-fastify/src/index.ts, packages/server-fastify/src/index.test.ts, packages/server-fastify/package.json, packages/server-fastify/tsconfig.json, pnpm-lock.yaml
 - **Learnings for future iterations:**
-  - Fastify v5 deprecates direct maxParamLength option — use outerOptions instead
+  - Fastify v5 deprecates direct maxParamLength option — use 
+outerOptions instead
   - Fastify uses pp.route({ method, url, handler }) for programmatic route registration
   - Use pp.listen({ port: 0, host: '0.0.0.0' }) for auto-port, read via 
 ative.addresses()[0].port
@@ -859,4 +864,106 @@ ative.addresses()[0].port
   - Express needs express.json() middleware explicitly for body parsing unlike Fastify which handles it natively
   - Use node:http createServer(app) for Express listen() to get Server instance for port 0 auto-assignment
   - Server adapter pattern is highly consistent across Fastify/Hono/Express — collectRoutes, runValidators, serializeResponse are identical
+---
+
+## 2026-03-02T09:58:59Z - US-047
+- Implemented @typokit/platform-bun Bun platform adapter
+- createServer() wraps Bun.serve() via globalThis cast pattern
+- normalizeRequest() converts Web API Request to TypoKitRequest
+- buildResponse() converts TypoKitResponse to Web API Response
+- getPlatformInfo() returns bun runtime + version
+- env.d.ts declares minimal Web API types (URL, Headers, Request, Response) for compilation without DOM lib
+- 16 unit tests covering all exports, including mock Bun.serve integration
+- Files changed: packages/platform-bun/src/index.ts, src/index.test.ts, src/env.d.ts, package.json, tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Bun uses Web API Request/Response natively — no node:http equivalent needed
+  - For non-Bun compile environments, declare Web API types in env.d.ts (not @types/node)
+  - Bun.serve() is synchronous — wrap in Promise for consistent ServerHandle pattern
+  - Mock Bun global via `globalThis` cast in tests — same pattern used for process/crypto
+  - `BunServer.stop(true)` closes active connections immediately
+---
+
+
+## 2026-03-02T10:03:32Z - US-048
+- Implemented @typokit/platform-deno — Deno Platform Adapter
+- createServer() wrapping Deno.serve() with onListen callback for async readiness
+- normalizeRequest() / buildResponse() using Web API Request/Response (same pattern as Bun adapter)
+- getPlatformInfo() returning Deno version from globalThis.Deno.version.deno
+- env.d.ts for Web API type declarations (URL, Headers, Request, Response)
+- 16 unit tests covering getPlatformInfo, normalizeRequest, buildResponse, createServer
+- Files changed: packages/platform-deno/package.json, tsconfig.json, src/index.ts, src/env.d.ts, src/index.test.ts
+- **Learnings for future iterations:**
+  - Deno.serve() takes (options, handler) not (options-with-fetch) like Bun.serve — handler is a separate second arg
+  - Deno.serve() uses onListen callback in options for async server readiness notification
+  - Deno.HttpServer uses shutdown() (async) instead of stop() (sync like Bun)
+  - Platform adapters using Web APIs (Bun, Deno) share nearly identical normalizeRequest/buildResponse code — could be extracted to a shared module
+  - env.d.ts pattern is identical across Bun and Deno adapters for Web API types
+---
+
+## 2026-03-02T10:07:28Z - US-049
+- Implemented @typokit/client-react-query React Query adapter
+- buildQueryKey() generates cache keys from route path + params + query
+- createQueryHooks() factory produces useGet/usePost/usePut/usePatch/useDelete hooks
+- useGet wraps React Query useQuery for GET routes with typed keys and responses
+- Mutation hooks (usePost/usePut/usePatch/useDelete) wrap useMutation with typed variables
+- Ambient type declarations in env.d.ts for @tanstack/react-query peer dependency
+- 9 unit tests covering query key generation (different paths, params, queries)
+- Files changed: packages/client-react-query/src/index.ts, src/env.d.ts, src/index.test.ts, package.json, tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Use env.d.ts for peer dependency types (React Query) — avoids installing heavy deps in monorepo
+  - peerDependencies in package.json documents runtime requirements without forcing install
+  - ESLint catches unused type params in .d.ts files — prefix with underscore (e.g., _TError)
+  - React hooks can't be tested in rstest (no React rendering env) — test pure utility functions instead
+  - UntypedClient interface pattern avoids multiple inline type assertions in hook implementations
+---
+
+## 2026-03-02T10:15:00Z - US-050
+- Implemented @typokit/client-swr package with type-safe SWR hooks
+- Created env.d.ts with ambient type declarations for swr and swr/mutation
+- Created index.ts with createSWRHooks factory: useGet (useSWR), usePost/usePut/usePatch/useDelete (useSWRMutation)
+- Created buildSWRKey utility for SWR cache key generation
+- 9 unit tests for buildSWRKey covering all key construction scenarios
+- Updated package.json with @typokit/client + @typokit/types deps, swr + react peer deps
+- Updated tsconfig.json with project references to types and client
+- Files changed: packages/client-swr/src/index.ts, packages/client-swr/src/env.d.ts, packages/client-swr/src/index.test.ts, packages/client-swr/package.json, packages/client-swr/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - SWR hooks pattern mirrors react-query pattern closely — same RouteMap/ContractFor types, same UntypedClient bridge
+  - SWR uses useSWRMutation from "swr/mutation" for write operations (separate import path)
+  - env.d.ts unused type params must be prefixed with _ to satisfy ESLint no-unused-vars rule
+  - Manual browser verification needed for UI hook behavior
+---
+
+## 2026-03-02T10:19:00Z - US-051
+- Implemented @typokit/nx Nx plugin with executors and generators
+- Build executor (@typokit/nx:build) - calls typokit build with correct working directory
+- Dev executor (@typokit/nx:dev) - calls typokit dev with debug port support
+- Test executor (@typokit/nx:test) - calls typokit test with subcommand/runner options
+- Init generator (@typokit/nx:init) - adds TypoKit config, dependencies, and targets to existing project
+- Route generator (@typokit/nx:route) - scaffolds contracts.ts, handlers.ts, middleware.ts
+- Shared utils: resolveProjectRoot (from ExecutorContext), runTypokitCommand (execSync wrapper)
+- 14 unit tests covering all executors, generators, exports, and route generator output
+- Files changed: packages/nx/package.json, packages/nx/src/index.ts, packages/nx/src/env.d.ts, packages/nx/src/utils.ts, packages/nx/executors.json, packages/nx/generators.json, packages/nx/src/executors/build/*, packages/nx/src/executors/dev/*, packages/nx/src/executors/test/*, packages/nx/src/generators/init/*, packages/nx/src/generators/route/*, packages/nx/src/index.test.ts, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Nx plugins need executors.json and generators.json at package root, referenced in package.json via "executors" and "generators" fields
+  - @nx/devkit v20 provides Tree, readProjectConfiguration, updateProjectConfiguration for generators
+  - ExecutorContext.projectsConfigurations.projects[name].root gives project path relative to workspace
+  - Executor schema.json files go alongside executor.ts in same directory; executors.json references dist/ paths
+  - Use env.d.ts to declare child_process module (same no-@types/node pattern as other packages)
+  - @nx/devkit should be a regular dependency (not devDependency) since it's used at runtime by executors/generators
+---
+
+## 2026-03-02T10:28:00Z - US-052
+- Implemented @typokit/turbo Turborepo integration helpers
+- Pipeline configuration: TurboConfig, TurboPipeline, TurboTaskConfig types + createTurboConfig() factory with merge support + defaultPipeline constant
+- Helper scripts: runBuild(), runDev(), runTest(), runTypokitTask() wrapping typokit CLI for Turborepo task compatibility
+- Setup utilities: getTurboJsonTemplate() generates ready-to-write turbo.json, getSetupInstructions() returns full setup guide
+- env.d.ts for child_process module declaration (no @types/node pattern)
+- 23 unit tests covering pipeline defaults, config merging, template generation, setup instructions, and all exports
+- Files changed: packages/turbo/src/index.ts, packages/turbo/src/pipeline.ts, packages/turbo/src/scripts.ts, packages/turbo/src/setup.ts, packages/turbo/src/env.d.ts, packages/turbo/src/index.test.ts
+- **Learnings for future iterations:**
+  - Turbo package follows same no-@types/node pattern as nx package — env.d.ts for child_process declaration
+  - Helper scripts mirror the nx utils.ts pattern: dynamic import of child_process, globalThis for process access
+  - defaultPipeline includes .typokit/** in build outputs (generated code directory must be cached)
+  - dev task must be persistent: true and cache: false in turbo.json
+  - test task depends on build (not ^build) since it needs generated code from same package
 ---
