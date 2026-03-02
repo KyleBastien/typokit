@@ -118,3 +118,33 @@ Started: 03/02/2026 09:17:20
   - typokit.config.ts uses defineConfig() from @typokit/cli with typeFiles, routeFiles, outputDir, distDir, compiler options
   - Build produces 351 pages total (same as before — no new pages since this replaced a stub)
 ---
+
+## 2026-03-02T17:54 - US-008
+- Wrote comprehensive Core Concept page for Schema-First Types at packages/docs/src/content/docs/core-concepts/schema-first-types.mdx
+- Covers: philosophy (single source of truth), complete entity type example with all JSDoc tags, JSDoc tag reference table, tag-to-output mapping, derived types (Omit/Partial/Pick), build artifacts (validators, DB schema, OpenAPI, client, tests, diff reports), "What NOT to Do" section
+- Uses Starlight components: Aside (tip, note, caution), Tabs/TabItem for database adapter examples
+- Includes cross-links to routing-and-handlers, middleware-and-context, error-handling, and building-first-api
+- Files changed: packages/docs/src/content/docs/core-concepts/schema-first-types.mdx
+- **Learnings for future iterations:**
+  - The explore agent provides excellent summaries of the architecture from typokit-arch.md and package source files — use it for gathering context before writing docs
+  - Schema-first types use JSDoc tags at both interface level (@table) and field level (@id, @generated, etc.)
+  - Derived types follow consistent patterns: Omit for create inputs, Partial for update inputs, Pick for summaries, Omit for public outputs
+  - The build pipeline has 6 artifact categories: validators, DB schema, OpenAPI, client, tests, diff reports
+  - 351 pages total after build (same count — replaced a stub page)
+---
+
+## 2026-03-02T17:55 - US-009
+- Wrote comprehensive Core Concept page for Routing and Handlers at packages/docs/src/content/docs/core-concepts/routing-and-handlers.mdx
+- Covers: RouteContract<TParams, TQuery, TBody, TResponse> with full examples, defineHandlers<TRoutes>() with typed handler implementation, file convention (contracts.ts, handlers.ts, middleware.ts), explicit route registration in app.ts, automatic validation of params/query/body, full end-to-end flow example
+- Uses Starlight components: Aside (tip, note, caution), Tabs/TabItem not needed for this page
+- Cross-links to schema-first-types, middleware-and-context, error-handling, building-first-api
+- Files changed: packages/docs/src/content/docs/core-concepts/routing-and-handlers.mdx
+- **Learnings for future iterations:**
+  - The explore agent provides excellent codebase summaries including actual handler implementations from example packages
+  - RouteContract has 4 type params (TParams, TQuery, TBody, TResponse) all defaulting to void
+  - defineHandlers is a pure type-validation pass-through at runtime — returns handlers unchanged
+  - HandlerInput provides params, query, body, and ctx — all typed from the contract
+  - Route registration uses RouteGroup with prefix, handlers, and optional middleware array
+  - ctx.fail() is the standard error pattern in handlers (covered in detail in Error Handling page)
+  - 351 pages total after build (same count — replaced a stub page)
+---
