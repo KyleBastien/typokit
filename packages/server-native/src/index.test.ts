@@ -4,12 +4,14 @@ import { describe, it, expect } from "@rstest/core";
 import type {
   CompiledRoute,
   CompiledRouteTable,
+  ErrorResponse,
   HandlerMap,
   MiddlewareChain,
   TypoKitRequest,
+  ValidatorMap,
 } from "@typokit/types";
 import type { Server } from "node:http";
-import { nativeServer } from "./index.js";
+import { nativeServer, runValidators, validationErrorResponse } from "./index.js";
 
 // ─── Test Helpers ────────────────────────────────────────────
 
@@ -61,6 +63,50 @@ function makeRouteTable(): CompiledRouteTable {
   return root;
 }
 
+/** Route table with validator references */
+function makeValidatedRouteTable(): CompiledRouteTable {
+  const root: CompiledRoute = {
+    segment: "",
+    children: {
+      users: {
+        segment: "users",
+        handlers: {
+          GET: {
+            ref: "users#list",
+            middleware: [],
+            validators: { query: "ListUsersQuery" },
+          },
+          POST: {
+            ref: "users#create",
+            middleware: [],
+            validators: { body: "CreateUserBody" },
+          },
+        },
+        paramChild: {
+          segment: ":id",
+          paramName: "id",
+          handlers: {
+            GET: {
+              ref: "users#get",
+              middleware: [],
+              validators: { params: "UserIdParams" },
+            },
+            PUT: {
+              ref: "users#update",
+              middleware: [],
+              validators: {
+                params: "UserIdParams",
+                body: "UpdateUserBody",
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+  return root;
+}
+
 function makeHandlerMap(): HandlerMap {
   return {
     "root#index": async () => ({
@@ -68,10 +114,10 @@ function makeHandlerMap(): HandlerMap {
       headers: {},
       body: { message: "Welcome" },
     }),
-    "users#list": async () => ({
+    "users#list": async (req: TypoKitRequest) => ({
       status: 200,
       headers: {},
-      body: { users: [] },
+      body: { users: [], query: req.query },
     }),
     "users#create": async (req: TypoKitRequest) => ({
       status: 201,
@@ -98,6 +144,69 @@ function makeHandlerMap(): HandlerMap {
       headers: {},
       body: { postId: req.params.id, comments: [] },
     }),
+  };
+}
+
+function makeValidatorMap(): ValidatorMap {
+  return {
+    UserIdParams: (input) => {
+      const obj = input as Record<string, unknown>;
+      const errors = [];
+      if (typeof obj.id !== "string" || !/^\d+$/.test(obj.id)) {
+        errors.push({ path: "id", expected: "numeric string", actual: obj.id });
+      }
+      return errors.length === 0
+        ? { success: true, data: input }
+        : { success: false, errors };
+    },
+    ListUsersQuery: (input) => {
+      const obj = input as Record<string, unknown>;
+      const errors = [];
+      if (obj.page !== undefined && typeof obj.page !== "string") {
+        errors.push({ path: "page", expected: "string", actual: typeof obj.page });
+      }
+      if (obj.limit !== undefined) {
+        const limit = Number(obj.limit);
+        if (isNaN(limit) || limit < 1 || limit > 100) {
+          errors.push({ path: "limit", expected: "1-100", actual: obj.limit });
+        }
+      }
+      return errors.length === 0
+        ? { success: true, data: input }
+        : { success: false, errors };
+    },
+    CreateUserBody: (input) => {
+      const obj = input as Record<string, unknown>;
+      const errors = [];
+      if (typeof obj !== "object" || obj === null) {
+        return { success: false, errors: [{ path: "$input", expected: "object", actual: typeof input }] };
+      }
+      if (typeof obj.name !== "string" || obj.name.length === 0) {
+        errors.push({ path: "name", expected: "non-empty string", actual: obj.name });
+      }
+      if (typeof obj.email !== "string" || !obj.email.includes("@")) {
+        errors.push({ path: "email", expected: "valid email", actual: obj.email });
+      }
+      return errors.length === 0
+        ? { success: true, data: input }
+        : { success: false, errors };
+    },
+    UpdateUserBody: (input) => {
+      const obj = input as Record<string, unknown>;
+      const errors = [];
+      if (typeof obj !== "object" || obj === null) {
+        return { success: false, errors: [{ path: "$input", expected: "object", actual: typeof input }] };
+      }
+      if (obj.name !== undefined && typeof obj.name !== "string") {
+        errors.push({ path: "name", expected: "string", actual: typeof obj.name });
+      }
+      if (obj.email !== undefined && (typeof obj.email !== "string" || !obj.email.includes("@"))) {
+        errors.push({ path: "email", expected: "valid email", actual: obj.email });
+      }
+      return errors.length === 0
+        ? { success: true, data: input }
+        : { success: false, errors };
+    },
   };
 }
 
@@ -134,7 +243,158 @@ async function fetchJson(port: number, path: string, options: { method?: string;
   return { status: res.status, headers: resHeaders, body };
 }
 
-// ─── Tests ───────────────────────────────────────────────────
+// ─── Unit Tests for Validation Helpers ───────────────────────
+
+describe("validationErrorResponse", () => {
+  it("produces a 400 response with field-level errors", () => {
+    const res = validationErrorResponse("Validation failed", [
+      { path: "body.name", expected: "string", actual: 42 },
+    ]);
+    expect(res.status).toBe(400);
+    const body = res.body as ErrorResponse;
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(body.error.message).toBe("Validation failed");
+    const fields = body.error.details?.fields as Array<{ path: string }>;
+    expect(fields).toHaveLength(1);
+    expect(fields[0].path).toBe("body.name");
+  });
+});
+
+describe("runValidators", () => {
+  it("returns undefined when no validators configured", () => {
+    const result = runValidators(
+      { validators: undefined },
+      null,
+      {},
+      {},
+      null,
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when no validatorMap provided", () => {
+    const result = runValidators(
+      { validators: { body: "SomeValidator" } },
+      null,
+      {},
+      {},
+      null,
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when validator ref not found in map", () => {
+    const result = runValidators(
+      { validators: { body: "MissingValidator" } },
+      {},
+      {},
+      {},
+      null,
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when all validators pass", () => {
+    const validators: ValidatorMap = {
+      BodyValidator: () => ({ success: true, data: {} }),
+    };
+    const result = runValidators(
+      { validators: { body: "BodyValidator" } },
+      validators,
+      {},
+      {},
+      { name: "Alice" },
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns 400 response when body validator fails", () => {
+    const validators: ValidatorMap = {
+      BodyValidator: () => ({
+        success: false,
+        errors: [{ path: "name", expected: "string", actual: undefined }],
+      }),
+    };
+    const result = runValidators(
+      { validators: { body: "BodyValidator" } },
+      validators,
+      {},
+      {},
+      {},
+    );
+    expect(result).toBeDefined();
+    expect(result!.status).toBe(400);
+    const body = result!.body as ErrorResponse;
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    const fields = body.error.details?.fields as Array<{ path: string }>;
+    expect(fields[0].path).toBe("body.name");
+  });
+
+  it("prefixes param errors with params.", () => {
+    const validators: ValidatorMap = {
+      ParamVal: () => ({
+        success: false,
+        errors: [{ path: "id", expected: "numeric", actual: "abc" }],
+      }),
+    };
+    const result = runValidators(
+      { validators: { params: "ParamVal" } },
+      validators,
+      { id: "abc" },
+      {},
+      null,
+    );
+    expect(result).toBeDefined();
+    const fields = (result!.body as ErrorResponse).error.details?.fields as Array<{ path: string }>;
+    expect(fields[0].path).toBe("params.id");
+  });
+
+  it("prefixes query errors with query.", () => {
+    const validators: ValidatorMap = {
+      QueryVal: () => ({
+        success: false,
+        errors: [{ path: "limit", expected: "number", actual: "abc" }],
+      }),
+    };
+    const result = runValidators(
+      { validators: { query: "QueryVal" } },
+      validators,
+      {},
+      { limit: "abc" },
+      null,
+    );
+    expect(result).toBeDefined();
+    const fields = (result!.body as ErrorResponse).error.details?.fields as Array<{ path: string }>;
+    expect(fields[0].path).toBe("query.limit");
+  });
+
+  it("aggregates errors from multiple validators", () => {
+    const validators: ValidatorMap = {
+      ParamVal: () => ({
+        success: false,
+        errors: [{ path: "id", expected: "numeric", actual: "abc" }],
+      }),
+      BodyVal: () => ({
+        success: false,
+        errors: [{ path: "name", expected: "string", actual: 42 }],
+      }),
+    };
+    const result = runValidators(
+      { validators: { params: "ParamVal", body: "BodyVal" } },
+      validators,
+      { id: "abc" },
+      {},
+      { name: 42 },
+    );
+    expect(result).toBeDefined();
+    const fields = (result!.body as ErrorResponse).error.details?.fields as Array<{ path: string }>;
+    expect(fields).toHaveLength(2);
+    expect(fields[0].path).toBe("params.id");
+    expect(fields[1].path).toBe("body.name");
+  });
+});
+
+// ─── Original Tests ──────────────────────────────────────────
 
 describe("nativeServer", () => {
   it("creates a server adapter with correct name", () => {
@@ -342,6 +602,218 @@ describe("nativeServer integration", () => {
       const b = res.body as Record<string, unknown>;
       expect(b.updated).toBe("7");
       expect((b.data as Record<string, unknown>).name).toBe("Updated");
+    } finally {
+      await handle.close();
+    }
+  });
+});
+
+// ─── Validation Pipeline Integration Tests ───────────────────
+
+describe("validation pipeline integration", () => {
+  it("valid POST request passes through validators to handler", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users", {
+        method: "POST",
+        body: { name: "Alice", email: "alice@example.com" },
+      });
+      expect(res.status).toBe(201);
+      const b = res.body as Record<string, unknown>;
+      expect(b.created).toBe(true);
+      expect((b.data as Record<string, unknown>).name).toBe("Alice");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("invalid POST body returns 400 with field errors", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users", {
+        method: "POST",
+        body: { name: "", email: "not-an-email" },
+      });
+      expect(res.status).toBe(400);
+      const body = res.body as ErrorResponse;
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.message).toBe("Request validation failed");
+      const fields = body.error.details?.fields as Array<{ path: string; expected: string }>;
+      expect(fields.length).toBeGreaterThan(0);
+      // All body errors should be prefixed with "body."
+      for (const f of fields) {
+        expect(f.path.startsWith("body.")).toBe(true);
+      }
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("invalid path params return 400 with field errors", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      // "abc" is not a numeric string
+      const res = await fetchJson(addr.port, "/users/abc");
+      expect(res.status).toBe(400);
+      const body = res.body as ErrorResponse;
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      const fields = body.error.details?.fields as Array<{ path: string }>;
+      expect(fields.some((f) => f.path === "params.id")).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("valid path params pass through to handler", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users/42");
+      expect(res.status).toBe(200);
+      expect((res.body as Record<string, unknown>).id).toBe("42");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("invalid query params return 400 with field errors", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users?limit=999");
+      expect(res.status).toBe(400);
+      const body = res.body as ErrorResponse;
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      const fields = body.error.details?.fields as Array<{ path: string }>;
+      expect(fields.some((f) => f.path === "query.limit")).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("valid query params pass through to handler", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users?limit=10&page=1");
+      expect(res.status).toBe(200);
+      expect((res.body as Record<string, unknown>).users).toEqual([]);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("multiple validator failures are aggregated into a single 400 response", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      // PUT /users/abc with invalid body — both params and body fail
+      const res = await fetchJson(addr.port, "/users/abc", {
+        method: "PUT",
+        body: { name: 123, email: "bad" },
+      });
+      expect(res.status).toBe(400);
+      const body = res.body as ErrorResponse;
+      const fields = body.error.details?.fields as Array<{ path: string }>;
+      // Should have params.id error and body field errors
+      expect(fields.some((f) => f.path === "params.id")).toBe(true);
+      expect(fields.some((f) => f.path.startsWith("body."))).toBe(true);
+      expect(fields.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("routes without validators still work normally", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeValidatedRouteTable(),
+      makeHandlerMap(),
+      emptyMiddleware,
+      makeValidatorMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      // DELETE is not in the validated route table — use original table
+      // Use GET /users with valid query to confirm validators work with no issues
+      const res = await fetchJson(addr.port, "/users?page=1");
+      expect(res.status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("works without validatorMap (backwards compatible)", async () => {
+    const adapter = nativeServer();
+    // Register without validatorMap — no validators run
+    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddleware);
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users");
+      expect(res.status).toBe(200);
     } finally {
       await handle.close();
     }

@@ -66,7 +66,35 @@ export interface ErrorResponse {
 export interface RouteHandler {
   ref: string;
   middleware: string[];
+  /** Optional validator references for request validation */
+  validators?: {
+    params?: string;
+    query?: string;
+    body?: string;
+  };
 }
+
+// ─── Validation Types ─────────────────────────────────────────
+
+/** A single field-level validation error */
+export interface ValidationFieldError {
+  path: string;
+  expected: string;
+  actual: unknown;
+}
+
+/** Result returned by a validator function */
+export interface ValidationResult {
+  success: boolean;
+  data?: unknown;
+  errors?: ValidationFieldError[];
+}
+
+/** A validator function that validates input and returns a result */
+export type ValidatorFn = (input: unknown) => ValidationResult;
+
+/** Maps validator references to their runtime validator functions */
+export type ValidatorMap = Record<string, ValidatorFn>;
 
 /** A node in the compiled radix tree */
 export interface CompiledRoute {

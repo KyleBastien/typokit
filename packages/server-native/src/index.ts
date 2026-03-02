@@ -7,12 +7,15 @@ import type { ServerResponse } from "node:http";
 import type {
   CompiledRoute,
   CompiledRouteTable,
+  ErrorResponse,
   HandlerMap,
   HttpMethod,
   MiddlewareChain,
   ServerHandle,
   TypoKitRequest,
   TypoKitResponse,
+  ValidatorMap,
+  ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
 import {
@@ -88,12 +91,97 @@ function collectMethods(node: CompiledRoute): HttpMethod[] {
   return Object.keys(node.handlers) as HttpMethod[];
 }
 
+// ─── Request Validation Pipeline ─────────────────────────────
+
+/** Build a 400 validation error response matching ErrorResponse schema */
+function validationErrorResponse(
+  message: string,
+  fields: ValidationFieldError[],
+): TypoKitResponse {
+  const body: ErrorResponse = {
+    error: {
+      code: "VALIDATION_ERROR",
+      message,
+      details: { fields },
+    },
+  };
+  return {
+    status: 400,
+    headers: { "content-type": "application/json" },
+    body,
+  };
+}
+
+/**
+ * Run the request validation pipeline for params, query, and body.
+ * Returns a 400 TypoKitResponse on validation failure, or undefined if all pass.
+ */
+function runValidators(
+  routeHandler: { validators?: { params?: string; query?: string; body?: string } },
+  validatorMap: ValidatorMap | null,
+  params: Record<string, string>,
+  query: Record<string, string | string[] | undefined>,
+  body: unknown,
+): TypoKitResponse | undefined {
+  if (!validatorMap || !routeHandler.validators) {
+    return undefined;
+  }
+
+  const allErrors: ValidationFieldError[] = [];
+
+  // Validate params
+  if (routeHandler.validators.params) {
+    const validator = validatorMap[routeHandler.validators.params];
+    if (validator) {
+      const result = validator(params);
+      if (!result.success && result.errors) {
+        for (const e of result.errors) {
+          allErrors.push({ path: `params.${e.path}`, expected: e.expected, actual: e.actual });
+        }
+      }
+    }
+  }
+
+  // Validate query
+  if (routeHandler.validators.query) {
+    const validator = validatorMap[routeHandler.validators.query];
+    if (validator) {
+      const result = validator(query);
+      if (!result.success && result.errors) {
+        for (const e of result.errors) {
+          allErrors.push({ path: `query.${e.path}`, expected: e.expected, actual: e.actual });
+        }
+      }
+    }
+  }
+
+  // Validate body
+  if (routeHandler.validators.body) {
+    const validator = validatorMap[routeHandler.validators.body];
+    if (validator) {
+      const result = validator(body);
+      if (!result.success && result.errors) {
+        for (const e of result.errors) {
+          allErrors.push({ path: `body.${e.path}`, expected: e.expected, actual: e.actual });
+        }
+      }
+    }
+  }
+
+  if (allErrors.length > 0) {
+    return validationErrorResponse("Request validation failed", allErrors);
+  }
+
+  return undefined;
+}
+
 // ─── Native Server Adapter ───────────────────────────────────
 
 interface NativeServerState {
   routeTable: CompiledRouteTable | null;
   handlerMap: HandlerMap | null;
   middlewareChain: MiddlewareChain | null;
+  validatorMap: ValidatorMap | null;
 }
 
 /**
@@ -102,7 +190,7 @@ interface NativeServerState {
  * ```ts
  * import { nativeServer } from "@typokit/server-native";
  * const adapter = nativeServer();
- * adapter.registerRoutes(routeTable, handlerMap, middlewareChain);
+ * adapter.registerRoutes(routeTable, handlerMap, middlewareChain, validatorMap);
  * const handle = await adapter.listen(3000);
  * ```
  */
@@ -111,6 +199,7 @@ export function nativeServer(): ServerAdapter {
     routeTable: null,
     handlerMap: null,
     middlewareChain: null,
+    validatorMap: null,
   };
 
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
@@ -164,6 +253,19 @@ export function nativeServer(): ServerAdapter {
     }
 
     const routeHandler = node.handlers[method]!;
+
+    // ── Request Validation Pipeline ──
+    const validationError = runValidators(
+      routeHandler,
+      state.validatorMap,
+      params,
+      req.query,
+      req.body,
+    );
+    if (validationError) {
+      return validationError;
+    }
+
     const handlerFn = state.handlerMap[routeHandler.ref];
 
     if (!handlerFn) {
@@ -214,10 +316,12 @@ export function nativeServer(): ServerAdapter {
       routeTable: CompiledRouteTable,
       handlerMap: HandlerMap,
       middlewareChain: MiddlewareChain,
+      validatorMap?: ValidatorMap,
     ): void {
       state.routeTable = routeTable;
       state.handlerMap = handlerMap;
       state.middlewareChain = middlewareChain;
+      state.validatorMap = validatorMap ?? null;
     },
 
     async listen(port: number): Promise<ServerHandle> {
@@ -252,5 +356,7 @@ export function nativeServer(): ServerAdapter {
   return adapter;
 }
 
+// Re-export for convenience
+export { runValidators, validationErrorResponse };
 export { type ServerAdapter } from "@typokit/core";
 

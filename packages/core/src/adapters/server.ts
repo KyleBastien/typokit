@@ -5,6 +5,7 @@ import type {
   ServerHandle,
   TypoKitRequest,
   TypoKitResponse,
+  ValidatorMap,
 } from "@typokit/types";
 
 export interface ServerAdapter {
@@ -21,6 +22,7 @@ export interface ServerAdapter {
     routeTable: CompiledRouteTable,
     handlerMap: HandlerMap,
     middlewareChain: MiddlewareChain,
+    validatorMap?: ValidatorMap,
   ): void;
 
   /**
