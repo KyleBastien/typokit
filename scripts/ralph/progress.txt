@@ -336,3 +336,37 @@ Started: 03/01/2026 21:04:22
   - Debug sidecar commands (errors, performance, server) gracefully fail with helpful messages when server isn't running
   - `http.get` from Node.js built-in doesn't need `@types/node` — just add module declaration to env.d.ts
 ---
+
+## 2026-03-02T07:19:00Z - US-019
+- Implemented 4 generate subcommands in `packages/cli/src/commands/generate.ts`
+- `generate:db`: extracts types via transform-native, diffs empty schema to generate full DDL, writes schema.sql and schema-types.json
+- `generate:client`: compiles routes, generates type-safe fetch client with createClient(), param substitution, query serialization
+- `generate:openapi`: generates OpenAPI 3.1 spec with --output <path> flag support
+- `generate:tests`: regenerates contract test stubs from route schemas
+- `executeGenerate()` dispatcher routes to correct generator
+- Updated `index.ts` with generate command routing, help text, and exports
+- 20 unit tests covering all subcommands, client code generation, CLI parsing, result shapes
+- Files changed: packages/cli/src/commands/generate.ts (new), packages/cli/src/generate.test.ts (new), packages/cli/src/index.ts
+- **Learnings for future iterations:**
+  - Generate commands reuse the same `resolveFilePatterns` helper as build.ts — consider extracting to shared utility
+  - `diffSchemas({}, types, name)` with empty old schema generates full CREATE TABLE DDL for all types
+  - ESLint catches unused imports even for type-only imports — don't import types unless directly used
+  - `generateClientCode()` is a pure function that takes compiled route string and returns client module code — easy to test
+  - `command.startsWith("generate:")` pattern in run() cleanly handles colon-separated subcommands
+---
+
+## 2026-03-02T07:24:00Z - US-020
+- Implemented migrate:generate, migrate:diff, and migrate:apply subcommands
+- migrate:generate: detects type changes via diffSchemas, generates timestamped SQL migration files with metadata JSON
+- migrate:diff: shows pending schema changes as human-readable output or JSON (--json flag)
+- migrate:apply: applies pending migrations with destructive change blocking (--force to override)
+- Destructive changes (DROP, type changes) annotated with '-- DESTRUCTIVE: requires review' comments
+- 17 unit tests covering dispatcher, utility functions, CLI arg parsing
+- Files changed: packages/cli/src/commands/migrate.ts (new), packages/cli/src/migrate.test.ts (new), packages/cli/src/index.ts (updated exports + routing)
+- **Learnings for future iterations:**
+  - CLI commands follow colon-separated pattern (migrate:generate) not subcommand pattern (migrate generate) - match generate:* style
+  - MigrateResult extends GenerateResult pattern with additional destructive + changes fields
+  - SchemaChange and MigrationDraft types from @typokit/types are the canonical interfaces for migration data
+  - Migration files use timestamp prefix (YYYYMMDDHHMMSS) for ordering - .applied file tracks which have been applied
+  - ESLint catches unused type imports - use import type only for types actually referenced
+---
