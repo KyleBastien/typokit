@@ -45,7 +45,11 @@ importers:
 
   packages/db-raw: {}
 
-  packages/errors: {}
+  packages/errors:
+    dependencies:
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/nx: {}
 
