@@ -132,8 +132,14 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/example-todo-schema:
+    dependencies:
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/nx:
-    devDependencies:
+    dependencies:
       '@nx/devkit':
         specifier: ^20.8.4
         version: 20.8.4(nx@20.8.4)

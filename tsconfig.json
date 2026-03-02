@@ -28,7 +28,8 @@
       "@typokit/client-react-query": ["packages/client-react-query/src/index.ts"],
       "@typokit/client-swr": ["packages/client-swr/src/index.ts"],
       "@typokit/types": ["packages/types/src/index.ts"],
-      "@typokit/errors": ["packages/errors/src/index.ts"]
+      "@typokit/errors": ["packages/errors/src/index.ts"],
+      "@typokit/example-todo-schema": ["packages/example-todo-schema/src/index.ts"]
     }
   },
   "references": [
@@ -57,7 +58,8 @@
     { "path": "packages/nx" },
     { "path": "packages/turbo" },
     { "path": "packages/client-react-query" },
-    { "path": "packages/client-swr" }
+    { "path": "packages/client-swr" },
+    { "path": "packages/example-todo-schema" }
   ],
   "files": [],
   "include": []
