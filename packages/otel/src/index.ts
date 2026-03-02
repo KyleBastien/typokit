@@ -14,6 +14,15 @@ export {
   generateTraceId,
   generateSpanId,
 } from "./tracing.js";
+export {
+  MetricsCollector,
+  ConsoleMetricExporter,
+  OtlpMetricExporter,
+  NoopMetricExporter,
+  resolveMetricsConfig,
+  createMetricExporter,
+  createMetricsCollector,
+} from "./metrics.js";
 export type {
   LogLevel,
   LogEntry,
@@ -25,5 +34,12 @@ export type {
   SpanExporter,
   TracingConfig,
   TelemetryConfig,
+  MetricsConfig,
+  MetricLabels,
+  MetricData,
+  MetricExporter,
+  HistogramDataPoint,
+  GaugeDataPoint,
+  CounterDataPoint,
 } from "./types.js";
 

@@ -72,7 +72,7 @@ export interface TracingConfig {
 /** Full telemetry configuration for createApp() */
 export interface TelemetryConfig {
   tracing?: boolean | TracingConfig;
-  metrics?: boolean;
+  metrics?: boolean | MetricsConfig;
   exporter?: "console" | "otlp";
   endpoint?: string;
   serviceName?: string;
@@ -81,4 +81,58 @@ export interface TelemetryConfig {
 /** Interface for exporting completed spans */
 export interface SpanExporter {
   export(spans: SpanData[]): void;
+}
+
+// ─── Metrics Types ───────────────────────────────────────────
+
+/** Configuration for the metrics system */
+export interface MetricsConfig {
+  /** Enable metrics collection (default: true) */
+  enabled?: boolean;
+  /** Exporter type: 'console' for dev, 'otlp' for collectors */
+  exporter?: "console" | "otlp";
+  /** OTel Collector endpoint (default: http://localhost:4318) */
+  endpoint?: string;
+  /** Service name for OTel resource */
+  serviceName?: string;
+}
+
+/** Labels applied to all request metrics */
+export interface MetricLabels {
+  route: string;
+  method: string;
+  status: number;
+}
+
+/** A single histogram data point */
+export interface HistogramDataPoint {
+  labels: MetricLabels;
+  value: number;
+  timestamp: string;
+}
+
+/** A single gauge data point */
+export interface GaugeDataPoint {
+  labels: Partial<MetricLabels>;
+  value: number;
+  timestamp: string;
+}
+
+/** A single counter data point */
+export interface CounterDataPoint {
+  labels: MetricLabels;
+  value: number;
+  timestamp: string;
+}
+
+/** Collected metric data for export */
+export interface MetricData {
+  name: string;
+  type: "histogram" | "gauge" | "counter";
+  dataPoints: (HistogramDataPoint | GaugeDataPoint | CounterDataPoint)[];
+}
+
+/** Interface for exporting collected metrics */
+export interface MetricExporter {
+  export(metrics: MetricData[]): void;
 }
