@@ -2,6 +2,7 @@ import type {
   CompiledRouteTable,
   HandlerMap,
   MiddlewareChain,
+  SerializerMap,
   ServerHandle,
   TypoKitRequest,
   TypoKitResponse,
@@ -23,6 +24,7 @@ export interface ServerAdapter {
     handlerMap: HandlerMap,
     middlewareChain: MiddlewareChain,
     validatorMap?: ValidatorMap,
+    serializerMap?: SerializerMap,
   ): void;
 
   /**

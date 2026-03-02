@@ -72,6 +72,8 @@ export interface RouteHandler {
     query?: string;
     body?: string;
   };
+  /** Optional serializer reference for response serialization */
+  serializer?: string;
 }
 
 // ─── Validation Types ─────────────────────────────────────────
@@ -95,6 +97,14 @@ export type ValidatorFn = (input: unknown) => ValidationResult;
 
 /** Maps validator references to their runtime validator functions */
 export type ValidatorMap = Record<string, ValidatorFn>;
+
+// ─── Serialization Types ──────────────────────────────────────
+
+/** A serializer function that converts a value to a JSON string (e.g., fast-json-stringify compiled schema) */
+export type SerializerFn = (input: unknown) => string;
+
+/** Maps serializer references to their runtime serializer functions */
+export type SerializerMap = Record<string, SerializerFn>;
 
 /** A node in the compiled radix tree */
 export interface CompiledRoute {

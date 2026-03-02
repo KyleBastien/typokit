@@ -11,6 +11,7 @@ import type {
   HandlerMap,
   HttpMethod,
   MiddlewareChain,
+  SerializerMap,
   ServerHandle,
   TypoKitRequest,
   TypoKitResponse,
@@ -175,6 +176,53 @@ function runValidators(
   return undefined;
 }
 
+// ─── Response Serialization Pipeline ──────────────────────────
+
+/**
+ * Serialize the response body using a compiled fast-json-stringify schema
+ * if available, otherwise fall back to the default (JSON.stringify via writeResponse).
+ * Automatically sets Content-Type to application/json for JSON bodies.
+ */
+function serializeResponse(
+  response: TypoKitResponse,
+  serializerRef: string | undefined,
+  serializerMap: SerializerMap | null,
+): TypoKitResponse {
+  // Nothing to serialize for null/undefined/string/Buffer bodies
+  if (
+    response.body === null ||
+    response.body === undefined ||
+    typeof response.body === "string"
+  ) {
+    return response;
+  }
+
+  // Ensure content-type is set for JSON bodies
+  const headers = { ...response.headers };
+  if (!headers["content-type"]) {
+    headers["content-type"] = "application/json";
+  }
+
+  // Try compiled serializer first
+  if (serializerRef && serializerMap) {
+    const serializer = serializerMap[serializerRef];
+    if (serializer) {
+      return {
+        ...response,
+        headers,
+        body: serializer(response.body),
+      };
+    }
+  }
+
+  // Fall back to JSON.stringify
+  return {
+    ...response,
+    headers,
+    body: JSON.stringify(response.body),
+  };
+}
+
 // ─── Native Server Adapter ───────────────────────────────────
 
 interface NativeServerState {
@@ -182,6 +230,7 @@ interface NativeServerState {
   handlerMap: HandlerMap | null;
   middlewareChain: MiddlewareChain | null;
   validatorMap: ValidatorMap | null;
+  serializerMap: SerializerMap | null;
 }
 
 /**
@@ -200,6 +249,7 @@ export function nativeServer(): ServerAdapter {
     handlerMap: null,
     middlewareChain: null,
     validatorMap: null,
+    serializerMap: null,
   };
 
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
@@ -306,7 +356,10 @@ export function nativeServer(): ServerAdapter {
     }
 
     // Call the handler
-    return await handlerFn(enrichedReq, ctx);
+    const response = await handlerFn(enrichedReq, ctx);
+
+    // ── Response Serialization Pipeline ──
+    return serializeResponse(response, routeHandler.serializer, state.serializerMap);
   }
 
   const adapter: ServerAdapter = {
@@ -317,11 +370,13 @@ export function nativeServer(): ServerAdapter {
       handlerMap: HandlerMap,
       middlewareChain: MiddlewareChain,
       validatorMap?: ValidatorMap,
+      serializerMap?: SerializerMap,
     ): void {
       state.routeTable = routeTable;
       state.handlerMap = handlerMap;
       state.middlewareChain = middlewareChain;
       state.validatorMap = validatorMap ?? null;
+      state.serializerMap = serializerMap ?? null;
     },
 
     async listen(port: number): Promise<ServerHandle> {
@@ -357,6 +412,6 @@ export function nativeServer(): ServerAdapter {
 }
 
 // Re-export for convenience
-export { runValidators, validationErrorResponse };
+export { serializeResponse, runValidators, validationErrorResponse };
 export { type ServerAdapter } from "@typokit/core";
 

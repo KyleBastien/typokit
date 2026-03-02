@@ -7,11 +7,12 @@ import type {
   ErrorResponse,
   HandlerMap,
   MiddlewareChain,
+  SerializerMap,
   TypoKitRequest,
   ValidatorMap,
 } from "@typokit/types";
 import type { Server } from "node:http";
-import { nativeServer, runValidators, validationErrorResponse } from "./index.js";
+import { nativeServer, runValidators, serializeResponse, validationErrorResponse } from "./index.js";
 
 // ─── Test Helpers ────────────────────────────────────────────
 
@@ -814,6 +815,380 @@ describe("validation pipeline integration", () => {
       const addr = server.address() as { port: number };
       const res = await fetchJson(addr.port, "/users");
       expect(res.status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+});
+
+// ─── Response Serialization Tests ────────────────────────────
+
+/** Route table with serializer references */
+function makeSerializedRouteTable(): CompiledRouteTable {
+  const root: CompiledRoute = {
+    segment: "",
+    handlers: {
+      GET: { ref: "root#index", middleware: [], serializer: "RootResponse" },
+    },
+    children: {
+      users: {
+        segment: "users",
+        handlers: {
+          GET: { ref: "users#list", middleware: [], serializer: "UserListResponse" },
+          POST: { ref: "users#create", middleware: [] }, // no serializer — fallback
+        },
+        paramChild: {
+          segment: ":id",
+          paramName: "id",
+          handlers: {
+            GET: { ref: "users#get", middleware: [], serializer: "UserResponse" },
+            DELETE: { ref: "users#delete", middleware: [] },
+          },
+        },
+      },
+      nested: {
+        segment: "nested",
+        handlers: {
+          GET: { ref: "nested#get", middleware: [], serializer: "NestedResponse" },
+        },
+      },
+      types: {
+        segment: "types",
+        handlers: {
+          GET: { ref: "types#all", middleware: [], serializer: "AllTypesResponse" },
+        },
+      },
+      "no-schema": {
+        segment: "no-schema",
+        handlers: {
+          GET: { ref: "noschema#get", middleware: [], serializer: "MissingSerializer" },
+        },
+      },
+    },
+  };
+  return root;
+}
+
+function makeSerializerHandlerMap(): HandlerMap {
+  return {
+    "root#index": async () => ({
+      status: 200,
+      headers: {},
+      body: { message: "Welcome" },
+    }),
+    "users#list": async () => ({
+      status: 200,
+      headers: {},
+      body: { users: [{ id: "1", name: "Alice" }, { id: "2", name: "Bob" }] },
+    }),
+    "users#create": async (req: TypoKitRequest) => ({
+      status: 201,
+      headers: {},
+      body: { created: true, data: req.body },
+    }),
+    "users#get": async (req: TypoKitRequest) => ({
+      status: 200,
+      headers: {},
+      body: { id: req.params.id, name: "User " + req.params.id },
+    }),
+    "users#delete": async () => ({
+      status: 204,
+      headers: {},
+      body: null,
+    }),
+    "nested#get": async () => ({
+      status: 200,
+      headers: {},
+      body: { data: { items: [{ a: 1, b: [true, false] }], meta: { total: 1 } } },
+    }),
+    "types#all": async () => ({
+      status: 200,
+      headers: {},
+      body: { str: "hello", num: 42, bool: true, nil: null, arr: [1, 2, 3], obj: { k: "v" } },
+    }),
+    "noschema#get": async () => ({
+      status: 200,
+      headers: {},
+      body: { fallback: true },
+    }),
+  };
+}
+
+function makeSerializerMap(): SerializerMap {
+  // Simulates compiled fast-json-stringify schemas — produces JSON strings
+  return {
+    RootResponse: (input) => JSON.stringify(input),
+    UserListResponse: (input) => {
+      // Custom serializer that produces equivalent JSON but proves it was called
+      const obj = input as Record<string, unknown>;
+      const users = obj.users as Array<Record<string, string>>;
+      return `{"users":[${users.map((u) => `{"id":"${u.id}","name":"${u.name}"}`).join(",")}]}`;
+    },
+    UserResponse: (input) => {
+      const obj = input as Record<string, unknown>;
+      return `{"id":"${obj.id}","name":"${obj.name}"}`;
+    },
+    NestedResponse: (input) => JSON.stringify(input),
+    AllTypesResponse: (input) => JSON.stringify(input),
+    // MissingSerializer is deliberately NOT here to test fallback
+  };
+}
+
+describe("serializeResponse (unit)", () => {
+  it("returns response unchanged for null body", () => {
+    const res = serializeResponse({ status: 204, headers: {}, body: null }, "Ref", null);
+    expect(res.body).toBeNull();
+  });
+
+  it("returns response unchanged for undefined body", () => {
+    const res = serializeResponse({ status: 204, headers: {}, body: undefined }, "Ref", null);
+    expect(res.body).toBeUndefined();
+  });
+
+  it("returns response unchanged for string body", () => {
+    const res = serializeResponse({ status: 200, headers: {}, body: "plain text" }, "Ref", null);
+    expect(res.body).toBe("plain text");
+  });
+
+  it("uses compiled serializer when available", () => {
+    const serializers: SerializerMap = {
+      TestRef: () => '{"fast":true}',
+    };
+    const res = serializeResponse(
+      { status: 200, headers: {}, body: { fast: true } },
+      "TestRef",
+      serializers,
+    );
+    expect(res.body).toBe('{"fast":true}');
+    expect(res.headers["content-type"]).toBe("application/json");
+  });
+
+  it("falls back to JSON.stringify when no serializer ref", () => {
+    const res = serializeResponse(
+      { status: 200, headers: {}, body: { a: 1 } },
+      undefined,
+      null,
+    );
+    expect(res.body).toBe('{"a":1}');
+    expect(res.headers["content-type"]).toBe("application/json");
+  });
+
+  it("falls back to JSON.stringify when serializer ref not in map", () => {
+    const res = serializeResponse(
+      { status: 200, headers: {}, body: { b: 2 } },
+      "Missing",
+      {},
+    );
+    expect(res.body).toBe('{"b":2}');
+    expect(res.headers["content-type"]).toBe("application/json");
+  });
+
+  it("does not overwrite existing content-type header", () => {
+    const res = serializeResponse(
+      { status: 200, headers: { "content-type": "application/vnd.api+json" }, body: { x: 1 } },
+      undefined,
+      null,
+    );
+    expect(res.headers["content-type"]).toBe("application/vnd.api+json");
+  });
+
+  it("serializes all JSON types correctly", () => {
+    const body = { str: "hello", num: 42, bool: true, nil: null, arr: [1, 2], obj: { k: "v" } };
+    const res = serializeResponse(
+      { status: 200, headers: {}, body },
+      undefined,
+      null,
+    );
+    const parsed = JSON.parse(res.body as string);
+    expect(parsed.str).toBe("hello");
+    expect(parsed.num).toBe(42);
+    expect(parsed.bool).toBe(true);
+    expect(parsed.nil).toBeNull();
+    expect(parsed.arr).toEqual([1, 2]);
+    expect(parsed.obj).toEqual({ k: "v" });
+  });
+});
+
+describe("response serialization integration", () => {
+  it("serializes response body using compiled serializer", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users");
+      expect(res.status).toBe(200);
+      const b = res.body as Record<string, unknown>;
+      expect(b.users).toEqual([
+        { id: "1", name: "Alice" },
+        { id: "2", name: "Bob" },
+      ]);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("sets content-type to application/json automatically", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("application/json");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("falls back to JSON.stringify when no compiled schema exists", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      // POST /users has no serializer ref — uses fallback
+      const res = await fetchJson(addr.port, "/users", {
+        method: "POST",
+        body: { name: "Test" },
+      });
+      expect(res.status).toBe(201);
+      const b = res.body as Record<string, unknown>;
+      expect(b.created).toBe(true);
+      expect(res.headers["content-type"]).toContain("application/json");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("falls back when serializer ref points to missing serializer in map", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      // GET /no-schema has serializer: "MissingSerializer" which is not in the map
+      const res = await fetchJson(addr.port, "/no-schema");
+      expect(res.status).toBe(200);
+      const b = res.body as Record<string, unknown>;
+      expect(b.fallback).toBe(true);
+      expect(res.headers["content-type"]).toContain("application/json");
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("handles nested objects correctly with serializer", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/nested");
+      expect(res.status).toBe(200);
+      const b = res.body as Record<string, unknown>;
+      const data = b.data as Record<string, unknown>;
+      expect(data.items).toEqual([{ a: 1, b: [true, false] }]);
+      expect(data.meta).toEqual({ total: 1 });
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("handles all JSON types (strings, numbers, booleans, nulls, arrays, objects)", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/types");
+      expect(res.status).toBe(200);
+      const b = res.body as Record<string, unknown>;
+      expect(b.str).toBe("hello");
+      expect(b.num).toBe(42);
+      expect(b.bool).toBe(true);
+      expect(b.nil).toBeNull();
+      expect(b.arr).toEqual([1, 2, 3]);
+      expect(b.obj).toEqual({ k: "v" });
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("does not serialize null body (e.g., 204 responses)", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+      undefined,
+      makeSerializerMap(),
+    );
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/users/5", { method: "DELETE" });
+      expect(res.status).toBe(204);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("works without serializerMap (backwards compatible)", async () => {
+    const adapter = nativeServer();
+    adapter.registerRoutes(makeSerializedRouteTable(), makeSerializerHandlerMap(), emptyMiddleware);
+    const handle = await adapter.listen(0);
+    try {
+      const server = adapter.getNativeServer!() as Server;
+      const addr = server.address() as { port: number };
+      const res = await fetchJson(addr.port, "/");
+      expect(res.status).toBe(200);
+      expect((res.body as Record<string, unknown>).message).toBe("Welcome");
+      expect(res.headers["content-type"]).toContain("application/json");
     } finally {
       await handle.close();
     }
