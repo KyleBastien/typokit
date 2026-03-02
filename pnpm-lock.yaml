@@ -84,7 +84,14 @@ importers:
         specifier: workspace:*
         version: link:../types
 
-  packages/db-raw: {}
+  packages/db-raw:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/errors:
     dependencies:
