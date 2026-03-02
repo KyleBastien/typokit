@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the route to scaffold",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      }
+    },
+    "project": {
+      "type": "string",
+      "description": "Project to add the route to"
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": false
+}

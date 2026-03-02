@@ -1,0 +1,14 @@
+{
+  "generators": {
+    "init": {
+      "factory": "./dist/generators/init/generator.js",
+      "schema": "./dist/generators/init/schema.json",
+      "description": "Add TypoKit to an existing Nx workspace"
+    },
+    "route": {
+      "factory": "./dist/generators/route/generator.js",
+      "schema": "./dist/generators/route/schema.json",
+      "description": "Scaffold a route module"
+    }
+  }
+}

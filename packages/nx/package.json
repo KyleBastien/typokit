@@ -16,9 +16,16 @@
   "type": "module",
   "files": [
     "dist",
-    "src"
+    "src",
+    "executors.json",
+    "generators.json"
   ],
   "private": true,
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "executors": "./executors.json",
+  "generators": "./generators.json",
+  "dependencies": {
+    "@nx/devkit": "^20.8.4"
+  }
 }
