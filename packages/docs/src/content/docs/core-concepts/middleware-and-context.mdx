@@ -1,6 +1,519 @@
 ---
 title: Middleware and Context
-description: Use middleware and context to share state across handlers.
+description: Define typed middleware that narrows the request context, compose authentication and cross-cutting concerns, and access ctx.fail(), ctx.log, and ctx.services in your handlers.
 ---
 
-This page is coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+## How Middleware Works in TypoKit
+
+TypoKit middleware is built around one core idea: **each middleware transforms the context type**. When a middleware runs, it can add new properties to the request context, and every subsequent middleware and handler sees those properties with full TypeScript type safety.
+
+This is fundamentally different from Express/Fastify middleware, which mutates a loosely-typed `req` object. In TypoKit, the type system knows exactly what's available in each handler based on which middleware ran before it.
+
+<Aside type="tip">
+  Because middleware types are explicit, an AI agent can read a route group definition and know exactly what context properties are available — no runtime inspection needed.
+</Aside>
+
+## The Request Context
+
+Every handler receives a `ctx` object of type `RequestContext`. This is the baseline context before any middleware runs:
+
+```typescript
+export interface RequestContext {
+  /** Structured logger with trace correlation */
+  log: Logger;
+
+  /** Throw a structured error — never returns */
+  fail(status: number, code: string, message: string, details?: Record<string, unknown>): never;
+
+  /** Service container for dependency injection */
+  services: Record<string, unknown>;
+
+  /** Unique request ID for tracing */
+  requestId: string;
+}
+```
+
+### `ctx.fail()`
+
+The primary error mechanism. Throws a structured `AppError` that the error middleware catches and serializes into a consistent JSON response:
+
+```typescript
+"GET /users/:id": async ({ params, ctx }) => {
+  const user = userService.findById(params.id);
+  if (!user) {
+    // Stops execution immediately — never returns
+    ctx.fail(404, "USER_NOT_FOUND", `User ${params.id} not found`);
+  }
+  return user;
+},
+```
+
+The response the client sees:
+
+```json
+{
+  "error": {
+    "status": 404,
+    "code": "USER_NOT_FOUND",
+    "message": "User abc-123 not found",
+    "traceId": "req_7f3a..."
+  }
+}
+```
+
+You can also pass a `details` object for field-level errors:
+
+```typescript
+ctx.fail(400, "VALIDATION_ERROR", "Invalid input", {
+  fields: { email: "Must be a valid email address" },
+});
+```
+
+<Aside type="note">
+  `ctx.fail()` has a return type of `never`. TypeScript knows code after `ctx.fail()` is unreachable, so you don't need `return` or `else` blocks after calling it.
+</Aside>
+
+### `ctx.log`
+
+A structured logger that automatically correlates log entries with the current request via `requestId`:
+
+```typescript
+export interface Logger {
+  trace(message: string, data?: Record<string, unknown>): void;
+  debug(message: string, data?: Record<string, unknown>): void;
+  info(message: string, data?: Record<string, unknown>): void;
+  warn(message: string, data?: Record<string, unknown>): void;
+  error(message: string, data?: Record<string, unknown>): void;
+  fatal(message: string, data?: Record<string, unknown>): void;
+}
+```
+
+Usage in handlers:
+
+```typescript
+"POST /users": async ({ body, ctx }) => {
+  ctx.log.info("Creating user", { email: body.email });
+  const user = await userService.create(body);
+  ctx.log.debug("User created", { userId: user.id });
+  return user;
+},
+```
+
+Every log entry includes the `requestId` automatically, so you can trace a request through your entire middleware and handler chain.
+
+### `ctx.services`
+
+A dependency injection container available to all middleware and handlers. By default it's an empty `Record<string, unknown>` — middleware and plugins populate it with services:
+
+```typescript
+// A middleware that adds a database connection to services
+export const withDatabase = defineMiddleware<{ db: DatabaseClient }>(
+  async ({ ctx }) => {
+    return { db: ctx.services.pool.getConnection() };
+  },
+);
+
+// Handler can now use ctx.db
+"GET /users": async ({ ctx }) => {
+  return ctx.db.query("SELECT * FROM users");
+},
+```
+
+### `ctx.requestId`
+
+A unique identifier generated for each incoming request. Used automatically by:
+
+- **`ctx.log`** — correlates all log entries for a request
+- **Error responses** — included as `traceId` so users can report specific failures
+- **OpenTelemetry spans** — links traces across services
+
+## Defining Middleware
+
+Use `defineMiddleware<TAdded>()` to create middleware that adds typed properties to the context:
+
+```typescript
+import { defineMiddleware } from "@typokit/core";
+
+export function defineMiddleware<TAdded extends Record<string, unknown>>(
+  handler: (input: MiddlewareInput) => Promise<TAdded>,
+): Middleware<TAdded> {
+  return { handler };
+}
+```
+
+The generic type parameter `TAdded` is the key to type narrowing — it declares exactly what properties this middleware contributes to the context.
+
+### Authentication Example
+
+The most common middleware pattern is authentication — validating a token and adding user identity to the context:
+
+```typescript
+// src/middleware/require-auth.ts
+
+import { defineMiddleware } from "@typokit/core";
+
+/** Context properties added by requireAuth middleware */
+export interface AuthContext {
+  [key: string]: unknown;
+  userId: string;
+  userRole: "user" | "admin";
+}
+
+export const requireAuth = defineMiddleware<AuthContext>(
+  async ({ headers, ctx }) => {
+    const token = headers["authorization"];
+
+    if (!token || !token.startsWith("Bearer ")) {
+      // Short-circuits the chain — no further middleware or handler runs
+      return ctx.fail(401, "UNAUTHORIZED",
+        "Missing or invalid authorization header");
+    }
+
+    // In production: validate JWT, check expiry, decode claims
+    const payload = token.slice(7); // strip "Bearer "
+    const parts = payload.split(":");
+    const userId = parts[0] ?? "unknown";
+    const userRole = parts[1] === "admin" ? "admin" as const : "user" as const;
+
+    // These properties are merged into ctx
+    return { userId, userRole };
+  },
+);
+```
+
+After this middleware runs, handlers in the same route group can safely access `ctx.userId` and `ctx.userRole`:
+
+```typescript
+"GET /todos": async ({ query, ctx }) => {
+  // TypeScript knows ctx.userId exists because requireAuth ran
+  return todoService.listTodos({
+    userId: ctx.userId,
+    completed: query?.completed,
+  });
+},
+```
+
+### Middleware Input
+
+Every middleware handler receives a `MiddlewareInput` object:
+
+```typescript
+interface MiddlewareInput {
+  headers: Record<string, string | string[] | undefined>;
+  body: unknown;
+  query: Record<string, unknown>;
+  params: Record<string, string>;
+  ctx: RequestContext;  // Current context (with properties from prior middleware)
+}
+```
+
+This gives middleware access to the full request data plus the context accumulated so far.
+
+## Context Type Narrowing
+
+This is the central design insight of TypoKit's middleware system. As middleware executes, the context type **grows**:
+
+```typescript
+// Before any middleware:
+//   ctx: RequestContext
+//   Available: ctx.fail, ctx.log, ctx.services, ctx.requestId
+
+// After requireAuth runs:
+//   ctx: RequestContext & AuthContext
+//   Available: ctx.fail, ctx.log, ctx.services, ctx.requestId,
+//              ctx.userId, ctx.userRole ← NEW
+
+// After withTenant runs:
+//   ctx: RequestContext & AuthContext & TenantContext
+//   Available: everything above + ctx.tenantId ← NEW
+```
+
+The `executeMiddlewareChain` function accumulates returned properties onto the context object:
+
+```typescript
+export async function executeMiddlewareChain(
+  req: TypoKitRequest,
+  ctx: RequestContext,
+  entries: MiddlewareEntry[],
+): Promise<RequestContext> {
+  const sorted = [...entries].sort(
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0)
+  );
+
+  let currentCtx = ctx;
+  for (const entry of sorted) {
+    const added = await entry.middleware.handler({
+      headers: req.headers,
+      body: req.body,
+      query: req.query,
+      params: req.params,
+      ctx: currentCtx,
+    });
+    currentCtx = { ...currentCtx, ...added } as RequestContext;
+  }
+
+  return currentCtx;
+}
+```
+
+Each middleware's returned object is spread into the context. This is what makes the type narrowing work — TypeScript can statically verify that handlers only access context properties that their middleware chain provides.
+
+<Aside type="caution">
+  Your middleware's `TAdded` type must include an index signature (`[key: string]: unknown`) to be compatible with the `RequestContext` spread pattern. Without it, TypeScript will report an error when the context is merged.
+</Aside>
+
+## Priority Ordering
+
+Middleware entries have an optional `priority` field that controls execution order:
+
+```typescript
+export interface MiddlewareEntry {
+  name: string;           // Identifier for debugging and logging
+  middleware: Middleware;  // The middleware created by defineMiddleware
+  priority?: number;      // Execution order — lower numbers run first
+}
+```
+
+- **Lower priority runs first** (priority `10` runs before priority `30`)
+- Default priority is `0`
+- Middleware with the same priority runs in array order
+
+```typescript
+routes: [
+  {
+    prefix: "/admin",
+    handlers: adminHandlers,
+    middleware: [
+      { name: "logging", middleware: requestLogger, priority: 0 },
+      { name: "auth", middleware: requireAuth, priority: 10 },
+      { name: "admin", middleware: requireAdmin, priority: 20 },
+    ],
+  },
+],
+```
+
+In this example, execution order is: `requestLogger` → `requireAuth` → `requireAdmin`. Each middleware can rely on context properties added by earlier middleware.
+
+## Short-Circuiting the Chain
+
+A middleware can stop the chain by throwing an error via `ctx.fail()`. When a middleware calls `ctx.fail()`:
+
+1. An `AppError` is thrown
+2. **Remaining middleware does not execute**
+3. **The handler does not execute**
+4. The error middleware catches the error and returns a structured response
+
+```typescript
+export const requireAdmin = defineMiddleware<{}>(
+  async ({ ctx }) => {
+    // requireAuth already ran (lower priority), so ctx.userRole exists
+    if ((ctx as any).userRole !== "admin") {
+      ctx.fail(403, "FORBIDDEN", "Admin access required");
+    }
+    return {};
+  },
+);
+```
+
+This is the intended pattern for authorization checks — fail fast before reaching business logic.
+
+<Aside type="tip">
+  Use priority ordering so that authentication middleware runs before authorization middleware. This way, if a request is unauthenticated, it gets a `401` immediately rather than a confusing `403`.
+</Aside>
+
+## Registering Middleware
+
+Middleware is registered at two levels:
+
+### Global Middleware
+
+Applied to every route in the application:
+
+```typescript
+import { createApp } from "@typokit/core";
+import { requestLogger } from "./middleware/request-logger.js";
+
+export function createTodoApp(server: ServerAdapter) {
+  return createApp({
+    server,
+    middleware: [requestLogger],  // Runs on every request
+    routes: [
+      { prefix: "/users", handlers: userHandlers },
+      { prefix: "/todos", handlers: todoHandlers },
+    ],
+  });
+}
+```
+
+### Route Group Middleware
+
+Applied only to routes within a specific group:
+
+```typescript
+export function createTodoApp(server: ServerAdapter) {
+  return createApp({
+    server,
+    middleware: [],  // No global middleware
+    routes: [
+      {
+        prefix: "/public",
+        handlers: publicHandlers,
+        // No middleware — open endpoints
+      },
+      {
+        prefix: "/users",
+        handlers: userHandlers,
+        middleware: [
+          { name: "auth", middleware: requireAuth, priority: 10 },
+        ],
+      },
+      {
+        prefix: "/admin",
+        handlers: adminHandlers,
+        middleware: [
+          { name: "auth", middleware: requireAuth, priority: 10 },
+          { name: "admin", middleware: requireAdmin, priority: 20 },
+        ],
+      },
+    ],
+  });
+}
+```
+
+This pattern lets you protect specific route groups while keeping others public — all visible in a single file.
+
+## Typed vs. Framework-Native Middleware
+
+TypoKit distinguishes between two kinds of middleware that operate at different layers:
+
+### TypoKit Typed Middleware
+
+Created with `defineMiddleware`. Runs **after** the request is normalized to `TypoKitRequest`:
+
+- Full TypeScript type narrowing of the context
+- Access to the normalized, framework-agnostic request shape
+- Portable across server adapters (Node, Bun, Cloudflare, etc.)
+- Used for **business logic** concerns: authentication, authorization, tenant resolution, rate limiting
+
+### Framework-Native Middleware
+
+Configured at the server adapter level. Runs **before** request normalization:
+
+- No access to TypoKit's typed context
+- Uses framework-specific APIs (Fastify hooks, Hono middleware, etc.)
+- Not portable across adapters
+- Used for **HTTP-level** concerns: CORS, compression, static files, request parsing
+
+### Request Processing Order
+
+```
+HTTP Request
+    ↓
+┌─ Server Adapter Layer ─────────────────────────┐
+│  1. HTTP parsing                                │
+│  2. Framework-native middleware (CORS, gzip)    │
+│  3. Normalize → TypoKitRequest                  │
+└─────────────────────────────────────────────────┘
+    ↓
+┌─ TypoKit Core Pipeline ────────────────────────┐
+│  4. Global typed middleware chain               │
+│  5. Route-group typed middleware chain          │
+│  6. Request validation (Typia validators)       │
+│  7. Handler execution                           │
+│  8. Response serialization                      │
+│  9. Error handling                              │
+└─────────────────────────────────────────────────┘
+    ↓
+┌─ Server Adapter Layer ─────────────────────────┐
+│  10. Write TypoKitResponse → HTTP               │
+└─────────────────────────────────────────────────┘
+```
+
+<Aside type="note">
+  The **rule of thumb**: if the middleware needs access to typed context properties (like `userId`), use `defineMiddleware`. If it operates purely on HTTP headers and bytes (like CORS or compression), configure it at the adapter level.
+</Aside>
+
+### Example: Mixing Both Kinds
+
+```typescript
+import { createNodeAdapter } from "@typokit/adapter-node";
+import cors from "cors";
+
+// Framework-native middleware — configured on the adapter
+const server = createNodeAdapter({
+  port: 3000,
+  nativeMiddleware: [cors({ origin: "https://myapp.com" })],
+});
+
+// TypoKit typed middleware — configured on the app
+const app = createApp({
+  server,
+  middleware: [
+    { name: "auth", middleware: requireAuth, priority: 10 },
+  ],
+  routes: [...],
+});
+```
+
+CORS runs at the HTTP layer before TypoKit sees the request. Authentication runs inside TypoKit's typed pipeline where context narrowing works.
+
+## Common Middleware Patterns
+
+### Request Logging
+
+```typescript
+export const requestLogger = defineMiddleware<{}>(
+  async ({ ctx }) => {
+    ctx.log.info("Request received", { requestId: ctx.requestId });
+    return {}; // Adds no context properties
+  },
+);
+```
+
+### Tenant Resolution
+
+```typescript
+export interface TenantContext {
+  [key: string]: unknown;
+  tenantId: string;
+  tenantPlan: "free" | "pro" | "enterprise";
+}
+
+export const resolveTenant = defineMiddleware<TenantContext>(
+  async ({ headers, ctx }) => {
+    const tenantId = headers["x-tenant-id"];
+    if (!tenantId || typeof tenantId !== "string") {
+      ctx.fail(400, "MISSING_TENANT", "X-Tenant-Id header is required");
+    }
+    const tenant = await tenantService.findById(tenantId);
+    if (!tenant) {
+      ctx.fail(404, "TENANT_NOT_FOUND", `Tenant ${tenantId} not found`);
+    }
+    return { tenantId: tenant.id, tenantPlan: tenant.plan };
+  },
+);
+```
+
+### Rate Limiting
+
+```typescript
+export const rateLimit = defineMiddleware<{}>(
+  async ({ headers, ctx }) => {
+    const clientIp = headers["x-forwarded-for"] ?? "unknown";
+    const allowed = await rateLimiter.check(clientIp as string);
+    if (!allowed) {
+      ctx.fail(429, "RATE_LIMITED", "Too many requests");
+    }
+    return {};
+  },
+);
+```
+
+## Next Steps
+
+- [**Routing and Handlers**](/typokit/core-concepts/routing-and-handlers/) — how route contracts and handlers use the narrowed context
+- [**Error Handling**](/typokit/core-concepts/error-handling/) — deep dive into `ctx.fail()`, `AppError`, and the error middleware
+- [**Server Adapters**](/typokit/core-concepts/server-adapters/) — how framework-native middleware integrates at the adapter level
+- [**Building Your First API**](/typokit/guides/building-first-api/) — hands-on tutorial using middleware for authentication
