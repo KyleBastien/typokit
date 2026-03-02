@@ -15,6 +15,9 @@ packages/transform-native/false
 .typokit/
 __generated__/
 
+# Astro generated
+.astro/
+
 # Nx
 .nx/
 
