@@ -23,3 +23,9 @@ export {
   createRequestContext,
   executeMiddlewareChain,
 } from "./middleware.js";
+export {
+  type HandlerInput,
+  type HandlerFn,
+  type HandlerDefs,
+  defineHandlers,
+} from "./handler.js";
