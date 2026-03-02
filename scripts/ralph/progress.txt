@@ -4,9 +4,14 @@ Started: 03/01/2026 21:04:22
 
 ## Codebase Patterns
 - Nx plugins need executors.json + generators.json at package root, with executors/generators fields in package.json
+- Route contract interfaces (UsersRoutes etc.) lack index signatures — use mapped types `{ [K in keyof T]: H<K> }` instead of `HandlerDefs<T>` generic for handler typing
+- `ctx.fail()` returns `never` but TS needs explicit `return ctx.fail(...)` for proper control-flow narrowing
+- `defineMiddleware<T>` requires T to have `[key: string]: unknown` index signature on custom context interfaces
 - Bun platform uses Web API types (Request/Response/Headers) — declare in env.d.ts for non-Bun compile environments
 - Use globalThis cast for crypto access (same pattern as process/fetch) — no @types/node means no global type declarations
 - rstest 0.0.1 does NOT support `vi` (vitest mocks) — use manual spy patterns (e.g., `fetchCalls` array) for mocking
+- rstest 0.0.1 does NOT support `beforeAll`/`afterAll` globals — use inline setup/teardown with try/finally in each test
+- For test apps, wrap typed handlers with try/catch for AppError to return proper status codes (platform-node catch returns 500 for all errors)
 - ValidatorMap maps string refs to ValidatorFn — mirrors HandlerMap pattern; RouteHandler.validators is optional
 - SerializerMap follows same pattern as ValidatorMap — string ref in RouteHandler.serializer pointing to SerializerFn in map
 - Validation runs after route matching, before handler — prefix field errors with params./query./body. for attribution
@@ -966,4 +971,70 @@ ative.addresses()[0].port
   - defaultPipeline includes .typokit/** in build outputs (generated code directory must be cached)
   - dev task must be persistent: true and cache: false in turbo.json
   - test task depends on build (not ^build) since it needs generated code from same package
+---
+
+## 2026-03-02T10:32:00Z - US-053
+- Created @typokit/example-todo-schema package with User and Todo entity types
+- User entity with JSDoc tags: @table users, @id, @generated uuid, @format email, @unique, @minLength, @maxLength, @default
+- Todo entity with: id, title, description (optional), completed (boolean), userId (foreign key), createdAt, updatedAt
+- Derived types: CreateUserInput, UpdateUserInput, PublicUser, CreateTodoInput, UpdateTodoInput, PublicTodo
+- PaginatedResponse and ErrorResponse re-exported from @typokit/types
+- UsersRoutes and TodosRoutes route contracts for full CRUD operations
+- Files changed: packages/example-todo-schema/package.json, tsconfig.json, src/index.ts, root tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - ESLint catches unused type imports even when they appear used — import type { X } + xport type { X } from same module triggers unused-vars; use only the re-export line without a separate top-level import
+  - Example packages follow the exact same structure as core packages (package.json, tsconfig.json extending base, composite: true)
+  - Route contracts use the format "METHOD /path" as interface keys with RouteContract<Params, Query, Body, Response> generics
+---
+
+## 2026-03-02T10:36:00Z - US-054
+- Implemented @typokit/example-todo-server reference app package
+- Created service layer: user-service.ts (CRUD + in-memory store), todo-service.ts (CRUD + filtering)
+- Created auth middleware (require-auth.ts) demonstrating context type narrowing with defineMiddleware
+- Created typed route handlers for users (GET/POST/PUT/DELETE) and todos (GET/POST/PUT/DELETE)
+- GET /todos supports query params: page, pageSize, userId, completed
+- Error handling uses ctx.fail() for not found, conflict, validation errors
+- Created app.ts with explicit route registration via createApp
+- Updated @typokit/example-todo-schema to add completed filter to GET /todos query type
+- Files changed: packages/example-todo-server/*, packages/example-todo-schema/src/index.ts, tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Route contract interfaces (UsersRoutes, TodosRoutes) don't have index signatures, so they don't satisfy Record<string, RouteContract<...>> constraint — use mapped types directly instead of defineHandlers generic
+  - ctx.fail() returns never but TS needs explicit `return ctx.fail(...)` for proper narrowing in handlers
+  - defineMiddleware<T> requires T to have an index signature (`[key: string]: unknown`) — add it to custom context interfaces
+  - Schema packages must be built (`tsc -b`) before consuming packages can typecheck with project references
+---
+
+## 2026-03-02T10:44:00Z - US-055
+- Created @typokit/example-todo-db package with Drizzle + SQLite database layer
+- Drizzle SQLite table definitions for users and todos (schema.ts)
+- Initial migration SQL (migrations/0001_initial.ts) with CREATE TABLE statements
+- Database seeding script with sample users and todos (seed.ts)
+- Repository functions for CRUD operations on users and todos (repository.ts)
+- Package exports all schemas, migrations, seed helpers, and repository factories
+- Files changed: packages/example-todo-db/ (new), tsconfig.json (paths), pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Drizzle SQLite uses text() for dates and string enums, integer() with mode:"boolean" for booleans
+  - BetterSQLite3Database type from drizzle-orm/better-sqlite3 is the DB type for repository functions
+  - drizzle-orm q and sql are the main query helpers; .() enables conditional where clauses
+  - better-sqlite3 needs pnpm approve-builds for native compilation (build script ignored by default)
+  - InferSelectModel/InferInsertModel from drizzle-orm derive row types from table definitions
+---
+
+## 2026-03-02T10:47:00Z - US-056
+- Implemented contract tests and integration tests for the reference todo app
+- Contract tests: 13 user route tests + 11 todo route tests covering valid input, missing fields, invalid formats
+- Integration tests: 3 tests covering full CRUD workflow (create user -> create todo -> list -> update -> delete), multiple todos, duplicate conflict
+- Test app factory (test-app.ts) wires native server adapter with compiled route table, handler map, and validators
+- Contract generation script (generate-tests.ts) demonstrates generateContractTests() usage
+- Test factories used for fixture data via createFactory() from @typokit/testing
+- createIntegrationSuite() with in-memory database used in integration tests
+- Files changed: packages/example-todo-server/src/test-app.ts (new), src/__generated__/users.contract.test.ts (new), src/__generated__/todos.contract.test.ts (new), src/integration.test.ts (new), src/generate-tests.ts (new), package.json, tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - rstest 0.0.1 does NOT support `beforeAll`/`afterAll` as globals — use inline setup/teardown within each test (try/finally pattern)
+  - `__generated__/` is gitignored — use `git add -f` to include generated contract test files
+  - nativeServer adapter requires `registerRoutes()` called before `listen()` — createApp() does NOT do this automatically
+  - Typed handlers (HandlerInput<T>) need wrappers to adapt to HandlerMap's `(req, ctx) => TypoKitResponse` signature — use `as unknown as AnyHandler` cast
+  - ctx.fail() throws AppError which propagates to platform-node's catch returning 500 — wrap handlers with try/catch for proper status codes
+  - ServerAdapter.getNativeServer() is optional — use `adapter.getNativeServer?.()` with optional chaining
+  - For parameterized route contract tests, seed data must be created within each test since routes like GET /users/:id need a real ID
 ---
