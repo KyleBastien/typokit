@@ -2,6 +2,7 @@
 
 export { StructuredLogger } from "./logger.js";
 export { redactFields } from "./redact.js";
+export { OtelLogSink, createOtelLogSink } from "./log-bridge.js";
 export {
   Tracer,
   Span,
