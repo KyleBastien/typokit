@@ -178,6 +178,9 @@ importers:
       '@typokit/example-todo-schema':
         specifier: workspace:*
         version: link:../example-todo-schema
+      '@typokit/plugin-debug':
+        specifier: workspace:*
+        version: link:../plugin-debug
       '@typokit/types':
         specifier: workspace:*
         version: link:../types

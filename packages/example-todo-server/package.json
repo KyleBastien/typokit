@@ -24,6 +24,7 @@
     "@typokit/core": "workspace:*",
     "@typokit/errors": "workspace:*",
     "@typokit/example-todo-schema": "workspace:*",
+    "@typokit/plugin-debug": "workspace:*",
     "@typokit/types": "workspace:*"
   },
   "devDependencies": {

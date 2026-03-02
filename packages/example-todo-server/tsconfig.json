@@ -14,6 +14,7 @@
     { "path": "../example-todo-schema" },
     { "path": "../server-native" },
     { "path": "../testing" },
-    { "path": "../platform-node" }
+    { "path": "../platform-node" },
+    { "path": "../plugin-debug" }
   ]
 }
