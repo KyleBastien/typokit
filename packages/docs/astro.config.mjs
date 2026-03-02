@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightTypeDoc, { typeDocSidebarGroup } from "starlight-typedoc";
+import starlightBlog from "starlight-blog";
 
 export default defineConfig({
   site: "https://kylebastien.github.io",
@@ -8,10 +9,14 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "TypoKit",
-      social: {
-        github: "https://github.com/typokit/typokit",
-      },
+      social: [
+        { icon: "github", label: "GitHub", href: "https://github.com/typokit/typokit" },
+      ],
       plugins: [
+        starlightBlog({
+          title: "Blog",
+          prefix: "blog",
+        }),
         starlightTypeDoc({
           entryPoints: [
             "../core",
@@ -120,13 +125,7 @@ export default defineConfig({
             { label: "Machine-Readable Docs", slug: "ai-agents/machine-readable" },
           ],
         },
-        {
-          label: "Blog",
-          collapsed: true,
-          items: [
-            { label: "Blog", slug: "blog" },
-          ],
-        },
+
       ],
     }),
   ],
