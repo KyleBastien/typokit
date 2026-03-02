@@ -14,6 +14,8 @@ export { executeGenerate, generateDb, generateClient, generateOpenapi, generateT
 export type { GenerateCommandOptions, GenerateResult } from "./commands/generate.js";
 export { executeMigrate, migrateGenerate, migrateDiff, migrateApply } from "./commands/migrate.js";
 export type { MigrateCommandOptions, MigrateResult } from "./commands/migrate.js";
+export { executeScaffold, scaffoldInit, scaffoldRoute, scaffoldService, generateRouteContracts, generateRouteHandlers, generateRouteMiddleware, generateService, generatePackageJson, generateTsconfig, generateAppTs, generateTypesTs, toPascalCase, toCamelCase } from "./commands/scaffold.js";
+export type { ScaffoldCommandOptions, ScaffoldResult, InitOptions } from "./commands/scaffold.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -83,6 +85,9 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("    migrate:diff     Show pending schema changes (--json for JSON)");
     logger.info("    migrate:apply    Apply pending migrations (--force for destructive)");
     logger.info("  inspect <sub>      Inspect framework state (routes, schema, etc.)");
+    logger.info("  init [name]        Create a new TypoKit project from template");
+    logger.info("  add route <name>   Scaffold a new route module");
+    logger.info("  add service <name> Scaffold a new service file");
     logger.info("");
     logger.info("Options:");
     logger.info("  --verbose, -v         Show detailed output");
@@ -223,6 +228,51 @@ export async function run(argv: string[]): Promise<number> {
       subcommand,
       positional: subPositional,
       flags,
+    });
+
+    return result.success ? 0 : 1;
+  }
+
+  if (command === "init") {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const { executeScaffold: execScaffold } = await import("./commands/scaffold.js");
+    const result = await execScaffold({
+      rootDir,
+      logger,
+      subcommand: "init",
+      positional,
+      flags,
+      verbose,
+    });
+
+    return result.success ? 0 : 1;
+  }
+
+  if (command === "add") {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const subcommand = positional[0] ?? "";
+    const subPositional = positional.slice(1);
+
+    const { executeScaffold: execScaffold } = await import("./commands/scaffold.js");
+    const result = await execScaffold({
+      rootDir,
+      logger,
+      subcommand,
+      positional: subPositional,
+      flags,
+      verbose,
     });
 
     return result.success ? 0 : 1;
