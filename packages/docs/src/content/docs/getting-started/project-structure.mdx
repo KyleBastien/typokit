@@ -3,4 +3,291 @@ title: Project Structure
 description: Understand the layout and organization of a TypoKit project.
 ---
 
-This page is coming soon.
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+After running `typokit scaffold init`, you'll have a monorepo with four packages and a generated `.typokit/` directory. This guide explains what each piece does and which files you should edit.
+
+## Top-Level Layout
+
+A typical TypoKit project looks like this:
+
+```
+my-app/
+├── typokit.config.ts            # TypoKit configuration
+├── package.json                 # Root workspace config
+├── pnpm-workspace.yaml          # Workspace definition
+│
+├── packages/
+│   ├── schema/                  # @app/schema — your types
+│   ├── server/                  # @app/server — handlers & middleware
+│   ├── db/                      # @app/db — database layer
+│   └── client/                  # @app/client — API client
+│
+└── .typokit/                    # Auto-generated (git-ignored)
+```
+
+## The Four Packages
+
+TypoKit apps follow a **monorepo-of-four** pattern. Each package has a clear responsibility and dependency direction:
+
+```
+@app/schema ──→ @app/server
+     │                │
+     ├──→ @app/db     │
+     │                │
+     └──→ @app/client ┘
+```
+
+Everything flows from `@app/schema` — the single source of truth.
+
+### `@app/schema` — Type Definitions
+
+Your domain types and route contracts live here. This is the only package you **must** write by hand; everything else is derived from it.
+
+```
+packages/schema/
+├── src/
+│   └── index.ts          # Entity types + route contracts
+├── package.json
+└── tsconfig.json
+```
+
+**What goes in `index.ts`:**
+
+```typescript
+/** @table */
+export interface User {
+  /** @id @generated uuid */
+  id: string;
+
+  /** @format email */
+  email: string;
+
+  /** @minLength 2 */
+  name: string;
+
+  /** @generated now */
+  createdAt: Date;
+}
+
+export type CreateUserInput = Omit<User, "id" | "createdAt">;
+export type PublicUser = Omit<User, "passwordHash">;
+```
+
+Types use JSDoc annotations (`@table`, `@id`, `@format`, `@minLength`, etc.) to express constraints. TypoKit reads these annotations at build time to generate validators, database schemas, and OpenAPI specs — no decorators or runtime schema libraries required.
+
+Route contracts are also defined here:
+
+```typescript
+import type { RouteContract } from "@typokit/types";
+
+export interface UserRoutes {
+  "GET /users": RouteContract<void, void, void, PublicUser[]>;
+  "POST /users": RouteContract<void, void, CreateUserInput, PublicUser>;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, PublicUser>;
+}
+```
+
+Learn more in [Schema-First Types](/typokit/core-concepts/schema-first-types/).
+
+### `@app/server` — Handlers & Middleware
+
+This package contains your application logic: route handlers, middleware, and service layer.
+
+```
+packages/server/
+├── src/
+│   ├── app.ts                   # App factory — registers routes & middleware
+│   ├── handlers/
+│   │   ├── users.ts             # Handler implementations
+│   │   └── todos.ts
+│   ├── middleware/
+│   │   ├── require-auth.ts      # Auth middleware
+│   │   └── logging.ts
+│   ├── services/
+│   │   └── user-service.ts      # Business logic layer
+│   └── __generated__/           # ⚠️ Auto-generated contract tests
+│       ├── users.contract.test.ts
+│       └── todos.contract.test.ts
+├── package.json
+└── tsconfig.json
+```
+
+**Key details:**
+
+- **`app.ts`** — Explicit route registration. Routes are wired up here, not discovered from the file system.
+- **`handlers/`** — Each handler file implements the contract defined in `@app/schema`. Handlers receive typed `{ params, query, body, ctx }` input and return typed responses.
+- **`middleware/`** — Typed middleware that narrows the context type, so downstream handlers know exactly what's available.
+- **`services/`** — Optional business logic layer to keep handlers thin.
+- **`__generated__/`** — Contract tests generated from your route contracts. These verify that handlers match their contracts at runtime.
+
+<Aside type="caution">
+  Never edit files in `__generated__/` — they are overwritten on every build.
+</Aside>
+
+Learn more in [Routing and Handlers](/typokit/core-concepts/routing-and-handlers/) and [Middleware and Context](/typokit/core-concepts/middleware-and-context/).
+
+### `@app/db` — Database Layer
+
+The database package contains your ORM schema, migrations, and repository logic.
+
+```
+packages/db/
+├── src/
+│   ├── schema.ts          # ⚠️ Auto-generated from @app/schema
+│   ├── repository.ts      # User-written data access layer
+│   ├── migrations/        # Migration files
+│   │   └── 0001_initial.sql
+│   └── seed.ts            # Seed data
+├── package.json
+└── tsconfig.json
+```
+
+**Key details:**
+
+- **`schema.ts`** — Auto-generated Drizzle ORM table definitions derived from your `@app/schema` types. Types annotated with `@table` become database tables; `@id` marks primary keys; `@generated` flags are used for auto-increment or UUID defaults.
+- **`repository.ts`** — Your hand-written data access layer with queries, transactions, and custom logic.
+- **`migrations/`** — Migration files generated by `typokit generate:migration`. You review and apply them.
+- **`seed.ts`** — Optional seed data for development.
+
+<Aside>
+  The database adapter (Drizzle, Kysely, Prisma, or raw SQL) is chosen during `scaffold init` via the `--db` flag. The generated schema format varies by adapter.
+</Aside>
+
+Learn more in [Database Adapters](/typokit/core-concepts/database-adapters/).
+
+### `@app/client` — API Client
+
+A fully auto-generated, type-safe HTTP client for calling your API from frontends or other services.
+
+```
+packages/client/
+├── src/
+│   └── index.ts           # ⚠️ Fully auto-generated
+├── package.json
+└── tsconfig.json
+```
+
+You never need to edit this package. It's regenerated from your route contracts on every build and provides:
+
+- Type-safe method calls matching your route contracts
+- Automatic request/response serialization
+- Works with React Query, SWR, or plain fetch
+
+<Aside type="caution">
+  The entire `@app/client` package is auto-generated. Don't edit it manually — your changes will be overwritten.
+</Aside>
+
+## The `.typokit/` Generated Directory
+
+The `.typokit/` directory is produced by TypoKit's Rust-powered build pipeline during `typokit build` or `typokit dev`. It is **git-ignored** and **regenerated on every build**.
+
+```
+.typokit/
+├── validators/
+│   ├── User.validator.ts              # Input validation functions
+│   ├── CreateUserInput.validator.ts
+│   └── UpdateUserInput.validator.ts
+├── routes/
+│   ├── route-table.ts                 # Compiled route registry
+│   └── compiled-router.ts            # Radix-tree router (O(k) lookup)
+├── schemas/
+│   └── openapi.json                   # OpenAPI 3.1 spec
+├── tests/
+│   ├── users.contract.test.ts         # Contract tests
+│   └── todos.contract.test.ts
+└── client/
+    └── index.ts                       # Type-safe API client source
+```
+
+### What each subdirectory contains
+
+| Directory | Contents | Purpose |
+|-----------|----------|---------|
+| **`validators/`** | One `.validator.ts` file per type | Runtime validation functions generated from your JSDoc constraints via Typia. Used by the server to validate request bodies and parameters. |
+| **`routes/`** | `route-table.ts`, `compiled-router.ts` | A compiled route registry and radix-tree router for O(k) path matching. Maps HTTP methods + paths to handlers with pre-wired validation. |
+| **`schemas/`** | `openapi.json` | A complete OpenAPI 3.1 specification generated from your types and route contracts. Served at `/openapi.json` in dev mode. |
+| **`tests/`** | `*.contract.test.ts` files | Auto-generated tests that verify handlers match their contracts — correct status codes, response shapes, and error types. |
+| **`client/`** | `index.ts` | The source for the `@app/client` package. A type-safe fetch wrapper with methods for every route contract. |
+
+<Aside type="tip">
+  All generated files are plain TypeScript or JSON — never binary blobs. You can inspect them to understand exactly what TypoKit produces. Use `typokit inspect` commands to explore generated artifacts.
+</Aside>
+
+## `typokit.config.ts` Configuration
+
+The configuration file lives at the project root and controls TypoKit's build behavior:
+
+```typescript
+// typokit.config.ts
+import { defineConfig } from "@typokit/cli";
+
+export default defineConfig({
+  // Glob patterns for files containing type definitions
+  typeFiles: ["src/**/*.types.ts", "src/**/types.ts"],
+
+  // Glob patterns for files containing route contracts
+  routeFiles: [
+    "src/**/*.routes.ts",
+    "src/**/routes.ts",
+    "src/**/contracts.ts",
+  ],
+
+  // Where to write generated artifacts
+  outputDir: ".typokit",
+
+  // Build output directory
+  distDir: "dist",
+
+  // TypeScript compiler to use
+  compiler: "tsc",  // "tsc" | "tsup" | "swc"
+
+  // Additional compiler arguments
+  compilerArgs: [],
+});
+```
+
+All options have sensible defaults. For most projects, a minimal config (or no config file at all) is sufficient:
+
+```typescript
+// Minimal typokit.config.ts — all defaults
+import { defineConfig } from "@typokit/cli";
+export default defineConfig({});
+```
+
+**Config resolution order:**
+1. `typokit.config.ts` (or `typokit.config.js`)
+2. `"typokit"` field in `package.json`
+3. Built-in defaults
+
+## Auto-Generated vs. User-Maintained
+
+Understanding which files you own and which are generated is critical:
+
+| File | Status | Notes |
+|------|--------|-------|
+| `@app/schema/src/**` | ✍️ **User-maintained** | Your types — the single source of truth |
+| `@app/server/src/app.ts` | ✍️ **User-maintained** | Route registration |
+| `@app/server/src/handlers/**` | ✍️ **User-maintained** | Your handler logic |
+| `@app/server/src/middleware/**` | ✍️ **User-maintained** | Your middleware |
+| `@app/server/src/services/**` | ✍️ **User-maintained** | Your business logic |
+| `@app/server/src/__generated__/**` | 🤖 **Auto-generated** | Contract tests — never edit |
+| `@app/db/src/schema.ts` | 🤖 **Auto-generated** | ORM schema from types |
+| `@app/db/src/repository.ts` | ✍️ **User-maintained** | Data access layer |
+| `@app/db/src/migrations/**` | 🤖 **Generated, user-reviewed** | Review before applying |
+| `@app/client/src/**` | 🤖 **Auto-generated** | Entire package is generated |
+| `.typokit/**` | 🤖 **Auto-generated** | Build artifacts — git-ignored |
+| `typokit.config.ts` | ✍️ **User-maintained** | Build configuration |
+
+<Aside type="tip">
+  **Rule of thumb:** Write your types once in `@app/schema`. Everything else either flows from those types automatically or is your application logic (handlers, middleware, services, repositories).
+</Aside>
+
+## Next Steps
+
+Now that you understand the project layout:
+
+- **[Schema-First Types](/typokit/core-concepts/schema-first-types/)** — Deep dive into the type system and JSDoc annotations
+- **[Routing and Handlers](/typokit/core-concepts/routing-and-handlers/)** — How route contracts connect to handler implementations
+- **[Database Adapters](/typokit/core-concepts/database-adapters/)** — Configure Drizzle, Kysely, Prisma, or raw SQL
+- **[Building Your First API](/typokit/guides/building-first-api/)** — End-to-end tutorial building a complete API
