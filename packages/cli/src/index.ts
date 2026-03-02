@@ -6,6 +6,8 @@ export { loadConfig } from "./config.js";
 export type { TypoKitConfig } from "./config.js";
 export { executeBuild } from "./commands/build.js";
 export type { BuildCommandOptions, BuildError } from "./commands/build.js";
+export { executeDev, createDevState, detectChangedFiles, updateTrackedFiles, buildDepGraph, getAffectedOutputs, isCacheValid, updateCache } from "./commands/dev.js";
+export type { DevCommandOptions, DevServerState } from "./commands/dev.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -64,10 +66,12 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("");
     logger.info("Commands:");
     logger.info("  build    Run the full build pipeline");
+    logger.info("  dev      Start dev server with watch mode");
     logger.info("");
     logger.info("Options:");
-    logger.info("  --verbose, -v    Show detailed output");
-    logger.info("  --root <dir>     Project root directory (default: cwd)");
+    logger.info("  --verbose, -v         Show detailed output");
+    logger.info("  --root <dir>          Project root directory (default: cwd)");
+    logger.info("  --debug-port <port>   Debug sidecar port (default: 9800)");
     return 0;
   }
 
@@ -91,6 +95,42 @@ export async function run(argv: string[]): Promise<number> {
     });
 
     return result.success ? 0 : 1;
+  }
+
+  if (command === "dev") {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const debugPort = typeof flags["debug-port"] === "string"
+      ? parseInt(flags["debug-port"], 10)
+      : 9800;
+
+    const { loadConfig: loadConf } = await import("./config.js");
+    const config = await loadConf(rootDir);
+
+    const { executeDev: execDev } = await import("./commands/dev.js");
+    const { state } = await execDev({
+      rootDir,
+      config,
+      logger,
+      verbose,
+      debugPort,
+    });
+
+    // Keep running until stopped (dev mode is long-running)
+    // The executeDev function sets up watchers and signal handlers
+    // We return 0 when it stops
+    if (!state.running) {
+      return 1;
+    }
+
+    // In a real scenario, we'd await a signal here
+    // For now, return 0 to indicate successful start
+    return 0;
   }
 
   logger.error(`Unknown command: ${command}`);

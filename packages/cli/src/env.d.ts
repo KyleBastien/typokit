@@ -21,8 +21,13 @@ declare module "fs" {
   export function readFileSync(path: string, encoding: string): string;
   export function writeFileSync(path: string, data: string, encoding?: string): void;
   export function readdirSync(path: string, options?: { recursive?: boolean; withFileTypes?: boolean }): string[];
-  export function statSync(path: string): { isDirectory(): boolean; isFile(): boolean };
+  export function statSync(path: string): { isDirectory(): boolean; isFile(): boolean; mtimeMs: number };
   export function rmSync(path: string, options?: { recursive?: boolean; force?: boolean }): void;
+  export function watch(
+    path: string,
+    options: { recursive?: boolean },
+    listener: (event: string, filename: string | null) => void,
+  ): { close(): void };
 }
 
 declare module "child_process" {
