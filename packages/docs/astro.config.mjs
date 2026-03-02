@@ -2,7 +2,8 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 
 export default defineConfig({
-  site: "https://typokit.github.io",
+  site: "https://kylebastien.github.io",
+  base: "/typokit",
   integrations: [
     starlight({
       title: "TypoKit",
