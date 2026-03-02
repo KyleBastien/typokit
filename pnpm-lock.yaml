@@ -150,7 +150,17 @@ importers:
         specifier: ^22.0.0
         version: 22.19.13
 
-  packages/plugin-ws: {}
+  packages/plugin-ws:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/server-express: {}
 

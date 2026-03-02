@@ -20,5 +20,10 @@
   ],
   "private": true,
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/core": "workspace:*",
+    "@typokit/types": "workspace:*",
+    "@typokit/errors": "workspace:*"
+  }
 }
