@@ -1,4 +1,106 @@
 # Ralph Progress Log
-Feature: docs-site
-Started: 
+Started: 03/02/2026 09:17:20
+---
+
+## Codebase Patterns
+- Monorepo uses pnpm workspaces with packages in `packages/*`
+- Package naming: `@typokit/{package-name}`, version `0.1.0`, all `"private": true`
+- Nx handles build orchestration: `nx run-many --target={build|test|lint|typecheck}`
+- ESM modules throughout (`"type": "module"`)
+- Build scripts: each package uses `pnpm approve-builds` for native deps (esbuild, sharp)
+- `.astro/` is gitignored; generated types are auto-created by `astro sync` / `astro build`
+- Starlight social config uses object format `{ github: "url" }`, NOT array format
+- Docs package needs `project.json` to override Nx target defaults (uses astro commands, not tsc)
+- Starlight sidebar slugs reference paths under `src/content/docs/` without extension; `index.mdx` uses directory path as slug
+- GitHub Pages for project repos need `base: "/repo-name"` in astro.config.mjs
+- CI workflow uses `pnpm nx build docs` to build the docs package (not `nx run docs:build`)
+- starlight-typedoc uses `entryPointStrategy: "packages"` for monorepo; each package dir is an entry point
+- Generated API reference files go to `api-reference/generated/` and are gitignored (regenerated on build)
+- Use `typeDocSidebarGroup` from starlight-typedoc to insert auto-generated sidebar; replaces manual API Reference section
+- Set `errorOnEmptyDocumentation: false` since some packages may lack full JSDoc coverage
+- Starlight UI components (Tabs, Steps, Aside, etc.) import from `@astrojs/starlight/components` in MDX files
+- Internal doc links require the `base` prefix for GitHub Pages (e.g., `/typokit/path/to/page/`)
+
+## 2026-03-02T17:23 - US-001
+- Initialized Starlight docs package at packages/docs/
+- Created: package.json, astro.config.mjs, tsconfig.json, src/content.config.ts, src/content/docs/index.mdx
+- Files changed: packages/docs/ (new), .gitignore, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Starlight `social` config changed to object format in recent versions (not array)
+  - `@astrojs/check` + `typescript` must be installed separately for `astro check`
+  - `.astro/` dir contains generated types; gitignored, regenerated on build/sync
+  - Pagefind search is automatic during build, no config needed
+  - `site` option in astro.config.mjs is required for sitemap generation
+---
+
+## 2026-03-02T17:28 - US-003
+- Configured full sidebar navigation in astro.config.mjs with 9 collapsible sections
+- Created 26 placeholder .mdx stub files for all planned docs pages
+- Sections: Getting Started, Core Concepts, Guides, CLI Reference, API Reference, Architecture, Contributing, AI Agents, Blog
+- Files changed: packages/docs/astro.config.mjs, 26 new .mdx files under packages/docs/src/content/docs/
+- **Learnings for future iterations:**
+  - Starlight sidebar uses `slug` property referencing paths under `src/content/docs/` (without extension)
+  - `collapsed: true` makes sidebar sections collapsible (collapsed by default); `collapsed: false` for expanded
+  - Starlight active page highlighting and mobile hamburger menu work automatically — no extra config needed
+  - Slug for `index.mdx` files uses the directory path (e.g., `api-reference` for `api-reference/index.mdx`)
+  - Empty slug `""` references the root `index.mdx`
+---
+
+## 2026-03-02T17:25 - US-002
+- Created `packages/docs/project.json` with Nx targets overriding defaults
+- Targets: build (astro build), serve (astro dev), typecheck (astro check), lint/test (no-ops)
+- Files changed: packages/docs/project.json (new)
+- **Learnings for future iterations:**
+  - Nx target defaults in nx.json use `tsc`, but Astro packages need `astro build`/`astro check`
+  - Override targets via `project.json` in the package root, not via package.json nx config
+  - `nx serve docs` starts dev server on localhost:4321 automatically
+  - Lint and test targets need no-op overrides to prevent default tsc/rstest/eslint from running
+---
+
+## 2026-03-02T17:31 - US-004
+- Created `.github/workflows/docs.yml` for GitHub Pages deployment
+- Workflow triggers on push to main (with paths filter) and workflow_dispatch
+- Paths filter: `packages/docs/**`, `packages/*/src/**`, `typokit-arch.md`
+- Installs deps with pnpm, builds with `pnpm nx build docs`
+- Deploys `packages/docs/dist/` using `actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4`
+- Updated `packages/docs/astro.config.mjs` with `base: "/typokit"` for GitHub Pages project site
+- Files changed: `.github/workflows/docs.yml` (new), `packages/docs/astro.config.mjs`
+- **Learnings for future iterations:**
+  - GitHub Pages project repos (not `<user>.github.io`) need `base: "/repo-name"` in astro config
+  - Use `concurrency` group with `cancel-in-progress: false` for Pages deployments to avoid interrupted deploys
+  - Pages deployment requires `permissions: pages: write, id-token: write, contents: read`
+  - The `actions/configure-pages` step is optional when using `upload-pages-artifact` directly
+---
+
+## 2026-03-02T17:34 - US-005
+- Installed starlight-typedoc, typedoc, and typedoc-plugin-markdown in packages/docs
+- Configured starlight-typedoc plugin in astro.config.mjs with all 24 publishable @typokit/* packages
+- Used `entryPointStrategy: "packages"` for per-package API reference sections
+- Replaced manual "API Reference" sidebar item with `typeDocSidebarGroup` auto-generated sidebar
+- Added `api-reference/generated/` to .gitignore (regenerated on every build)
+- Set `errorOnEmptyDocumentation: false` for graceful handling of packages with minimal JSDoc
+- Updated api-reference/index.mdx stub with helpful description
+- Files changed: packages/docs/astro.config.mjs, packages/docs/package.json, .gitignore, packages/docs/src/content/docs/api-reference/index.mdx, pnpm-lock.yaml, pnpm-workspace.yaml
+- **Learnings for future iterations:**
+  - starlight-typedoc requires `typedoc` and `typedoc-plugin-markdown` as peer deps (auto-installed by pnpm)
+  - For monorepos, use `entryPointStrategy: "packages"` in the `typeDoc` config; each entry point is a package directory containing package.json + tsconfig.json
+  - `typeDocSidebarGroup` is exported from `starlight-typedoc` and must be placed in the sidebar array to show generated API docs
+  - TypeDoc warnings about types "not included in the documentation" are normal for internal/unexported types referenced by public APIs
+  - Generated markdown files go to `src/content/docs/{output}/` where `output` is configured in the plugin
+  - The `tsconfig` option should point to root tsconfig.json for proper path resolution across packages
+  - Build generates 323 markdown files and 351 total pages with TypeDoc integration enabled
+---
+
+## 2026-03-02T17:41 - US-006
+- Wrote comprehensive quickstart guide at packages/docs/src/content/docs/getting-started/quickstart.mdx
+- Guide covers: prerequisites (Node.js 24+, pnpm/npm/yarn), scaffold init, project structure overview, defining types, creating routes with contracts+handlers, registering routes, starting dev server, testing with curl
+- Uses Starlight components: Tabs, TabItem, Steps, Aside for polished UX
+- Includes terminal command blocks with expected output at each step
+- Links to Core Concepts pages (schema-first-types, routing-and-handlers, middleware-and-context, error-handling) and guides
+- Files changed: packages/docs/src/content/docs/getting-started/quickstart.mdx
+- **Learnings for future iterations:**
+  - Starlight `Tabs`, `TabItem`, `Steps`, and `Aside` components are imported from `@astrojs/starlight/components`
+  - MDX files support JSX components inline with markdown — no special config needed
+  - Internal links in Starlight docs need the `base` prefix (e.g., `/typokit/core-concepts/...`) for GitHub Pages deployment
+  - Typecheck and build both pass with MDX component imports; no additional dependencies needed
 ---
