@@ -1,6 +1,270 @@
 ---
 title: Error Handling
-description: Handle errors gracefully in TypoKit applications.
+description: Understand TypoKit's error handling philosophy, the AppError class hierarchy, ctx.fail() shorthand, automatic error serialization, and structured error responses for AI agents.
 ---
 
-This page is coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+## Philosophy: Thrown Errors, Not Result Types
+
+TypoKit uses **thrown errors** rather than `Result<T, E>` return types. This is a deliberate choice:
+
+1. **Centralized handling** — A single error middleware catches all errors and serializes them consistently, so individual handlers don't need error-formatting boilerplate.
+2. **Automatic context enrichment** — The framework attaches `traceId`, `sourceFile`, `schemaFile`, and `relatedTests` to every error response automatically. With Result types, each call site would need to thread that context manually.
+3. **Cleaner handler code** — Handlers focus on the happy path. When something goes wrong, they call `ctx.fail()` and the framework handles the rest.
+
+```typescript
+// TypoKit style — clean happy path
+"GET /users/:id": async ({ params, ctx }) => {
+  const user = await userService.findById(params.id, ctx);
+  if (!user) return ctx.fail(404, "USER_NOT_FOUND", `User ${params.id} not found`);
+  return user;
+}
+```
+
+<Aside type="tip">
+  Because errors are thrown (not returned), AI agents can read handler code top-to-bottom as the success path. Error cases are single-line `ctx.fail()` calls that are easy to parse and reason about.
+</Aside>
+
+## The AppError Class Hierarchy
+
+All TypoKit errors extend `AppError` from `@typokit/errors`:
+
+```typescript
+export class AppError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly status: number,
+    message: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "AppError";
+  }
+
+  toJSON(): ErrorResponse {
+    return {
+      error: {
+        code: this.code,
+        message: this.message,
+        ...(this.details !== undefined ? { details: this.details } : {}),
+      },
+    };
+  }
+}
+```
+
+Five built-in subclasses cover common HTTP error scenarios:
+
+| Class | Status | Default Code | When to Use |
+|-------|--------|--------------|-------------|
+| `NotFoundError` | 404 | `NOT_FOUND` | Resource doesn't exist |
+| `ValidationError` | 400 | `VALIDATION_ERROR` | Invalid input data |
+| `UnauthorizedError` | 401 | `UNAUTHORIZED` | Missing or invalid credentials |
+| `ForbiddenError` | 403 | `FORBIDDEN` | Authenticated but insufficient permissions |
+| `ConflictError` | 409 | `CONFLICT` | Duplicate resource or version conflict |
+
+You can throw these directly when you need custom codes:
+
+```typescript
+import { NotFoundError, ConflictError } from "@typokit/errors";
+
+// Custom code for more specific error identification
+throw new NotFoundError("TEAM_NOT_FOUND", "Team does not exist");
+
+// With additional details
+throw new ConflictError(
+  "DUPLICATE_EMAIL",
+  "A user with this email already exists",
+  { email: input.email }
+);
+```
+
+## `ctx.fail()` — The Recommended Approach
+
+Most of the time you won't import error classes directly. Instead, use `ctx.fail()` which is available in every handler and middleware:
+
+```typescript
+ctx.fail(status: number, code: string, message: string, details?: Record<string, unknown>): never
+```
+
+`ctx.fail()` is syntactic sugar that creates the appropriate `AppError` subclass and throws it. The `never` return type tells TypeScript that code after `ctx.fail()` is unreachable:
+
+```typescript
+"POST /teams/:teamId/members": async ({ params, body, ctx }) => {
+  const team = await teamService.findById(params.teamId, ctx);
+  if (!team) return ctx.fail(404, "TEAM_NOT_FOUND", `Team ${params.teamId} not found`);
+
+  const isMember = await teamService.isMember(team.id, body.userId, ctx);
+  if (isMember) return ctx.fail(409, "ALREADY_MEMBER", "User is already a team member");
+
+  if (team.memberCount >= team.maxMembers) {
+    return ctx.fail(403, "TEAM_FULL", "Team has reached its member limit", {
+      current: team.memberCount,
+      max: team.maxMembers,
+    });
+  }
+
+  return await teamService.addMember(team.id, body.userId, ctx);
+}
+```
+
+<Aside type="note">
+  `ctx.fail()` means handlers don't need to import error classes at all. This keeps handler files dependency-free and makes them easier for AI agents to generate and reason about.
+</Aside>
+
+## Built-in Error Middleware
+
+TypoKit includes `createErrorMiddleware()` that wraps every request in a try/catch and automatically serializes errors into consistent JSON responses:
+
+```typescript
+import { createErrorMiddleware } from "@typokit/core";
+
+const errorMiddleware = createErrorMiddleware({
+  isDev: process.env.NODE_ENV === "development",
+});
+```
+
+The middleware handles three categories of errors:
+
+### 1. AppError Instances
+
+Any `AppError` (including those thrown by `ctx.fail()`) is serialized using its `toJSON()` method, with the request's `traceId` attached:
+
+```json
+{
+  "error": {
+    "code": "USER_NOT_FOUND",
+    "message": "User abc-123 not found",
+    "traceId": "req-550e8400-e29b"
+  }
+}
+```
+
+### 2. Validation Errors (Typia)
+
+When Typia's runtime validation rejects input, the middleware extracts field-level details automatically:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Validation failed",
+    "details": {
+      "fields": [
+        {
+          "path": "$.email",
+          "expected": "string & format:email",
+          "value": 42
+        }
+      ]
+    },
+    "traceId": "req-550e8400-e29b"
+  }
+}
+```
+
+### 3. Unknown Errors
+
+Any unhandled error that isn't an `AppError` or Typia validation error triggers different behavior depending on the environment.
+
+## Dev Mode vs Production Mode
+
+The error middleware adjusts its response based on the `isDev` option (defaults to `NODE_ENV === "development"`):
+
+| Behavior | Development | Production |
+|----------|-------------|------------|
+| **AppError responses** | Full code, message, details | Full code, message, details |
+| **Unknown error message** | Actual `err.message` exposed | Generic `"Internal Server Error"` |
+| **Stack trace** | Included in `details.stack` | **Omitted** — never sent to client |
+| **Error name** | Included in `details.name` | **Omitted** |
+| **Server-side logging** | Console output | Full details sent to logging pipeline |
+
+**Development response** for an unknown error:
+
+```json
+{
+  "error": {
+    "code": "INTERNAL_SERVER_ERROR",
+    "message": "Cannot read properties of undefined (reading 'id')",
+    "details": {
+      "stack": "TypeError: Cannot read properties of undefined...",
+      "name": "TypeError"
+    },
+    "traceId": "req-550e8400-e29b"
+  }
+}
+```
+
+**Production response** for the same error:
+
+```json
+{
+  "error": {
+    "code": "INTERNAL_SERVER_ERROR",
+    "message": "Internal Server Error",
+    "traceId": "req-550e8400-e29b"
+  }
+}
+```
+
+<Aside type="caution">
+  In production, stack traces and error messages are **never** sent to clients. This prevents information leakage. Full details are logged server-side and correlated via `traceId`.
+</Aside>
+
+## Structured Error JSON for AI Agents
+
+TypoKit's error responses are designed to be machine-readable. When the debug sidecar or observability pipeline is active, errors include extended context that AI agents can use to diagnose and fix issues:
+
+```json
+{
+  "error": "VALIDATION_FAILED",
+  "traceId": "abc-123",
+  "route": "POST /users",
+  "phase": "request_validation",
+  "schema": "CreateUserInput",
+  "server": "fastify",
+  "failures": [
+    {
+      "path": "$.email",
+      "expected": "string & format:email",
+      "received": "number (42)",
+      "suggestion": "Change the value at $.email to a valid email string"
+    }
+  ],
+  "sourceFile": "src/routes/users/handlers.ts",
+  "schemaFile": "@app/schema/src/entities/user.ts:8",
+  "relatedTests": ["__generated__/users.contract.test.ts:15"]
+}
+```
+
+Key fields in the extended error format:
+
+| Field | Purpose |
+|-------|---------|
+| `traceId` | Correlates the error across logs, metrics, and traces |
+| `route` | The route pattern that triggered the error |
+| `phase` | Where in the pipeline the error occurred (`request_validation`, `handler`, `response_serialization`, `middleware`) |
+| `failures` | Array of specific validation failures with paths and suggestions |
+| `sourceFile` | The handler file where the error originated |
+| `schemaFile` | The TypeScript interface file and line number that defines the expected type |
+| `relatedTests` | Auto-generated contract test files relevant to this error |
+
+<Aside type="tip">
+  The `sourceFile`, `schemaFile`, and `relatedTests` fields give AI agents everything they need to locate and fix the root cause — no searching required.
+</Aside>
+
+## Error Handling Best Practices
+
+1. **Use `ctx.fail()` for expected errors** — Don't import error classes unless you need a custom subclass.
+2. **Let validation errors propagate** — Typia validation errors are caught and formatted automatically. Don't try/catch them in handlers.
+3. **Use specific error codes** — `USER_NOT_FOUND` is better than `NOT_FOUND`. Specific codes help clients and AI agents differentiate between error cases.
+4. **Include helpful details** — The `details` parameter on `ctx.fail()` accepts any object. Include data that helps the caller understand what went wrong.
+5. **Don't catch-and-rethrow** — The error middleware handles all serialization. Catch-and-rethrow patterns lose the original stack trace.
+
+## Next Steps
+
+- [Middleware and Context](/typokit/core-concepts/middleware-and-context/) — Learn how the error middleware integrates into the middleware chain
+- [Routing and Handlers](/typokit/core-concepts/routing-and-handlers/) — See how handlers use `ctx.fail()` in practice
+- [Observability and Debugging](/typokit/core-concepts/observability/) — Understand how errors flow into traces and logs
+- [Building Your First API](/typokit/guides/building-first-api/) — End-to-end example with error handling
