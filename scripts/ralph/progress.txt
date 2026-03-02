@@ -4,6 +4,7 @@ Started: 03/01/2026 21:04:22
 
 ## Codebase Patterns
 - ValidatorMap maps string refs to ValidatorFn — mirrors HandlerMap pattern; RouteHandler.validators is optional
+- SerializerMap follows same pattern as ValidatorMap — string ref in RouteHandler.serializer pointing to SerializerFn in map
 - Validation runs after route matching, before handler — prefix field errors with params./query./body. for attribution
 - Use `rstest run --passWithNoTests` for test commands (rstest 0.0.1 hangs without `run` subcommand)
 - Import test functions from `@rstest/core` (not `rstest`): `import { describe, it, expect } from "@rstest/core"`
@@ -33,6 +34,9 @@ Started: 03/01/2026 21:04:22
 - `buildPipeline()` writes to `.typokit/` directory — use `regenerated` flag to check if cache was hit
 - `GeneratedOutput` is `{ filePath, content, overwrite }` — BuildResult.outputs expects GeneratedOutput[], not string[]
 - No `@types/node` pattern: create `env.d.ts` with module declarations, use dynamic imports with inline type casts
+- TypeMetadata has optional `jsdoc?: Record<string, string>` at both type level and property level — DB adapters use this for @table, @id, @generated, @unique, @default
+- DB adapters GENERATE code (string output), don't import ORM libs at runtime — output is GeneratedOutput[]
+- DatabaseAdapter interface is in @typokit/core (adapters/database.ts), not @typokit/types
 
 ## 2026-03-02T05:04:30Z - US-001
 - Initialized Nx monorepo with pnpm workspaces
@@ -479,4 +483,100 @@ Started: 03/01/2026 21:04:22
   - Field errors are prefixed with their source (params./query./body.) for clear error attribution
   - ESLint enforces no unused imports — don't import types unless directly referenced in code (ValidatorFn was imported but only used in ValidatorMap type)
   - ServerAdapter.registerRoutes 4th param is optional — backwards compatible with existing adapters
+---
+
+## 2026-03-02T08:02:10Z - US-027
+- Implemented response serialization pipeline for @typokit/server-native
+- Added SerializerFn/SerializerMap types to @typokit/types
+- Added optional `serializer` field to RouteHandler interface
+- Updated ServerAdapter.registerRoutes in @typokit/core to accept serializerMap
+- Implemented serializeResponse() with compiled schema lookup + JSON.stringify fallback
+- Content-Type: application/json set automatically for JSON bodies
+- Files changed: packages/types/src/index.ts, packages/core/src/adapters/server.ts, packages/server-native/src/index.ts, packages/server-native/src/index.test.ts
+- **Learnings for future iterations:**
+  - SerializerMap follows same pattern as ValidatorMap — string ref in RouteHandler pointing to a map entry
+  - Response serialization happens after handler, before writeResponse — body becomes a pre-serialized string
+  - writeResponse in platform-node passes string bodies through unchanged (no double-serialization)
+  - Must build dependent packages (types, core) before typecheck on downstream packages
+---
+
+## 2026-03-02T08:08:00Z - US-028
+- Implemented DrizzleDatabaseAdapter in packages/db-drizzle/src/index.ts
+- PostgreSQL: pgTable, uuid, varchar, text, integer, bigint, boolean, timestamp, jsonb, pgEnum
+- SQLite: sqliteTable, text, integer with mode mappings
+- JSDoc tags: @table, @id, @generated (uuid/now), @format, @unique, @default, @onUpdate, @maxLength
+- diff() compares SchemaTypeMap against DatabaseState, produces MigrationDraft with SQL
+- Extended TypeMetadata in @typokit/types with optional jsdoc fields (backward compatible)
+- 18 unit tests all passing
+- Files changed: packages/types/src/index.ts, packages/db-drizzle/src/index.ts, packages/db-drizzle/src/index.test.ts, packages/db-drizzle/package.json, packages/db-drizzle/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - TypeMetadata now has optional jsdoc?: Record<string, string> at both type and property level — use this for DB adapter JSDoc tag support
+  - String union types like "a" | "b" | "c" in TypeMetadata.properties[x].type map to pgEnum in PostgreSQL
+  - DB adapters don't import drizzle-orm at runtime — they GENERATE code that uses it
+  - toSnakeCase + pluralize convention for table names when no @table JSDoc tag
+  - DatabaseAdapter interface is in @typokit/core (not @typokit/types) — add both as workspace deps
+---
+
+## 2026-03-02T08:17:00Z - US-029
+- Implemented @typokit/db-kysely Kysely type generation adapter
+- KyselyDatabaseAdapter implements DatabaseAdapter interface
+- generate() produces a single database.ts file with table interfaces and Database interface
+- Maps TS types to Kysely column types for PostgreSQL (native types) and SQLite (number/string)
+- Uses Generated<T> wrapper for auto-generated and default columns
+- Handles all JSDoc metadata tags (@id, @generated, @default, @unique, @table, @onUpdate)
+- diff() produces migration drafts identical to db-drizzle pattern
+- 19 unit tests covering all column types, dialects, unions, diff scenarios
+- Files changed: packages/db-kysely/src/index.ts, packages/db-kysely/src/index.test.ts, packages/db-kysely/package.json, packages/db-kysely/tsconfig.json
+- **Learnings for future iterations:**
+  - Kysely uses TypeScript interfaces (not ORM calls) for schema — Generated<T> wraps columns with defaults/auto-generation
+  - db-kysely generates a single database.ts file (not per-table files like Drizzle)
+  - SQLite in Kysely maps boolean→number and Date→string since SQLite lacks those types
+  - The adapter pattern (DatabaseAdapter interface, helpers, diff logic) is identical across all db-* packages
+---
+
+## 2026-03-02T08:21:51Z - US-030
+- Implemented PrismaDatabaseAdapter in `packages/db-prisma/src/index.ts`
+- Generates schema.prisma file with datasource, generator, enums, and models
+- Maps TS types to Prisma field types: String, Int, BigInt, Boolean, DateTime, Json
+- Handles all JSDoc metadata: @id, @default (uuid/now/autoincrement/literal), @unique, @generated, @onUpdate
+- Generates Prisma enums from string union types (e.g. `"a" | "b"` -> `enum TypeProp`)
+- Uses @@map for table name mapping, @map for column name mapping
+- diff() produces MigrationDraft with SQL migration statements
+- 18 unit tests covering all types, enums, defaults, diff operations, and constructor options
+- Files changed: packages/db-prisma/src/index.ts, packages/db-prisma/src/index.test.ts, packages/db-prisma/package.json, packages/db-prisma/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Prisma schema uses model/enum keywords (not CREATE TABLE) — it's its own DSL, not SQL
+  - Prisma field annotations use @id, @default(), @unique, @updatedAt, @map() syntax
+  - Use @@map("table_name") at model level for custom table names
+  - PascalCase enum names (e.g. UserStatus) follow Prisma conventions vs snake_case in Drizzle
+  - ESLint enforces no unused vars — use _ prefix for intentionally unused parameters
+---
+
+## 2026-03-02T08:25:00Z - US-031
+- Implemented @typokit/db-raw package with RawSqlDatabaseAdapter class
+- generate() produces SQL CREATE TABLE DDL files (.sql) and TypeScript interfaces (types.ts)
+- PostgreSQL dialect: CREATE TYPE for enums, UUID, TIMESTAMPTZ, VARCHAR(n), BIGINT, BOOLEAN, JSONB, TEXT
+- SQLite dialect: INTEGER, TEXT only (no CREATE TYPE, boolean → INTEGER)
+- diff() produces ALTER TABLE migration drafts with DESTRUCTIVE comment flags
+- 21 unit tests covering all column types, enums, constraints, both dialects, diff detection
+- Files changed: packages/db-raw/src/index.ts, packages/db-raw/src/index.test.ts, packages/db-raw/package.json, packages/db-raw/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - DB adapter packages all follow identical structure: import types from @typokit/types and DatabaseAdapter+DatabaseState from @typokit/core
+  - Raw SQL adapter generates .sql files (one per table) + a types.ts file with TS interfaces
+  - ESLint catches unused variables — don't compute values you don't use in the final output
+  - Pattern: helpers (toSnakeCase, pluralize, toTableName, toColumnName, parseUnionValues) are shared across all DB adapters
+---
+
+## 2026-03-02T08:31:10Z - US-032
+- Implemented createTestClient(app) function in @typokit/testing
+- Test client starts app on port 0 (random), returns typed HTTP client
+- Client methods: get, post, put, patch, delete + contract-typed request()
+- Options: body, query, headers; Response: status, body (parsed JSON), headers
+- Integration test with 10 test cases against nativeServer sample app
+- Files changed: packages/testing/src/index.ts, packages/testing/src/index.test.ts, packages/testing/package.json, packages/testing/tsconfig.json
+- **Learnings for future iterations:**
+  - getNativeServer() returns raw node:http Server — use .address().port to get the actual port
+  - Testing package needs @typokit/server-native + @typokit/platform-node as devDeps for integration tests
+  - Use port 0 pattern for auto-assigned ports, read via nativeServer.address().port
+  - ESLint catches unused imports in test files — prefix unused params with _
 ---
