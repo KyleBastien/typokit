@@ -16,6 +16,8 @@ export { executeMigrate, migrateGenerate, migrateDiff, migrateApply } from "./co
 export type { MigrateCommandOptions, MigrateResult } from "./commands/migrate.js";
 export { executeScaffold, scaffoldInit, scaffoldRoute, scaffoldService, generateRouteContracts, generateRouteHandlers, generateRouteMiddleware, generateService, generatePackageJson, generateTsconfig, generateAppTs, generateTypesTs, toPascalCase, toCamelCase } from "./commands/scaffold.js";
 export type { ScaffoldCommandOptions, ScaffoldResult, InitOptions } from "./commands/scaffold.js";
+export { executeTest, detectTestRunner, buildRunnerCommand, schemasChanged } from "./commands/test.js";
+export type { TestCommandOptions, TestResult, TestRunner } from "./commands/test.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -85,6 +87,9 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("    migrate:diff     Show pending schema changes (--json for JSON)");
     logger.info("    migrate:apply    Apply pending migrations (--force for destructive)");
     logger.info("  inspect <sub>      Inspect framework state (routes, schema, etc.)");
+    logger.info("  test               Run all tests (auto-detects runner)");
+    logger.info("  test:contracts     Run generated contract tests only");
+    logger.info("  test:integration   Run integration tests");
     logger.info("  init [name]        Create a new TypoKit project from template");
     logger.info("  add route <name>   Scaffold a new route module");
     logger.info("  add service <name> Scaffold a new service file");
@@ -94,6 +99,7 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("  --root <dir>          Project root directory (default: cwd)");
     logger.info("  --json                Output as JSON (for inspect commands)");
     logger.info("  --format json         Alias for --json");
+    logger.info("  --runner <runner>     Override test runner (jest|vitest|rstest)");
     logger.info("  --debug-port <port>   Debug sidecar port (default: 9800)");
     return 0;
   }
@@ -271,6 +277,34 @@ export async function run(argv: string[]): Promise<number> {
       logger,
       subcommand,
       positional: subPositional,
+      flags,
+      verbose,
+    });
+
+    return result.success ? 0 : 1;
+  }
+
+  if (command === "test" || command.startsWith("test:")) {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const { loadConfig: loadConf } = await import("./config.js");
+    const config = await loadConf(rootDir);
+
+    const subcommand = command === "test"
+      ? "all"
+      : command.slice("test:".length);
+
+    const { executeTest: execTest } = await import("./commands/test.js");
+    const result = await execTest({
+      rootDir,
+      config,
+      logger,
+      subcommand,
       flags,
       verbose,
     });
