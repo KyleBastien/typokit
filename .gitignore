@@ -5,6 +5,10 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Rust/napi-rs build artifacts
+target/
+*.node
+
 # TypoKit generated
 .typokit/
 __generated__/
