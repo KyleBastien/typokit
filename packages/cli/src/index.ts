@@ -10,6 +10,8 @@ export { executeDev, createDevState, detectChangedFiles, updateTrackedFiles, bui
 export type { DevCommandOptions, DevServerState } from "./commands/dev.js";
 export { executeInspect, inspectRoutes, inspectRoute, inspectMiddleware, inspectDependencies, inspectSchema, inspectErrors, inspectPerformance, inspectServer, inspectBuildPipeline } from "./commands/inspect.js";
 export type { InspectOptions, InspectResult } from "./commands/inspect.js";
+export { executeGenerate, generateDb, generateClient, generateOpenapi, generateTests, generateClientCode } from "./commands/generate.js";
+export type { GenerateCommandOptions, GenerateResult } from "./commands/generate.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -69,6 +71,11 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("Commands:");
     logger.info("  build              Run the full build pipeline");
     logger.info("  dev                Start dev server with watch mode");
+    logger.info("  generate:<sub>     Generate specific artifacts");
+    logger.info("    generate:db      Generate DB schema from types");
+    logger.info("    generate:client  Generate API client from contracts");
+    logger.info("    generate:openapi Generate OpenAPI spec (--output <path>)");
+    logger.info("    generate:tests   Regenerate contract tests");
     logger.info("  inspect <sub>      Inspect framework state (routes, schema, etc.)");
     logger.info("");
     logger.info("Options:");
@@ -136,6 +143,31 @@ export async function run(argv: string[]): Promise<number> {
     // In a real scenario, we'd await a signal here
     // For now, return 0 to indicate successful start
     return 0;
+  }
+
+  if (command.startsWith("generate:")) {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const { loadConfig: loadConf } = await import("./config.js");
+    const config = await loadConf(rootDir);
+
+    const subcommand = command.slice("generate:".length);
+    const { executeGenerate: execGenerate } = await import("./commands/generate.js");
+    const result = await execGenerate({
+      rootDir,
+      config,
+      logger,
+      subcommand,
+      flags,
+      verbose,
+    });
+
+    return result.success ? 0 : 1;
   }
 
   if (command === "inspect") {
