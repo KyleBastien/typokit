@@ -1,6 +1,288 @@
 ---
-title: Contributing
-description: How to contribute to the TypoKit project.
+title: Contributing Guide
+description: How to set up the development environment, run tests, and submit changes to the TypoKit project.
 ---
 
-This page is coming soon.
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Thank you for your interest in contributing to TypoKit! This guide covers everything you need to set up your development environment, understand the codebase, and submit high-quality contributions.
+
+## Prerequisites
+
+Before you begin, make sure you have the following installed:
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Node.js** | 24+ | Runtime for all packages |
+| **pnpm** | Latest | Package manager (monorepo workspaces) |
+| **Git** | Latest | Version control |
+| **Rust toolchain** | Latest stable | Only needed for `transform-native` development |
+
+<Aside type="tip">
+  If you're not working on the Rust native transform, you can skip the Rust toolchain entirely. The prebuilt binaries are used automatically.
+</Aside>
+
+## Getting Started
+
+<Steps>
+
+1. **Fork and clone the repository**
+
+   ```bash
+   git clone https://github.com/<your-username>/typokit.git
+   cd typokit
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   pnpm install
+   ```
+
+   This installs all workspace dependencies and links local packages together.
+
+3. **Build all packages**
+
+   ```bash
+   pnpm build
+   ```
+
+   This runs `nx run-many --target=build`, which builds all packages in dependency order using Nx.
+
+4. **Run the test suite**
+
+   ```bash
+   pnpm test
+   ```
+
+   This runs `nx run-many --target=test` across all packages. Tests use the `rstest` runner.
+
+5. **Verify everything passes**
+
+   ```bash
+   pnpm typecheck
+   pnpm lint
+   ```
+
+</Steps>
+
+## Monorepo Structure
+
+TypoKit is organized as a pnpm monorepo with Nx for build orchestration. All packages live under `packages/` and are published as `@typokit/*`.
+
+### Core Framework
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/core` | Central framework — router, handler execution, middleware pipeline |
+| `@typokit/types` | Shared TypeScript type definitions and interfaces |
+| `@typokit/errors` | Structured error types and error handling utilities |
+| `@typokit/cli` | Command-line interface for scaffolding and development |
+
+### Build-Time Transforms
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/transform-native` | Rust-based native transform (SWC, NAPI bindings) |
+| `@typokit/transform-typia` | Typia-based runtime type transformations |
+
+### Server Adapters
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/server-native` | Built-in native HTTP server |
+| `@typokit/server-express` | Express.js adapter |
+| `@typokit/server-fastify` | Fastify adapter |
+| `@typokit/server-hono` | Hono framework adapter |
+
+### Platform Adapters
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/platform-node` | Node.js runtime support |
+| `@typokit/platform-bun` | Bun runtime support |
+| `@typokit/platform-deno` | Deno runtime support |
+
+### Database Adapters
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/db-drizzle` | Drizzle ORM adapter |
+| `@typokit/db-kysely` | Kysely query builder adapter |
+| `@typokit/db-prisma` | Prisma ORM adapter |
+| `@typokit/db-raw` | Raw SQL queries adapter |
+
+### Client Libraries
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/client` | Base type-safe HTTP client |
+| `@typokit/client-react-query` | React Query integration |
+| `@typokit/client-swr` | SWR (stale-while-revalidate) integration |
+
+### Plugins & Utilities
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/plugin-debug` | Debug and inspection plugin |
+| `@typokit/plugin-ws` | WebSocket support plugin |
+| `@typokit/otel` | OpenTelemetry observability integration |
+| `@typokit/testing` | Testing utilities and helpers |
+
+### Tooling
+
+| Package | Description |
+|---------|-------------|
+| `@typokit/nx` | Nx plugin with custom executors and generators |
+| `@typokit/turbo` | Turbo integration |
+| `@typokit/docs` | Documentation site (Astro Starlight) |
+
+## Nx Workspace Targets
+
+Nx manages all build tasks with dependency-aware execution. The key targets are:
+
+| Target | Command | Description |
+|--------|---------|-------------|
+| `build` | `tsc -p tsconfig.json` | Compile TypeScript to JavaScript |
+| `test` | `rstest run --passWithNoTests` | Run tests with rstest |
+| `lint` | `eslint src/` | Lint source files with ESLint |
+| `typecheck` | `tsc --noEmit -p tsconfig.json` | Type-check without emitting |
+
+### Running targets for a specific package
+
+```bash
+# Build a single package
+pnpm nx build core
+
+# Test a single package
+pnpm nx test server-express
+
+# Run all targets
+pnpm nx run-many --target=build
+pnpm nx run-many --target=test
+```
+
+<Aside type="note">
+  Nx automatically resolves dependency order — if `core` depends on `types`, building `core` will build `types` first.
+</Aside>
+
+### Dependency graph
+
+You can visualize the package dependency graph:
+
+```bash
+pnpm nx graph
+```
+
+## Working on the Rust Native Transform
+
+The `packages/transform-native/` package contains a Rust crate that compiles to a Node.js native addon via NAPI-RS.
+
+### Prerequisites
+
+Install the Rust toolchain via [rustup](https://rustup.rs/):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Building
+
+<Tabs>
+  <TabItem label="Debug build">
+    ```bash
+    cd packages/transform-native
+    pnpm build:native
+    ```
+  </TabItem>
+  <TabItem label="Release build">
+    ```bash
+    cd packages/transform-native
+    pnpm build:native:release
+    ```
+  </TabItem>
+</Tabs>
+
+The build produces an `index.node` binary using `@napi-rs/cli`. The crate uses SWC for parsing and supports multiple platforms (Windows x64, macOS x64/ARM64, Linux GNU/musl).
+
+<Aside type="caution">
+  The release build enables LTO (Link-Time Optimization), which significantly increases build time but produces smaller, faster binaries.
+</Aside>
+
+## Making Changes
+
+### Development workflow
+
+<Steps>
+
+1. **Create a feature branch**
+
+   ```bash
+   git checkout -b feat/my-feature
+   ```
+
+2. **Make your changes** — keep changes focused on a single concern.
+
+3. **Run quality checks before committing**
+
+   ```bash
+   pnpm typecheck && pnpm lint && pnpm test
+   ```
+
+4. **Commit with a descriptive message**
+
+   Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+   ```bash
+   git commit -m "feat(core): add middleware chaining support"
+   ```
+
+   Common prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
+
+5. **Push and open a pull request**
+
+   ```bash
+   git push origin feat/my-feature
+   ```
+
+</Steps>
+
+### Code style
+
+- All packages use **ESM modules** (`"type": "module"`)
+- TypeScript strict mode is enabled
+- Follow existing patterns in the package you're modifying
+- Run `pnpm lint` to check for style issues
+
+## Pull Request Process
+
+1. **Ensure CI passes** — the CI pipeline runs `build`, `typecheck`, `lint`, and `test` across all affected packages.
+2. **Keep PRs focused** — one logical change per PR makes review easier.
+3. **Update documentation** if your change affects public APIs or behavior.
+4. **Add tests** for new functionality or bug fixes.
+5. **Respond to review feedback** promptly — reviewers may request changes before merging.
+
+<Aside type="tip">
+  Nx's affected command can help you verify only the packages impacted by your changes:
+  ```bash
+  pnpm nx affected --target=test
+  pnpm nx affected --target=typecheck
+  ```
+</Aside>
+
+## CI Checks
+
+The CI pipeline validates every pull request with the following checks:
+
+- **Build** — all packages compile successfully
+- **Typecheck** — no TypeScript errors
+- **Lint** — ESLint passes on all source files
+- **Test** — all test suites pass
+
+All checks must pass before a PR can be merged.
+
+## Further Reading
+
+- [Architecture Overview](/typokit/architecture/overview/) — understand how TypoKit's packages fit together
+- [Build Pipeline](/typokit/architecture/build-pipeline/) — deep dive into the build process
+- [Project Structure](/typokit/getting-started/project-structure/) — how TypoKit projects are organized
