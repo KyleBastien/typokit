@@ -14,6 +14,20 @@ Started: 03/01/2026 21:04:22
 - Cross-package deps: add `"workspace:*"` to package.json dependencies + `"references": [{ "path": "../<dep>" }]` to tsconfig.json
 - Error subclasses need `Object.setPrototypeOf(this, new.target.prototype)` for correct instanceof checks
 - ESLint enforces `import type` for type-only imports — separate value imports from type imports
+- No `@types/node` in core — use `globalThis` cast for `process.env` access, not bare `process`
+- Duck-type check for third-party errors (e.g. Typia TypeGuardError) by `error.name` + property shape, not imports
+- Rust crate in transform-native: `Cargo.toml` + `build.rs` at package root, `.rs` files in `src/` alongside `.ts` files
+- napi-rs v3 + swc_ecma_ast v21 uses `Wtf8Atom` for string literals — use `.to_string_lossy()` not `Display`/`format!`
+- For native addon in ESM: use `createRequire` from `"module"` with an `env.d.ts` shim declaring `ImportMeta.url`
+- `target/` and `*.node` are gitignored — Rust build artifacts and native addons not committed
+- `napi build --platform --dts src/index.d.ts` auto-regenerates d.ts — keep NativeBindings interface in index.ts in sync with lib.rs napi exports
+- BTreeMap for deterministic JSON serialization in Rust; serde `skip_serializing_if` for clean optional fields
+- When adding napi exports for complex types, define separate `#[napi(object)]` structs prefixed with `Js` — convert to/from internal types in lib.rs
+- `napi build --platform --dts src/index.d.ts` regenerates both `index.d.ts` and `index.js` — don't commit `index.js`
+- `--js false` napi flag generates a file named `false` — add both `index.js` and `false` to gitignore for transform-native
+- `buildPipeline()` writes to `.typokit/` directory — use `regenerated` flag to check if cache was hit
+- `GeneratedOutput` is `{ filePath, content, overwrite }` — BuildResult.outputs expects GeneratedOutput[], not string[]
+- No `@types/node` pattern: create `env.d.ts` with module declarations, use dynamic imports with inline type casts
 
 ## 2026-03-02T05:04:30Z - US-001
 - Initialized Nx monorepo with pnpm workspaces
@@ -143,4 +157,182 @@ Started: 03/01/2026 21:04:22
   - ESLint will flag unused imports including type imports - only import what's directly used in the file
   - Plugin hooks run in registration order - plugins array order matters
   - `app.close()` is safe to call without `app.listen()` - handle null serverHandle gracefully
+---
+
+## 2026-03-02T05:54:00Z - US-010
+- Implemented enhanced error middleware in `packages/core/src/error-middleware.ts`
+- `createErrorMiddleware(options?)` with `isDev` flag for dev/prod behavior
+- AppError serialization with traceId from ctx.requestId
+- Typia TypeGuardError detection via duck-typing (name + path/expected/value shape)
+- Production: unknown errors redacted (500 generic), full details logged via ctx.log
+- Development: unknown errors include stack trace, error name, and message
+- 14 unit tests covering AppError, unknown error redaction, dev mode, and Typia validation errors
+- Refactored: moved createErrorMiddleware from app.ts to error-middleware.ts; updated app.ts, app.test.ts, index.ts imports
+- Files changed: packages/core/src/error-middleware.ts (new), packages/core/src/error-middleware.test.ts (new), packages/core/src/app.ts, packages/core/src/app.test.ts, packages/core/src/index.ts
+- **Learnings for future iterations:**
+  - Core package does not have `@types/node` — cannot use bare `process.env`, must cast through `globalThis`
+  - Duck-typing third-party errors (e.g., `error.name === "TypeGuardError"`) avoids adding dependencies on external packages
+  - When casting `Error` to `Record<string, unknown>`, TypeScript requires double-cast via `unknown` first
+  - Moving exports between files in a package requires updating both index.ts re-exports and test file imports
+---
+
+## 2026-03-02T05:58:00Z - US-011
+- Implemented @typokit/transform-typia Typia Validation Bridge
+- generateValidator(typeMetadata): generates runtime validator function code from TypeMetadata
+- generateValidatorBatch(types): batch generation with cross-type reference registry
+- ValidatorGenerationError class with typeName and reason for descriptive failures
+- Handles: primitives, unions, arrays, optional fields, nullable unions, template literal types, nested/reference types, recursive types, Record<K,V>
+- splitUnionType respects generics/parens/braces/backtick nesting
+- buildTemplateLiteralRegex converts template literal type strings to regex patterns
+- 15 unit tests covering all acceptance criteria
+- Files changed: packages/transform-typia/src/index.ts, packages/transform-typia/src/index.test.ts, packages/transform-typia/package.json, packages/transform-typia/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Typia v11 is a compile-time-only transformer — no runtime API for generating validators from schema objects. The bridge generates equivalent validation code from TypeMetadata directly.
+  - Use `new Function("input", code + "\nreturn fnName(input);")` to evaluate generated validator code in tests
+  - When adding workspace deps, update both package.json (`"workspace:*"`) and tsconfig.json (`references`)
+  - Template literal type strings arrive with actual backticks (e.g. ` on_ `) — detect with startsWith/endsWith backtick
+  - ESLint doesn't flag `new Function()` in this config — no eslint-disable comments needed
+---
+
+## 2026-03-02T06:20:00Z - US-012
+- Implemented @typokit/transform-native Rust crate with napi-rs for Node.js interop
+- SWC's swc_ecma_parser (v35) for TypeScript AST parsing
+- `parser.rs`: parses TypeScript source files into ASTs with comments for JSDoc extraction
+- `type_extractor.rs`: extracts TypeMetadata from interfaces including all JSDoc tags (@table, @id, @generated, @format, @unique, @minLength, @maxLength, @default, @onUpdate)
+- `lib.rs`: napi-rs entry point exporting `parseAndExtractTypes(filePaths: string[]) → SchemaTypeMap`
+- TypeScript wrapper in `src/index.ts` loads platform-specific native addon via `createRequire`
+- `src/env.d.ts` provides minimal Node.js type declarations (avoids `@types/node` dependency)
+- 11 Rust unit tests + 7 TypeScript integration tests
+- Files changed: .gitignore, package.json, pnpm-lock.yaml, packages/transform-native/Cargo.toml, Cargo.lock, build.rs, package.json, tsconfig.json, src/lib.rs, src/parser.rs, src/type_extractor.rs, src/index.ts, src/index.d.ts, src/env.d.ts, src/index.test.ts
+- **Learnings for future iterations:**
+  - swc_ecma_ast v21 changed `Str.value` from `Atom` to `Wtf8Atom` (from hstr crate) — `Wtf8Atom` does NOT implement `Display`, use `.to_string_lossy()` for formatting
+  - napi v3 is the current major version — features like `serde-json` and `napi4` still available
+  - napi `--platform` flag generates platform-specific `.node` files named `index.<triple>.node`
+  - ESM modules don't have global `require` — must use `createRequire` from Node.js `module` built-in
+  - For packages without `@types/node`, create an `env.d.ts` shim declaring `module` and `ImportMeta.url`
+  - JSDoc parser needs to handle multiple tags on same line (e.g., `/** @id @generated */`) — scan for all `@` positions
+  - `cargo build` works alongside TypeScript build — `.rs` and `.ts` files coexist in `src/` directory
+  - `target/` (Rust build) and `*.node` files should be gitignored
+  - Rust edition 2024 is current — swc_ecma_parser 35 + swc_ecma_ast 21 + swc_common 19 are compatible
+---
+
+## 2026-03-02T06:23:00Z - US-013
+- Implemented route_compiler.rs and openapi_generator.rs in @typokit/transform-native
+- Route compiler: extracts route contracts from TS interfaces with "METHOD /path" keys, builds radix tree, serializes as TypeScript
+- OpenAPI generator: converts route entries + type metadata to OpenAPI 3.1 JSON spec
+- Radix tree handles static, param (:name), and wildcard (*name) segments
+- Ambiguous route detection: conflicting param names at same path level produce clear errors
+- Duplicate handler detection: same method at same path produces error
+- Static and param children can coexist at same level (static takes priority at runtime)
+- 19 new Rust unit tests + 6 new TypeScript integration tests (30 Rust total, 13 TS total)
+- napi exports: compileRoutes(), generateOpenApi()
+- Files changed: packages/transform-native/src/route_compiler.rs (new), packages/transform-native/src/openapi_generator.rs (new), packages/transform-native/src/lib.rs, packages/transform-native/src/index.ts, packages/transform-native/src/index.d.ts, packages/transform-native/src/index.test.ts
+- **Learnings for future iterations:**
+  - Route contract interfaces use string literal keys like `"GET /users/:id"` with `RouteContract<TParams, TQuery, TBody, TResponse>` type annotation
+  - SWC parses string property keys as `Expr::Lit(Lit::Str(s))` — use `s.value.to_string_lossy().to_string()` to extract
+  - `napi build --platform --dts src/index.d.ts` auto-regenerates the .d.ts file — manual edits are overwritten
+  - The `NativeBindings` interface in index.ts must be kept in sync with the napi exports in lib.rs
+  - serde `skip_serializing_if = "Option::is_none"` is essential for clean JSON output from the radix tree
+  - BTreeMap gives deterministic ordering for serialized output (vs HashMap)
+  - RouteTypeInfo enum provides rich type info for OpenAPI generation — much better than stringified types for inline object types
+---
+
+## 2026-03-02T06:38:00Z - US-014
+- Implemented schema_differ.rs, test_stub_generator.rs, and typia_bridge.rs in @typokit/transform-native
+- Schema differ: diffs two SchemaTypeMap versions (old vs new), produces MigrationDraft with SQL DDL stubs
+  - Detects added/removed entities, added/removed/modified fields
+  - Marks destructive changes (DROP TABLE, DROP COLUMN, ALTER TYPE) with `-- DESTRUCTIVE: requires review`
+  - Generates CREATE TABLE, ALTER TABLE ADD/DROP/ALTER COLUMN SQL
+- Test stub generator: generates TypeScript contract test scaffolding from route entries
+  - Produces describe/it blocks per route with valid request, missing fields, and path parameter tests
+  - Generates sample payloads from RouteTypeInfo (object literals, primitives, etc.)
+- Typia bridge: prepares type metadata for JS callback, collects validator output into file path map
+  - `prepare_validator_inputs()` converts TypeMetadata to serializable format sorted alphabetically
+  - `collect_validator_outputs()` maps type names to `.typokit/validators/<kebab-name>.ts` paths
+- napi exports: diffSchemas(), generateTestStubs(), prepareValidatorInputs(), collectValidatorOutputs()
+- 20 new Rust unit tests (52 total), 8 new TypeScript integration tests (21 total)
+- Files changed: packages/transform-native/src/schema_differ.rs (new), packages/transform-native/src/test_stub_generator.rs (new), packages/transform-native/src/typia_bridge.rs (new), packages/transform-native/src/lib.rs, packages/transform-native/src/index.ts, packages/transform-native/src/index.d.ts, packages/transform-native/src/index.test.ts
+- **Learnings for future iterations:**
+  - Schema differ takes internal TypeMetadata (from type_extractor.rs) not the napi JsTypeMetadata — lib.rs has a `js_types_to_internal()` helper to convert
+  - `napi build --platform --dts src/index.d.ts` regenerates index.d.ts and index.js — the index.js loader file appears in root, not committed
+  - When adding napi exports for complex types (MigrationDraft, SchemaChange), define separate `#[napi(object)]` structs prefixed with `Js` to avoid naming conflicts with internal Rust types
+  - Test stub generator reuses RouteEntry and RouteTypeInfo from route_compiler.rs — no need to re-parse
+  - HashMap properties in Rust produce non-deterministic JSON — use sorted Vec keys for deterministic output when order matters
+  - `collect_validator_outputs` uses `Vec<Vec<String>>` for napi (not tuples) since napi doesn't support tuple types
+---
+
+## 2026-03-02T06:47:00Z - US-015
+- Implemented full output pipeline in `output_pipeline.rs` with `run_pipeline()` and `compute_content_hash()`
+- Content-hash caching: SHA-256 over sorted file paths + contents, stored in `.typokit/.cache-hash`
+- `buildPipeline()` TypeScript function orchestrates native pipeline + writes to `.typokit/` directory:
+  - `.typokit/routes/compiled-router.ts` — Compiled radix tree
+  - `.typokit/schemas/openapi.json` — OpenAPI 3.1.0 spec
+  - `.typokit/tests/contract.test.ts` — Contract test stubs
+  - `.typokit/validators/*.ts` — Typia validators (via callback)
+  - `.typokit/client/` — Reserved for client generation
+- Platform-specific binaries: added `optionalDependencies` for 6 targets (win32-x64, darwin-x64, darwin-arm64, linux-x64-gnu, linux-arm64-gnu, linux-x64-musl)
+- Extended `env.d.ts` with `path`, `fs`, `os` module type declarations
+- Performance: 50 types + 20 routes completes in ~20ms (well under 500ms threshold)
+- Files changed: packages/transform-native/src/output_pipeline.rs (new), packages/transform-native/src/lib.rs, packages/transform-native/src/index.ts, packages/transform-native/src/index.d.ts, packages/transform-native/src/index.test.ts, packages/transform-native/src/env.d.ts, packages/transform-native/Cargo.toml, packages/transform-native/Cargo.lock, packages/transform-native/package.json, .gitignore
+- **Learnings for future iterations:**
+  - `napi build --platform --dts src/index.d.ts --js false` generates a file literally named `false` instead of suppressing JS output — add both `index.js` and `false` to gitignore
+  - `sha2` + `hex` crates work well for content hashing in Rust; deterministic hash requires sorting file paths before hashing
+  - Dynamic imports (`await import("path")`) work in ESM for Node.js built-ins without @types/node — just need module declarations in env.d.ts
+  - Pipeline returns structured result from Rust; TS layer handles file I/O and cache management for better testability
+  - Cache hit returns empty results immediately — callers should check `regenerated` flag
+  - `optionalDependencies` in package.json is the standard napi-rs pattern for distributing platform binaries
+---
+
+## 2026-03-02T06:55:00Z - US-016
+- Implemented @typokit/cli Build Command
+- `src/index.ts`: Main CLI entry point with arg parsing (parseArgs, run)
+- `src/bin.ts`: Binary entry point for `typokit` command
+- `src/logger.ts`: Structured CLI logger with verbose mode support
+- `src/config.ts`: Config loading from typokit.config.ts or package.json `typokit` field
+- `src/commands/build.ts`: Build command orchestrator — resolves file patterns, runs transform-native pipeline, invokes TypeScript compiler
+- `src/env.d.ts`: Node.js type declarations (path, fs, child_process, url, module)
+- `src/index.test.ts`: 18 unit tests covering arg parsing, config, logger, build errors, integration
+- Files changed: packages/cli/src/ (7 new files), packages/cli/package.json, packages/cli/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - `GeneratedOutput` is `{ filePath, content, overwrite }` not `string` — BuildResult.outputs uses GeneratedOutput[]
+  - No `@types/node` in CLI package either — use env.d.ts shims and dynamic imports with type casts
+  - `spawnSync` with `shell: true` triggers DEP0190 deprecation — use without shell option
+  - `URL` type is not available without `@types/node` — cast `pathToFileURL` return to `{ href: string }` instead
+  - ESLint `consistent-type-imports` rule requires `import type` for type-only imports — keep type imports separate
+  - Glob pattern matching uses simple regex conversion — avoid complex patterns that need a full glob library
+- No `@types/node` timer APIs: cast `globalThis as unknown as { setTimeout: ..., clearTimeout: ... }` to access setTimeout/setInterval
+---
+
+## 2026-03-02T07:04:00Z - US-017
+- Implemented `typokit dev` command with file watching and incremental rebuilds
+- `src/commands/dev.ts`: Dev command with DevServerState, file watcher (fs.watch + polling fallback), dependency graph, AST cache, incremental rebuild, graceful shutdown (SIGINT/SIGTERM)
+- `src/dev.test.ts`: 25 unit tests covering all dev command utilities
+- Updated `src/index.ts`: Added dev command registration, help text, --debug-port flag parsing
+- Updated `src/env.d.ts`: Added `fs.watch` type declaration and `mtimeMs` to `statSync` return type
+- Files changed: packages/cli/src/commands/dev.ts (new), packages/cli/src/dev.test.ts (new), packages/cli/src/index.ts, packages/cli/src/env.d.ts
+- **Learnings for future iterations:**
+  - No `@types/node` means `setTimeout`/`setInterval`/`clearTimeout`/`clearInterval` are not available -- cast through `globalThis as unknown as { setTimeout: ... }` to access timer APIs
+  - `fs.watch` with `{ recursive: true }` works on Windows/macOS but may not on Linux -- always provide polling fallback
+  - `statSync` returns `mtimeMs` (milliseconds) for efficient change detection -- add to env.d.ts shim
+  - ESLint enforces no unused destructured vars -- avoid destructuring variables you don't use
+  - Dev command state machine: createDevState -> initial build -> start watcher -> incremental rebuilds -> graceful shutdown
+  - File watcher debounce (50ms) batches rapid saves into single rebuilds
+---
+
+## 2026-03-02T07:10:00Z - US-018
+- Implemented 9 inspect subcommands in `packages/cli/src/commands/inspect.ts`
+- Subcommands: routes, route <key>, middleware, dependencies/deps, schema <name>, errors --last N, performance --route <path>, server, build-pipeline
+- All support `--json` and `--format json` flags for structured JSON output (default: human-readable)
+- Build-time commands read from `.typokit/` directory (routes from compiled-router.ts, schema from openapi.json)
+- Runtime commands (errors, performance, server) connect to debug sidecar HTTP endpoint
+- Added `http` module declaration to `env.d.ts`
+- Updated `index.ts` with inspect command routing, help text, and exports
+- 28 unit tests covering all subcommands, error cases, and JSON output validation
+- Files changed: packages/cli/src/commands/inspect.ts (new), packages/cli/src/inspect.test.ts (new), packages/cli/src/index.ts, packages/cli/src/env.d.ts
+- **Learnings for future iterations:**
+  - `import.meta.url` doesn't resolve correctly in rstest for source-relative path resolution — use `process.cwd()` via globalThis cast instead
+  - ESLint enforces `_` prefix for unused function parameters — use `_config` not `config` when param is required by interface but unused
+  - `inspectDependencies` reads workspace package.json files for `@typokit/*` deps — works on any monorepo structure
+  - Debug sidecar commands (errors, performance, server) gracefully fail with helpful messages when server isn't running
+  - `http.get` from Node.js built-in doesn't need `@types/node` — just add module declaration to env.d.ts
 ---

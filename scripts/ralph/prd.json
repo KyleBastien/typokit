@@ -193,7 +193,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -212,7 +212,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -230,7 +230,7 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Split 1 of 4 from original US-012 (Rust AST Transform). This story sets up the crate and core parsing."
     },
     {
@@ -246,7 +246,7 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Split 2 of 4 from original US-012. Depends on US-012 (parser + type extractor)."
     },
     {
@@ -261,7 +261,7 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Split 3 of 4 from original US-012. Depends on US-012 (parser + type extractor)."
     },
     {
@@ -279,7 +279,7 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Split 4 of 4 from original US-012. Depends on US-012, US-013, US-014."
     },
     {
@@ -299,7 +299,7 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -319,7 +319,7 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -342,7 +342,7 @@
         "Typecheck passes"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
