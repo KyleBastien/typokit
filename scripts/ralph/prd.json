@@ -1,0 +1,1121 @@
+{
+  "project": "TypoKit",
+  "branchName": "ralph/typokit-v1",
+  "description": "TypoKit v1 â€” AI-Native TypeScript Node.js framework where plain TypeScript types are the single source of truth for validation, DB schema, API docs, client types, and test generation. Rust-native build pipeline, pluggable server/DB adapters, AI debugging sidecar.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize Nx Monorepo",
+      "description": "As a framework developer, I need the TypoKit repository set up as an Nx monorepo with pnpm workspaces so that all packages can be developed, built, and tested in a single repository.",
+      "acceptanceCriteria": [
+        "Nx monorepo initialized with pnpm as package manager",
+        "packages/ directory structure created per the package map in typokit-arch.md Section 12.11",
+        "TypeScript project references configured for inter-package dependencies",
+        "Root tsconfig.base.json with strict mode enabled, path aliases for @typokit/*",
+        "Root .gitignore includes .typokit/, __generated__/, node_modules/, dist/",
+        "Root package.json with workspace configuration",
+        "Nx workspace configured with build, test, and lint targets",
+        "Rstest configured as the test runner across all packages",
+        "ESLint configured with a shared base config",
+        "CI pipeline (GitHub Actions) for build + test on push/PR",
+        "All packages compile with nx run-many --target=build",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create @typokit/types â€” Shared Type Definitions",
+      "description": "As a framework developer, I need a shared types package that defines all core type interfaces used across TypoKit packages, so that every package imports from a single canonical source.",
+      "acceptanceCriteria": [
+        "Package @typokit/types created at packages/types/",
+        "RouteContract<TParams, TQuery, TBody, TResponse> interface defined",
+        "PaginatedResponse<T> interface defined",
+        "ErrorResponse interface defined (with traceId field)",
+        "TypoKitRequest interface defined (method, path, headers, body, query, params)",
+        "TypoKitResponse interface defined (status, headers, body)",
+        "CompiledRouteTable and CompiledRoute types defined (radix tree node structure with segment, children, paramChild, wildcardChild, handlers)",
+        "HandlerMap type defined (maps handler refs to handler functions)",
+        "MiddlewareChain interface defined",
+        "RequestContext interface defined (logger, fail(), services, etc.)",
+        "SchemaTypeMap type defined (maps type names to extracted metadata)",
+        "GeneratedOutput interface defined (filePath, content, overwrite)",
+        "MigrationDraft interface defined (name, sql, destructive, changes)",
+        "SchemaChange type defined (for schema diffing)",
+        "ServerHandle interface defined (close method)",
+        "BuildContext and BuildResult types defined",
+        "All types exported from package entry point",
+        "Package builds successfully",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create @typokit/errors â€” Structured Error Class Hierarchy",
+      "description": "As a framework developer, I need a shared error package with structured error classes so that all TypoKit packages and user code use consistent, typed errors that include contextual information for AI debugging.",
+      "acceptanceCriteria": [
+        "Package @typokit/errors created at packages/errors/",
+        "AppError base class extending Error with code (string), status (number), message (string), details (optional Record)",
+        "NotFoundError class (status 404)",
+        "ValidationError class (status 400)",
+        "UnauthorizedError class (status 401)",
+        "ForbiddenError class (status 403)",
+        "ConflictError class (status 409)",
+        "Factory function createAppError(status, code, message, details?) that returns the correct subclass based on status code",
+        "All error classes are JSON-serializable into the ErrorResponse schema",
+        "Unit tests for each error class (correct status, code, message, serialization)",
+        "Unit test for the factory function",
+        "Package builds successfully",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create @typokit/core â€” ServerAdapter Interface",
+      "description": "As a framework developer, I need the ServerAdapter interface defined in @typokit/core so that server adapters (native, Fastify, Hono, Express) can implement a standardized contract.",
+      "acceptanceCriteria": [
+        "Package @typokit/core created at packages/core/",
+        "ServerAdapter interface defined with: name, registerRoutes(), listen(), normalizeRequest(), writeResponse(), getNativeServer?()",
+        "Method signatures match Section 6.4 of typokit-arch.md",
+        "Interface exported from @typokit/core",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create @typokit/core â€” DatabaseAdapter Interface",
+      "description": "As a framework developer, I need the DatabaseAdapter interface defined in @typokit/core so that database adapters (Drizzle, Kysely, Prisma, raw SQL) can implement a standardized contract.",
+      "acceptanceCriteria": [
+        "DatabaseAdapter interface defined with: generate(), diff(), generateRepositories?()",
+        "Method signatures match Section 7.3 of typokit-arch.md",
+        "Interface exported from @typokit/core",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create @typokit/core â€” Plugin Interface",
+      "description": "As a framework developer, I need the TypoKitPlugin interface defined in @typokit/core so that plugins can hook into both build-time and runtime lifecycle events.",
+      "acceptanceCriteria": [
+        "TypoKitPlugin interface defined with: name, onBuild?(), onStart?(), onReady?(), onError?(), onStop?(), onSchemaChange?(), commands?(), inspect?()",
+        "BuildPipeline interface defined with tapable hooks: beforeTransform, afterTypeParse, afterValidators, afterRouteTable, emit, done",
+        "AsyncSeriesHook<T> type defined for the hook system",
+        "CliCommand and InspectEndpoint types defined",
+        "All types match Section 12.12 of typokit-arch.md",
+        "Interface exported from @typokit/core",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create @typokit/core â€” Middleware System",
+      "description": "As a framework developer, I need a typed middleware system in @typokit/core that supports context type narrowing, so that middleware can add typed properties to the request context.",
+      "acceptanceCriteria": [
+        "defineMiddleware<TContext>() function implemented â€” takes an async function, returns typed middleware",
+        "Middleware receives { headers, body, query, params, ctx } and returns additional context properties",
+        "Middleware chain executor implemented â€” runs middleware in order, accumulates context types",
+        "Middleware can short-circuit (throw errors to stop the chain)",
+        "ctx.fail(status, code, message, details?) helper implemented â€” throws the appropriate AppError subclass",
+        "ctx.log placeholder defined (actual implementation in observability phase)",
+        "Middleware priority ordering supported (numeric priority, lower runs first)",
+        "Unit tests: middleware chain runs in order, context accumulates, short-circuit works, ctx.fail() throws correct error",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create @typokit/core â€” Handler System",
+      "description": "As a framework developer, I need the defineHandlers<TRoutes>() function in @typokit/core so that route handlers receive fully typed, validated context and the type system enforces contract compliance.",
+      "acceptanceCriteria": [
+        "defineHandlers<TRoutes>() function implemented â€” maps route keys (e.g., 'GET /users') to handler functions",
+        "Each handler receives { params, query, body, ctx } with types inferred from the RouteContract",
+        "Handler return type must match the TResponse type from the contract",
+        "Type errors if handler signature doesn't match contract",
+        "Unit tests: handler definitions type-check against contracts, handler execution returns expected response shape",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Create @typokit/core â€” App Factory (createApp)",
+      "description": "As a framework developer, I need the createApp() factory function in @typokit/core so that users can compose a TypoKit application from a server adapter, middleware, routes, and plugins.",
+      "acceptanceCriteria": [
+        "createApp() function implemented â€” accepts { server, middleware?, routes, plugins?, logging?, telemetry? }",
+        "Routes accept { prefix, handlers, middleware? } objects",
+        "Plugins array is iterated and lifecycle hooks are registered",
+        "app.listen(port) delegates to the server adapter",
+        "app.getNativeServer() delegates to the server adapter",
+        "Plugin onStart hooks are called during app.listen()",
+        "Plugin onReady hooks are called after the server is listening",
+        "Plugin onStop hooks are called during app.close()",
+        "Error middleware is automatically registered (catches AppError, serializes to ErrorResponse, unknown errors â†’ 500)",
+        "Unit tests: app creation, route registration, plugin lifecycle hooks called in correct order",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create @typokit/core â€” Error Middleware",
+      "description": "As a framework developer, I need built-in error middleware in @typokit/core that catches all thrown errors and serializes them into the ErrorResponse schema.",
+      "acceptanceCriteria": [
+        "Error middleware catches AppError instances and serializes to ErrorResponse with correct status, code, message, details, and traceId",
+        "Unknown errors (non-AppError) serialize as 500 with generic message â€” details are never leaked to the client",
+        "In development mode (NODE_ENV=development), unknown errors include stack traces and source locations",
+        "In production mode, unknown errors are redacted â€” full details are logged but not returned",
+        "Validation errors from Typia-generated validators produce 400 with field-level failure details",
+        "Unit tests: AppError serialization, unknown error redaction, development vs production mode behavior",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create @typokit/transform-typia â€” Typia Validation Bridge",
+      "description": "As a framework developer, I need a TypeScript wrapper around Typia's programmatic API so that the Rust transform can call into Typia for validation code generation via napi-rs.",
+      "acceptanceCriteria": [
+        "Package @typokit/transform-typia created at packages/transform-typia/",
+        "Typia installed as a dependency (pinned to known-good version 11.0.3)",
+        "generateValidator(typeMetadata: TypeMetadata): string function â€” receives extracted type metadata, calls Typia's programmatic API, returns generated validator code as a string",
+        "generateValidatorBatch(types: TypeMetadata[]): Map<string, string> for batch generation",
+        "Handles Typia edge cases: union discrimination, template literals, mapped types, conditional types, recursive types",
+        "Error handling: if Typia fails for a type, returns a descriptive error with the type name and failure reason",
+        "Unit tests: generate validators for simple types, union types, nested types, array types, optional fields",
+        "Package builds successfully",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create @typokit/transform-native â€” Rust Crate + TS Parser + Type Extractor",
+      "description": "As a framework developer, I need the Rust crate initialized with napi-rs and the TypeScript AST parser and type metadata extractor so that the build pipeline can parse source files and extract schema information.",
+      "acceptanceCriteria": [
+        "Package @typokit/transform-native created at packages/transform-native/",
+        "Rust crate initialized with napi-rs for Node.js interop",
+        "SWC's swc_ecma_parser used for TypeScript AST parsing",
+        "parser.rs â€” parses TypeScript source files into ASTs",
+        "type_extractor.rs â€” extracts type metadata from interfaces, including JSDoc tags (@table, @id, @generated, @format, @unique, @minLength, @maxLength, @default, @onUpdate)",
+        "Exported napi-rs function: parseAndExtractTypes(filePaths: string[]) â†’ SchemaTypeMap",
+        "Unit tests: parse a sample TypeScript file with User interface and JSDoc tags, verify extracted metadata",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Split 1 of 4 from original US-012 (Rust AST Transform). This story sets up the crate and core parsing."
+    },
+    {
+      "id": "US-013",
+      "title": "Create @typokit/transform-native â€” Route Compiler + OpenAPI Generator",
+      "description": "As a framework developer, I need the route compiler and OpenAPI generator modules in the Rust transform so that route contracts are compiled into a radix tree and an OpenAPI 3.1 spec.",
+      "acceptanceCriteria": [
+        "route_compiler.rs â€” builds a radix tree from route contracts, serializes as TypeScript to .typokit/routes/compiled-router.ts",
+        "Radix tree handles static segments, parameterized segments (paramChild), and wildcard segments (wildcardChild)",
+        "Static vs param priority enforced at compile time with clear error on ambiguous routes",
+        "openapi_generator.rs â€” generates OpenAPI 3.1 spec from route contracts and extracted types to .typokit/schemas/openapi.json",
+        "Unit tests: compile sample route contracts into radix tree, verify structure; generate OpenAPI spec, verify it validates against OpenAPI 3.1 JSON Schema",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Split 2 of 4 from original US-012. Depends on US-012 (parser + type extractor)."
+    },
+    {
+      "id": "US-014",
+      "title": "Create @typokit/transform-native â€” Schema Differ + Test Stub Generator + Typia Bridge",
+      "description": "As a framework developer, I need the schema differ, test stub generator, and Typia bridge modules so that the build pipeline can generate migrations, contract tests, and validators.",
+      "acceptanceCriteria": [
+        "schema_differ.rs â€” diffs two SchemaTypeMap versions and produces a MigrationDraft",
+        "test_stub_generator.rs â€” generates contract test scaffolding from route contracts to .typokit/tests/",
+        "typia_bridge.rs â€” calls into @typokit/transform-typia via napi-rs callback for validator codegen, writes to .typokit/validators/",
+        "Unit tests: diff two schema versions and verify MigrationDraft; generate test stubs from sample routes; bridge to Typia and verify validator output",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Split 3 of 4 from original US-012. Depends on US-012 (parser + type extractor)."
+    },
+    {
+      "id": "US-015",
+      "title": "Create @typokit/transform-native â€” Output Pipeline + Platform Binaries",
+      "description": "As a framework developer, I need the full output pipeline, content-hash caching, and prebuilt platform binaries so that the Rust transform is a complete, distributable build step.",
+      "acceptanceCriteria": [
+        "All outputs written to .typokit/ directory structure (validators/, routes/, schemas/, tests/, client/)",
+        "Content-hash based caching â€” only regenerate when source types change",
+        "Prebuilt binaries for: macOS arm64, macOS x64, Linux arm64 GNU, Linux x64 GNU, Linux x64 musl (Alpine), Windows x64 MSVC",
+        "JS entry point (index.js) that loads the correct platform binary via napi-rs platform-specific optional dependencies",
+        "Integration tests: parse a sample schema with User type â†’ verify all outputs generated correctly in .typokit/",
+        "Build performance: cold build of 50 types + 20 routes completes in < 500ms",
+        "Package builds successfully on all target platforms",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Split 4 of 4 from original US-012. Depends on US-012, US-013, US-014."
+    },
+    {
+      "id": "US-016",
+      "title": "Create @typokit/cli â€” Build Command",
+      "description": "As a framework developer, I need the typokit build CLI command so that users can run the full build pipeline (Rust transform â†’ TS compile) with a single command.",
+      "acceptanceCriteria": [
+        "Package @typokit/cli created at packages/cli/",
+        "typokit build command implemented â€” runs the Rust transform, then invokes the user's TypeScript compiler (tsc, tsup, or SWC)",
+        "Reads configuration from typokit.config.ts or package.json typokit field",
+        "Transform outputs go to .typokit/ directory",
+        "Final compiled output goes to dist/",
+        "Build errors are reported with structured context (source file, line, error type)",
+        "Exit code 0 on success, non-zero on failure",
+        "--verbose flag for detailed build step output",
+        "Integration test: build a sample project end-to-end",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Create @typokit/cli â€” Dev Command",
+      "description": "As a framework developer, I need the typokit dev command so that developers get a hot-reloading development server with file watching and incremental rebuilds.",
+      "acceptanceCriteria": [
+        "typokit dev command implemented â€” starts the build pipeline in watch mode + starts the server",
+        "File watcher detects changes to schema types and triggers incremental rebuild",
+        "Incremental rebuild only re-parses changed files (AST cache in memory)",
+        "Only affected validators/routes are regenerated (dependency graph tracked)",
+        "Hot reload applies changes without full server restart",
+        "--debug-port <port> flag to set the debug sidecar port (default: 9800)",
+        "Target: < 50ms from file save to server ready with updated routes",
+        "Console output shows rebuild status and timing",
+        "Graceful shutdown on SIGINT/SIGTERM",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Create @typokit/cli â€” Inspect Commands",
+      "description": "As a framework developer, I need typokit inspect subcommands so that AI agents can query the framework's internal state as structured JSON.",
+      "acceptanceCriteria": [
+        "typokit inspect routes â€” lists all registered routes with their schemas, middleware, and handler refs",
+        "typokit inspect route 'GET /users/:id' â€” detailed single route info",
+        "typokit inspect middleware â€” full middleware chain with types",
+        "typokit inspect dependencies â€” service dependency graph",
+        "typokit inspect schema <TypeName> â€” type details and where it's used",
+        "typokit inspect errors --last <N> â€” recent errors with full context",
+        "typokit inspect performance --route <path> â€” latency percentiles (requires running server)",
+        "typokit inspect server â€” active server adapter + platform info",
+        "typokit inspect build-pipeline â€” registered build hooks and their order",
+        "All commands support --json flag for structured JSON output (default: human-readable)",
+        "All commands support --format json as an alias for --json",
+        "Integration test: inspect a built sample project, verify JSON output is valid",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Create @typokit/cli â€” Generate Commands",
+      "description": "As a framework developer, I need typokit generate:* subcommands so that users can generate specific build artifacts on demand.",
+      "acceptanceCriteria": [
+        "typokit generate:db â€” generates database schema artifacts using the configured database adapter",
+        "typokit generate:client â€” generates the type-safe API client from route contracts",
+        "typokit generate:openapi â€” generates the OpenAPI 3.1 spec (--output <path> flag)",
+        "typokit generate:tests â€” regenerates contract tests from route schemas",
+        "Each command reports what files were generated/updated",
+        "Integration test: run each generate command on a sample project, verify outputs",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Create @typokit/cli â€” Migration Commands",
+      "description": "As a framework developer, I need typokit migrate:* subcommands so that users can generate and manage database migrations from schema type diffs.",
+      "acceptanceCriteria": [
+        "typokit migrate:generate --name <name> â€” detects type changes in schema, generates a migration draft file",
+        "typokit migrate:diff â€” shows pending schema changes as a structured diff (human-readable by default, JSON with --json)",
+        "typokit migrate:apply â€” applies pending migrations using the configured database adapter",
+        "Destructive migrations (column drops, type changes) are flagged with '-- DESTRUCTIVE: requires review' comments",
+        "Destructive migrations block CI until reviewed (configurable)",
+        "Migration files are timestamped and named descriptively",
+        "Integration test: modify a type, run generate, verify migration file produced",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Create @typokit/cli â€” Scaffold Commands",
+      "description": "As a framework developer, I need typokit init and typokit add scaffold commands so that users and AI agents can quickly create new projects, routes, and services.",
+      "acceptanceCriteria": [
+        "typokit init â€” creates a new TypoKit project from a template (prompts for project name, server adapter, DB adapter)",
+        "typokit add route <name> â€” scaffolds a new route module (contracts.ts + handlers.ts + middleware.ts) in the correct directory",
+        "typokit add service <name> â€” scaffolds a new service file",
+        "Scaffold templates are well-structured and match the conventions in typokit-arch.md Section 4.4",
+        "Integration test: run typokit init, verify project structure, run typokit build on the generated project",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Create @typokit/cli â€” Test Commands",
+      "description": "As a framework developer, I need typokit test subcommands so that users can run tests with proper framework awareness.",
+      "acceptanceCriteria": [
+        "typokit test â€” runs all tests (auto-detects the user's test runner: Jest, Vitest, or Rstest)",
+        "typokit test:contracts â€” runs only auto-generated contract tests from __generated__/",
+        "typokit test:integration â€” runs integration tests with in-memory database",
+        "Test runner auto-detection: checks for jest.config.*, vitest.config.*, or rstest.config.* in the project root",
+        "--runner <jest|vitest|rstest> flag to override auto-detection",
+        "Test commands regenerate contract tests before running if schemas have changed",
+        "Exit code reflects test results",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Build Pipeline â€” Tapable Hook System",
+      "description": "As a framework developer, I need the tapable hook system implemented so that plugins can hook into specific build phases.",
+      "acceptanceCriteria": [
+        "AsyncSeriesHook<T> implementation â€” hooks execute in registration order, each receives the output of the previous",
+        "tap(name, callback) method for registering hooks",
+        "Hooks fire at the correct points in the Rust transform pipeline (via napi-rs callbacks)",
+        "Build hooks: beforeTransform, afterTypeParse, afterValidators, afterRouteTable, emit, done",
+        "Plugin-registered hooks receive correctly typed context at each phase",
+        "typokit inspect build-pipeline --json shows all registered hooks and their order",
+        "Unit tests: hooks fire in order, context passes through, multiple plugins can tap the same hook",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Create @typokit/platform-node â€” Node.js Platform Adapter",
+      "description": "As a framework developer, I need a Node.js platform adapter that provides platform-specific HTTP module access (node:http) so that server adapters can run on Node.js.",
+      "acceptanceCriteria": [
+        "Package @typokit/platform-node created at packages/platform-node/",
+        "Provides createServer() wrapping node:http (or node:http2)",
+        "Handles Node.js-specific request/response stream handling",
+        "Exports platform info (runtime name, version) for typokit inspect server",
+        "Unit tests: server starts, handles a request, returns a response",
+        "Package builds successfully",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Create @typokit/server-native â€” Built-In Server",
+      "description": "As a framework developer, I need TypoKit's native server adapter as the default zero-dependency HTTP server that consumes the compiled radix tree for O(k) route lookup.",
+      "acceptanceCriteria": [
+        "Package @typokit/server-native created at packages/server-native/",
+        "Implements the ServerAdapter interface from @typokit/core",
+        "nativeServer() factory function returns a ServerAdapter",
+        "registerRoutes() loads the compiled radix tree from .typokit/routes/compiled-router.ts",
+        "Route lookup traverses the radix tree: static segments are direct child lookups, parameterized segments use paramChild",
+        "normalizeRequest() converts node:http.IncomingMessage to TypoKitRequest",
+        "writeResponse() converts TypoKitResponse to node:http.ServerResponse",
+        "listen(port) starts the HTTP server on the specified port, returns a ServerHandle",
+        "404 response when no route matches",
+        "405 response with Allow header when route matches but HTTP method doesn't",
+        "Trailing slashes normalized (both /users/ and /users match)",
+        "Integration tests: start server, send requests, verify routing, params extraction, 404/405 behavior",
+        "Throughput target: > 90% of raw node:http throughput",
+        "Cold start target: < 100ms for a 50-route app",
+        "Package builds successfully",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Server-Native â€” Request Validation Pipeline",
+      "description": "As a framework developer, I need the native server to run compiled validators on incoming requests so that handlers receive fully validated, typed data.",
+      "acceptanceCriteria": [
+        "Request body is validated against the compiled validator for the matched route's TBody type",
+        "Request query parameters are parsed and validated against the TQuery type",
+        "Request path parameters are extracted and validated against the TParams type",
+        "Validation failures produce a 400 response with field-level error details matching ErrorResponse schema",
+        "Validated data is passed to the handler as typed { params, query, body, ctx }",
+        "Integration tests: valid requests pass through, invalid requests get 400 with correct field errors",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Server-Native â€” Response Serialization",
+      "description": "As a framework developer, I need the native server to use compiled fast-json-stringify schemas for response serialization so that responses are serialized 2-5x faster than JSON.stringify.",
+      "acceptanceCriteria": [
+        "Response bodies are serialized using fast-json-stringify schemas generated at build time",
+        "Schemas are derived from route contract TResponse types",
+        "Serialization handles all JSON types (strings, numbers, booleans, nulls, arrays, nested objects)",
+        "Falls back to JSON.stringify if no compiled schema exists for a response type",
+        "Content-Type header set to application/json automatically",
+        "Integration tests: verify response bodies are correctly serialized",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Create @typokit/db-drizzle â€” Drizzle Schema Generation",
+      "description": "As a framework developer, I need a Drizzle adapter that generates Drizzle table definitions from schema types so that teams using Drizzle get auto-generated, type-safe schema files.",
+      "acceptanceCriteria": [
+        "Package @typokit/db-drizzle created at packages/db-drizzle/",
+        "Implements DatabaseAdapter interface",
+        "generate() produces Drizzle table definitions from type metadata (JSDoc tags: @table, @id, @generated, @format, @unique, @default, etc.)",
+        "Supports PostgreSQL and SQLite column types: uuid, varchar, text, integer, bigint, boolean, timestamp, jsonb, enum",
+        "Handles string union types â†’ pgEnum generation",
+        "Handles @default values, @unique constraints, @generated uuid/now auto-values",
+        "diff() compares current Drizzle schema against types and produces a MigrationDraft",
+        "Generated files include '// AUTO-GENERATED' header with source type reference",
+        "Output matches the format in typokit-arch.md Section 7.4",
+        "Unit tests: generate Drizzle schema from sample User type, verify column types, constraints, and enums",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Create @typokit/db-kysely â€” Kysely Type Generation",
+      "description": "As a framework developer, I need a Kysely adapter that generates Kysely table interface types from schema types.",
+      "acceptanceCriteria": [
+        "Package @typokit/db-kysely created at packages/db-kysely/",
+        "Implements DatabaseAdapter interface",
+        "generate() produces Kysely Database interface with table types",
+        "Maps TypeScript types to Kysely column types correctly for PostgreSQL and SQLite",
+        "Handles all JSDoc metadata tags",
+        "diff() produces migration drafts",
+        "Unit tests: generate Kysely types from sample User type",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Create @typokit/db-prisma â€” Prisma Schema Generation",
+      "description": "As a framework developer, I need a Prisma adapter that generates a Prisma schema file from schema types.",
+      "acceptanceCriteria": [
+        "Package @typokit/db-prisma created at packages/db-prisma/",
+        "Implements DatabaseAdapter interface",
+        "generate() produces a schema.prisma file from type metadata",
+        "Maps TypeScript types to Prisma field types correctly",
+        "Handles all JSDoc metadata tags (@id, @default, @unique, @generated, etc.)",
+        "diff() produces migration drafts",
+        "Unit tests: generate Prisma schema from sample User type",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Create @typokit/db-raw â€” Raw SQL DDL Generation",
+      "description": "As a framework developer, I need a raw SQL adapter that generates plain SQL DDL and TypeScript interfaces from schema types.",
+      "acceptanceCriteria": [
+        "Package @typokit/db-raw created at packages/db-raw/",
+        "Implements DatabaseAdapter interface",
+        "generate() produces SQL CREATE TABLE statements and TypeScript interfaces",
+        "Supports PostgreSQL dialect (CREATE TYPE for enums, UUID, TIMESTAMPTZ, etc.) and SQLite dialect",
+        "Output matches the format in typokit-arch.md Section 7.5",
+        "diff() produces ALTER TABLE migration drafts",
+        "Destructive changes flagged with '-- DESTRUCTIVE: requires review' comment",
+        "Unit tests: generate SQL from sample User type, verify DDL output",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Create @typokit/testing â€” Test Client",
+      "description": "As a framework developer, I need a test client that can send typed HTTP requests to a TypoKit app in tests, so that contract and integration tests require zero ceremony.",
+      "acceptanceCriteria": [
+        "Package @typokit/testing created at packages/testing/",
+        "createTestClient(app) function â€” starts the app on a random port and returns a typed client",
+        "Client methods: get(path, options?), post(path, options?), put(path, options?), patch(path, options?), delete(path, options?)",
+        "Options include body, query, headers",
+        "Response includes status, body (parsed JSON), headers",
+        "Client is type-safe when parameterized with route contracts",
+        "Automatic server startup and shutdown per test suite",
+        "Integration test: use test client against a sample app",
+        "Typecheck passes"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Create @typokit/testing â€” Integration Test Suite",
+      "description": "As a framework developer, I need a createIntegrationSuite() helper that sets up an in-memory database and provides seeded test data for fast, zero-dependency integration tests.",
+      "acceptanceCriteria": [
+        "createIntegrationSuite(app, options) function â€” sets up app + in-memory database for integration testing",
+        "Options: database: boolean (spin up in-memory DB), seed: string (seed data fixture name)",
+        "suite.setup() starts the server and seeds the database",
+        "suite.teardown() stops the server and cleans up",
+        "suite.client returns a typed test client",
+        "Database tests use isolated in-memory databases per test (no shared state)",
+        "No shared mutable state between tests by default",
+        "Integration test: create a suite, seed data, run queries, verify isolation",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Create @typokit/testing â€” Test Factories",
+      "description": "As a framework developer, I need type-safe test factories that produce valid and invalid fixture data from schema types.",
+      "acceptanceCriteria": [
+        "createFactory<T>() function â€” creates a factory for a given type",
+        "factory.build(overrides?) â€” produces a fully valid instance with random but valid data",
+        "factory.buildMany(count, overrides?) â€” produces multiple instances",
+        "factory.buildInvalid(field) â€” produces an instance with a specific field invalid (for negative testing)",
+        "Random data generation respects JSDoc constraints (@format email â†’ valid email, @minLength â†’ correct length, etc.)",
+        "Deterministic when seeded (same seed â†’ same output)",
+        "Unit tests: build valid User, override fields, build invalid email variant",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Create @typokit/testing â€” Schema Matcher",
+      "description": "As a framework developer, I need a toMatchSchema(schemaName) custom matcher that works with Jest, Vitest, and Rstest so that contract tests can verify response bodies conform to their declared types.",
+      "acceptanceCriteria": [
+        "Custom matcher toMatchSchema(schemaName) implemented with adapters for Jest, Vitest, and Rstest",
+        "Matcher loads the compiled validator for the named schema and validates the response body",
+        "Clear error messages on mismatch: which fields failed, expected vs received",
+        "Integrates with each framework's expect() chain",
+        "Unit tests: matching a valid PublicUser, failing on an invalid one (tested against all three runners)",
+        "Typecheck passes"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Create @typokit/testing â€” Contract Test Generation",
+      "description": "As a framework developer, I need the build pipeline to auto-generate baseline contract tests from route schemas so that every route has validation coverage by default.",
+      "acceptanceCriteria": [
+        "Contract tests are generated into __generated__/*.contract.test.ts files",
+        "Generated tests are test-runner-agnostic â€” compatible with Jest, Vitest, and Rstest",
+        "typokit generate:tests --runner <jest|vitest|rstest> flag controls import style (default: auto-detect from project config)",
+        "For each route, tests are generated for: valid input â†’ expected status, missing required fields â†’ 400, invalid field formats â†’ 400",
+        "Tests use createTestClient(app) and toMatchSchema()",
+        "Generated tests are idempotent â€” same schema always generates same tests",
+        "Tests are regenerated when route contracts change",
+        "Generated test files include '// DO NOT EDIT â€” regenerated on schema change' header",
+        "Output matches the format in typokit-arch.md Section 8.2",
+        "Integration test: generate contract tests for sample routes, run them, verify they pass",
+        "Typecheck passes"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Create @typokit/client â€” Type-Safe Fetch Client",
+      "description": "As a framework developer, I need a type-safe API client package that auto-generates from route contracts, so that frontend code gets full type safety and autocomplete for all API calls.",
+      "acceptanceCriteria": [
+        "Package @typokit/client created at packages/client/",
+        "createClient<TRoutes>(options) function â€” creates a typed client with baseUrl configuration",
+        "Client methods: get(path, options?), post(path, options?), put(path, options?), patch(path, options?), delete(path, options?)",
+        "Full TypeScript autocomplete on: route paths, params, query, body, and response types",
+        "Path parameters inferred from route path (e.g., /users/:id â†’ { id: string })",
+        "Responses are typed according to the route contract's TResponse",
+        "Uses fetch under the hood (works in Node.js, browsers, Bun, Deno)",
+        "Error responses throw typed errors",
+        "Configurable request interceptors (for auth headers, etc.)",
+        "Build pipeline generates client output automatically",
+        "Unit tests: client construction, type-safe method calls",
+        "Typecheck passes"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Create @typokit/otel â€” Structured Logger (ctx.log)",
+      "description": "As a framework developer, I need a structured logger available via ctx.log that automatically enriches log entries with request metadata and trace IDs.",
+      "acceptanceCriteria": [
+        "Package @typokit/otel created at packages/otel/",
+        "ctx.log API with levels: trace, debug, info, warn, error, fatal",
+        "Log entries automatically include: traceId, route, phase, requestId, server adapter name",
+        "Log entries are structured JSON",
+        "Default sink: JSON to stdout (always active, zero config)",
+        "Log level configurable via logging.level in createApp() options (default: info in production, debug in development)",
+        "Sensitive field redaction via logging.redact configuration",
+        "Unit tests: log entries include correct metadata, redaction works, level filtering works",
+        "Typecheck passes"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Create @typokit/otel â€” OpenTelemetry Tracing",
+      "description": "As a framework developer, I need automatic OpenTelemetry tracing so that every request's lifecycle is recorded as spans.",
+      "acceptanceCriteria": [
+        "OTel tracing auto-instruments the request lifecycle",
+        "Each middleware phase, validation step, and handler execution becomes a separate span",
+        "Span hierarchy: root span (request) â†’ child spans (middleware, validation, handler, serialization)",
+        "Trace ID propagated through the request context and available via ctx.traceId",
+        "Configurable via telemetry.tracing in createApp() options",
+        "Exporter options: 'console' (for dev), 'otlp' (for collectors)",
+        "OTel Collector endpoint configurable via telemetry.endpoint",
+        "Request lifecycle trace data matches the format in typokit-arch.md Section 9.4",
+        "Unit tests: spans created for each phase, trace ID correlates across spans",
+        "Typecheck passes"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Create @typokit/otel â€” Metrics",
+      "description": "As a framework developer, I need automatic request metrics so that standard observability dashboards work out of the box.",
+      "acceptanceCriteria": [
+        "Metrics auto-instrumented: http.server.request.duration (histogram), http.server.active_requests (gauge), error rate counters",
+        "Metrics labeled with: route, method, status code",
+        "Configurable via telemetry.metrics in createApp() options",
+        "Exports via OTel Collector",
+        "telemetry.serviceName sets the OTel resource service name",
+        "Unit tests: metrics recorded for requests, correct labels applied",
+        "Typecheck passes"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Create @typokit/otel â€” Log Bridge to OTel",
+      "description": "As a framework developer, I need ctx.log entries to optionally feed into OTel Collector as log signals, so that all three signals (traces, metrics, logs) can be correlated in observability tools.",
+      "acceptanceCriteria": [
+        "OTel log sink implemented â€” pushes structured log entries to OTel Collector via the log bridge",
+        "Log entries include the current trace ID and span ID for correlation",
+        "OTel log sink is opt-in (enabled when telemetry.tracing is configured)",
+        "Works alongside the default stdout sink (both active simultaneously)",
+        "Unit tests: log entries forwarded to OTel with correct trace context",
+        "Typecheck passes"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Create @typokit/plugin-debug â€” Debug Sidecar Server",
+      "description": "As a framework developer, I need a debug sidecar plugin that runs on a separate port and exposes structured introspection endpoints for AI agents.",
+      "acceptanceCriteria": [
+        "Package @typokit/plugin-debug created at packages/plugin-debug/",
+        "Implements TypoKitPlugin interface",
+        "debugPlugin(options) factory function",
+        "Development mode: enabled by default, no auth required, runs on port 9800 by default",
+        "Production mode: opt-in, requires security.apiKey (via X-Debug-Key header), IP/CIDR allowlist, bind to internal interface, rate limiting",
+        "GET /_debug/routes â€” all registered routes with schemas",
+        "GET /_debug/middleware â€” middleware chain",
+        "GET /_debug/performance?window=<duration> â€” latency percentiles (p50/p95/p99)",
+        "GET /_debug/errors?since=<duration> â€” recent structured errors",
+        "GET /_debug/health â€” connection pool saturation, memory, event loop lag",
+        "GET /_debug/dependencies â€” service dependency graph",
+        "GET /_debug/traces â€” recent request traces from OTel",
+        "GET /_debug/logs?since=<duration> â€” recent structured logs",
+        "All endpoints are read-only â€” no mutation endpoints",
+        "Sensitive headers/body fields redacted via security.redact config",
+        "onSchemaChange hook refreshes cached route map on rebuild",
+        "Integration tests: start sidecar, query each endpoint, verify structured JSON response",
+        "Typecheck passes"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Create @typokit/plugin-ws â€” WebSocket Support",
+      "description": "As a framework developer, I need a WebSocket plugin that follows the same schema-first pattern as REST routes, so that WebSocket channels have typed contracts, validated messages, and generated test stubs.",
+      "acceptanceCriteria": [
+        "Package @typokit/plugin-ws created at packages/plugin-ws/",
+        "Implements TypoKitPlugin interface",
+        "wsPlugin(options) factory function",
+        "WsChannels contract interface â€” maps channel names to { serverToClient, clientToServer } message types",
+        "defineWsHandlers<TChannels>() function â€” maps channels to { onConnect, onMessage, onDisconnect } handlers",
+        "Incoming messages validated against clientToServer type contracts",
+        "Outgoing messages type-checked against serverToClient types",
+        "Build hook (afterTypeParse) extracts WS channel contracts from the type map",
+        "Build hook (emit) generates WS validators and route table",
+        "Integration with auth middleware (WS connections can use requireAuth)",
+        "Integration tests: connect to WS channel, send/receive typed messages, verify validation",
+        "Typecheck passes"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Create @typokit/server-fastify â€” Fastify Adapter",
+      "description": "As a framework developer, I need a Fastify server adapter so that teams with existing Fastify applications can adopt TypoKit incrementally.",
+      "acceptanceCriteria": [
+        "Package @typokit/server-fastify created at packages/server-fastify/",
+        "Implements ServerAdapter interface",
+        "fastifyServer(options?) factory function â€” options passed to Fastify constructor (logger, trustProxy, etc.)",
+        "registerRoutes() translates compiled route table into Fastify-native route registrations",
+        "normalizeRequest() converts Fastify request to TypoKitRequest",
+        "writeResponse() converts TypoKitResponse to Fastify reply",
+        "getNativeServer() returns the raw Fastify instance for escape hatches (plugin registration, etc.)",
+        "Fastify-native middleware runs before TypoKit middleware (per typokit-arch.md Section 6.3)",
+        "Integration tests: start Fastify-adapted app, send requests, verify routing and validation",
+        "Typecheck passes"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "Create @typokit/server-hono â€” Hono Adapter",
+      "description": "As a framework developer, I need a Hono server adapter so that teams can run TypoKit on any platform Hono supports.",
+      "acceptanceCriteria": [
+        "Package @typokit/server-hono created at packages/server-hono/",
+        "Implements ServerAdapter interface",
+        "honoServer(options?) factory function",
+        "registerRoutes() translates compiled route table into Hono-native route registrations",
+        "normalizeRequest() converts Hono context to TypoKitRequest",
+        "writeResponse() converts TypoKitResponse to Hono response",
+        "getNativeServer() returns the raw Hono instance",
+        "Integration tests: start Hono-adapted app, send requests, verify routing and validation",
+        "Typecheck passes"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Create @typokit/server-express â€” Express Adapter",
+      "description": "As a framework developer, I need an Express server adapter as a migration path for teams with existing Express applications.",
+      "acceptanceCriteria": [
+        "Package @typokit/server-express created at packages/server-express/",
+        "Implements ServerAdapter interface",
+        "expressServer(options?) factory function",
+        "registerRoutes() translates compiled route table into Express-native route registrations",
+        "normalizeRequest() converts Express request to TypoKitRequest",
+        "writeResponse() converts TypoKitResponse to Express response",
+        "getNativeServer() returns the raw Express app instance",
+        "Integration tests: start Express-adapted app, send requests, verify routing and validation",
+        "Typecheck passes"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "Create @typokit/platform-bun â€” Bun Platform Adapter",
+      "description": "As a framework developer, I need a Bun platform adapter so that TypoKit applications can run on the Bun runtime using Bun.serve().",
+      "acceptanceCriteria": [
+        "Package @typokit/platform-bun created at packages/platform-bun/",
+        "Provides createServer() wrapping Bun.serve()",
+        "Handles Bun-specific request/response APIs",
+        "Works with @typokit/server-native and @typokit/server-hono",
+        "Exports platform info for typokit inspect server",
+        "Integration tests: start server on Bun, handle requests",
+        "Typecheck passes"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "Create @typokit/platform-deno â€” Deno Platform Adapter",
+      "description": "As a framework developer, I need a Deno platform adapter so that TypoKit applications can run on the Deno runtime using Deno.serve().",
+      "acceptanceCriteria": [
+        "Package @typokit/platform-deno created at packages/platform-deno/",
+        "Provides createServer() wrapping Deno.serve()",
+        "Handles Deno-specific request/response APIs (Web standard Request/Response)",
+        "Works with @typokit/server-native and @typokit/server-hono",
+        "Exports platform info for typokit inspect server",
+        "Integration tests: start server on Deno, handle requests",
+        "Typecheck passes"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "Create @typokit/client-react-query â€” React Query Hooks",
+      "description": "As a framework developer, I need a React Query adapter that generates type-safe hooks from route contracts so that React applications get automatic caching, loading states, and type safety.",
+      "acceptanceCriteria": [
+        "Package @typokit/client-react-query created at packages/client-react-query/",
+        "Generates useQuery hooks for GET routes with typed query keys, options, and return types",
+        "Generates useMutation hooks for POST/PUT/PATCH/DELETE routes with typed variables and return types",
+        "Query keys are derived from route path + params for correct cache invalidation",
+        "Hooks use @typokit/client under the hood",
+        "Unit tests: hook type safety, query key generation",
+        "Typecheck passes"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Create @typokit/client-swr â€” SWR Hooks",
+      "description": "As a framework developer, I need an SWR adapter that generates type-safe hooks from route contracts for teams using SWR instead of React Query.",
+      "acceptanceCriteria": [
+        "Package @typokit/client-swr created at packages/client-swr/",
+        "Generates useSWR hooks for GET routes with typed keys and return types",
+        "Generates mutation helpers for write operations",
+        "Hooks use @typokit/client under the hood",
+        "Unit tests: hook type safety",
+        "Typecheck passes"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-051",
+      "title": "Create @typokit/nx â€” Nx Executor & Generator",
+      "description": "As a framework developer, I need an Nx plugin that provides executors and generators so that teams using Nx can integrate TypoKit into their workspace build graph.",
+      "acceptanceCriteria": [
+        "Package @typokit/nx created at packages/nx/",
+        "Nx executor @typokit/nx:build â€” calls typokit build with the correct working directory",
+        "Nx executor @typokit/nx:dev â€” calls typokit dev",
+        "Nx executor @typokit/nx:test â€” calls typokit test",
+        "Nx generator @typokit/nx:init â€” adds TypoKit to an existing Nx workspace",
+        "Nx generator @typokit/nx:route â€” scaffolds a route module",
+        "Executors respect Nx's task pipeline (dependsOn, inputs/outputs caching)",
+        "Unit tests: executor invocations, generator output",
+        "Typecheck passes"
+      ],
+      "priority": 51,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-052",
+      "title": "Create @typokit/turbo â€” Turborepo Integration",
+      "description": "As a framework developer, I need Turborepo integration helpers so that teams using Turborepo can configure TypoKit in their pipeline.",
+      "acceptanceCriteria": [
+        "Package @typokit/turbo created at packages/turbo/",
+        "Provides example turbo.json pipeline configuration for TypoKit projects",
+        "Helper scripts that wrap typokit build / typokit dev for Turborepo compatibility",
+        "Documentation for setting up TypoKit in a Turborepo workspace",
+        "Typecheck passes"
+      ],
+      "priority": 52,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-053",
+      "title": "Reference App â€” Schema Package (@typokit/example-todo-schema)",
+      "description": "As a framework developer, I need a reference @typokit/example-todo-schema package with Todo and User types to validate the schema-first workflow end-to-end.",
+      "acceptanceCriteria": [
+        "packages/example-todo-schema/ created as an Nx package with name @typokit/example-todo-schema",
+        "User entity type with JSDoc tags (@table, @id, @generated, @format email, @unique, @minLength, @maxLength, @default)",
+        "Todo entity type with: id, title, description (optional), completed (boolean), userId (foreign key), createdAt, updatedAt",
+        "CreateUserInput, UpdateUserInput, PublicUser derived types",
+        "CreateTodoInput, UpdateTodoInput, PublicTodo derived types",
+        "PaginatedResponse and ErrorResponse re-exported from @typokit/types",
+        "Route contracts for Users CRUD and Todos CRUD",
+        "Typecheck passes"
+      ],
+      "priority": 53,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-054",
+      "title": "Reference App â€” Server Package (@typokit/example-todo-server)",
+      "description": "As a framework developer, I need a reference @typokit/example-todo-server package that implements handlers for the todo API, demonstrating the full TypoKit developer experience.",
+      "acceptanceCriteria": [
+        "packages/example-todo-server/ created as an Nx package with name @typokit/example-todo-server",
+        "Route handlers for: GET /users, POST /users, GET /users/:id, PUT /users/:id",
+        "Route handlers for: GET /todos, POST /todos, GET /todos/:id, PUT /todos/:id, DELETE /todos/:id",
+        "GET /todos supports query params: page, pageSize, userId (filter), completed (filter)",
+        "Auth middleware demonstrating context type narrowing (requireAuth on write operations)",
+        "Error handling demonstrating ctx.fail() usage (not found, conflict, validation)",
+        "Service layer for business logic (userService, todoService)",
+        "app.ts with explicit route registration",
+        "typokit build completes successfully",
+        "typokit dev starts and serves requests",
+        "Typecheck passes"
+      ],
+      "priority": 54,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-055",
+      "title": "Reference App â€” Database Layer (@typokit/example-todo-db)",
+      "description": "As a framework developer, I need a reference database layer using the Drizzle adapter to demonstrate schema-driven data access.",
+      "acceptanceCriteria": [
+        "packages/example-todo-db/ created as an Nx package with name @typokit/example-todo-db",
+        "typokit generate:db produces Drizzle table definitions from schema types",
+        "Migration generated for initial schema (typokit migrate:generate --name initial)",
+        "Database seeding script with sample users and todos",
+        "Repository functions for CRUD operations using Drizzle",
+        "Works with SQLite for simplicity",
+        "Typecheck passes"
+      ],
+      "priority": 55,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-056",
+      "title": "Reference App â€” Generated Tests",
+      "description": "As a framework developer, I need the reference app to have auto-generated contract tests and manually written integration tests to validate the testing framework.",
+      "acceptanceCriteria": [
+        "typokit generate:tests produces contract tests for all routes",
+        "Contract tests pass when run via typokit test:contracts",
+        "Manual integration tests written for: create user â†’ create todo â†’ list todos by user â†’ update todo â†’ delete todo",
+        "Integration tests use createIntegrationSuite() with in-memory database",
+        "Test factories used for fixture data",
+        "All tests pass via typokit test",
+        "Typecheck passes"
+      ],
+      "priority": 56,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-057",
+      "title": "Reference App â€” Generated Client",
+      "description": "As a framework developer, I need the reference app to have a generated type-safe API client demonstrating the client generation workflow.",
+      "acceptanceCriteria": [
+        "typokit generate:client produces @typokit/example-todo-client package output",
+        "Generated client has typed methods for all routes",
+        "TypeScript autocomplete works on route paths, params, query, body, and response",
+        "A simple test script demonstrates using the client against the running server",
+        "Typecheck passes"
+      ],
+      "priority": 57,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-058",
+      "title": "Reference App â€” OpenAPI Spec",
+      "description": "As a framework developer, I need the reference app to have a generated OpenAPI spec to validate the OpenAPI generation pipeline.",
+      "acceptanceCriteria": [
+        "typokit generate:openapi --output ./dist/openapi.json produces a valid OpenAPI 3.1 spec",
+        "Spec includes all routes, request/response schemas, error responses",
+        "Spec validates against the OpenAPI 3.1 JSON Schema",
+        "Swagger UI or similar tool can render the spec correctly",
+        "Typecheck passes"
+      ],
+      "priority": 58,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-059",
+      "title": "Reference App â€” Debug Sidecar Demo",
+      "description": "As a framework developer, I need the reference app to demonstrate the debug sidecar in development mode.",
+      "acceptanceCriteria": [
+        "typokit dev starts the debug sidecar on port 9800",
+        "GET http://localhost:9800/_debug/routes returns all registered routes as JSON",
+        "GET http://localhost:9800/_debug/health returns server health metrics",
+        "GET http://localhost:9800/_debug/errors?since=1h returns recent errors",
+        "CLI introspection works: typokit inspect routes --json returns route data",
+        "Typecheck passes"
+      ],
+      "priority": 59,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-060",
+      "title": "Reference App â€” E2E Tests with Real Database",
+      "description": "As a framework developer, I need the reference app to include end-to-end tests that run against a real PostgreSQL database to validate the full stack beyond in-memory testing.",
+      "acceptanceCriteria": [
+        "E2E test suite in packages/example-todo-server/ that connects to a real PostgreSQL instance",
+        "Tests cover the full lifecycle: create user â†’ create todo â†’ list todos by user â†’ update todo â†’ mark complete â†’ delete todo",
+        "Tests validate actual DB state (rows written, constraints enforced, enums stored correctly)",
+        "Requires a running PostgreSQL instance (configured via DATABASE_URL env var)",
+        "Separate test script: typokit test:e2e (not run by default typokit test)",
+        "CI pipeline runs e2e tests against a PostgreSQL service container in GitHub Actions",
+        "Typecheck passes"
+      ],
+      "priority": 60,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

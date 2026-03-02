@@ -1,0 +1,128 @@
+# Ralph Progress Log
+Started: 03/01/2026 21:04:22
+---
+
+## Codebase Patterns
+- Use `rstest run --passWithNoTests` for test commands (rstest 0.0.1 hangs without `run` subcommand)
+- Import test functions from `@rstest/core` (not `rstest`): `import { describe, it, expect } from "@rstest/core"`
+- Package tsconfigs extend `../../tsconfig.base.json` — don't put `paths` in base (causes TS5090). Paths live in root `tsconfig.json` with `baseUrl`.
+- All packages follow same structure: `packages/<name>/package.json`, `tsconfig.json`, `src/index.ts`
+- Nx targets defined in `nx.json` targetDefaults — individual package.json scripts match
+- ESLint 9 flat config at root (`eslint.config.mjs`), packages use `eslint src/`
+- PowerShell: use `ConvertTo-Json`/`ConvertFrom-Json` for JSON manipulation, not `python -c` with f-strings (escaping issues)
+- dist/ and *.tsbuildinfo are gitignored — only commit src/ files
+- Cross-package deps: add `"workspace:*"` to package.json dependencies + `"references": [{ "path": "../<dep>" }]` to tsconfig.json
+- Error subclasses need `Object.setPrototypeOf(this, new.target.prototype)` for correct instanceof checks
+- ESLint enforces `import type` for type-only imports — separate value imports from type imports
+
+## 2026-03-02T05:04:30Z - US-001
+- Initialized Nx monorepo with pnpm workspaces
+- Created 26 packages per typokit-arch.md Section 12.11
+- TypeScript project references with strict mode, path aliases for @typokit/*
+- ESLint 9 flat config with typescript-eslint
+- Rstest configured as test runner
+- GitHub Actions CI workflow
+- Files changed: package.json, pnpm-workspace.yaml, nx.json, tsconfig.base.json, tsconfig.json, eslint.config.mjs, .gitignore, .github/workflows/ci.yml, all 26 packages/* dirs
+- **Learnings for future iterations:**
+  - rstest 0.0.1 hangs in default mode — must use `rstest run --passWithNoTests`
+  - Don't put `paths` in tsconfig.base.json without `baseUrl` — packages inherit it and get TS5090
+  - Root tsconfig.json holds paths + project references for IDE; tsconfig.base.json is shared compiler options only
+  - `@nx/js` plugin is not needed if using `nx:run-commands` executor with explicit commands
+  - pnpm 10.30.3 requires corepack approval on first use
+  - `*.tsbuildinfo` and `dist/` should be gitignored
+---
+
+## 2026-03-02T05:19:00Z - US-002
+- Implemented all shared type interfaces in `packages/types/src/index.ts`
+- Types defined: HttpMethod, TypoKitRequest, TypoKitResponse, RouteContract, PaginatedResponse, ErrorResponse, RouteHandler, CompiledRoute, CompiledRouteTable, HandlerMap, MiddlewareFn, MiddlewareChain, Logger, RequestContext, TypeMetadata, SchemaTypeMap, GeneratedOutput, SchemaChange, MigrationDraft, ServerHandle, BuildContext, BuildResult
+- Files changed: packages/types/src/index.ts
+- **Learnings for future iterations:**
+  - The arch doc (typokit-arch.md) is the authoritative source for type shapes — match its interfaces exactly
+  - CompiledRoute uses a radix tree structure: segment, children (Record), paramChild, wildcardChild, handlers
+  - SchemaChange is an interface (not a union type) — used for add/remove/modify with entity + optional field
+  - dist/ and *.tsbuildinfo are gitignored — only stage src/ files for commits
+  - Python heredocs via `@" ... "@` work well in PowerShell for multi-line scripts
+---
+
+## 2026-03-02T05:22:00Z - US-003
+- Implemented structured error class hierarchy in `packages/errors/src/index.ts`
+- AppError base class with code, status, message, details + toJSON() → ErrorResponse
+- Subclasses: NotFoundError (404), ValidationError (400), UnauthorizedError (401), ForbiddenError (403), ConflictError (409)
+- Factory function createAppError() that returns correct subclass based on status code
+- 17 unit tests covering all error classes and factory function
+- Files changed: packages/errors/src/index.ts, packages/errors/src/index.test.ts, packages/errors/package.json, packages/errors/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Import test functions from `@rstest/core` (e.g. `import { describe, it, expect } from "@rstest/core"`), NOT from `rstest` — rstest injects globals but the module name for explicit import is `@rstest/core`
+  - When a package depends on another workspace package (e.g. errors → types), add `"@typokit/types": "workspace:*"` to dependencies and `"references": [{ "path": "../types" }]` to tsconfig.json
+  - Build dependency packages first (e.g. `pnpm run build` in types) before typechecking dependent packages
+  - `Object.setPrototypeOf(this, new.target.prototype)` is needed in error subclasses for `instanceof` to work correctly with ES2022 target
+---
+
+## 2026-03-02T05:27:00Z - US-004
+- Implemented ServerAdapter interface in `packages/core/src/adapters/server.ts`
+- Interface methods: name, registerRoutes(), listen(), normalizeRequest(), writeResponse(), getNativeServer?()
+- Method signatures match Section 6.4 of typokit-arch.md exactly
+- Exported from `packages/core/src/index.ts`
+- Added `@typokit/types` as workspace dependency + tsconfig reference
+- Files changed: packages/core/src/adapters/server.ts (new), packages/core/src/index.ts, packages/core/package.json, packages/core/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - Core interfaces go in `packages/core/src/adapters/` directory per arch doc convention
+  - Use `export { type X }` syntax for re-exporting interfaces to keep clean type-only exports
+  - Build dependency packages (e.g. `@typokit/types`) before typechecking dependent packages
+---
+
+## 2026-03-02T05:29:00Z - US-005
+- Implemented DatabaseAdapter interface in `packages/core/src/adapters/database.ts`
+- Interface methods: generate(), diff(), generateRepositories?() matching Section 7.3 of typokit-arch.md
+- Added DatabaseState, TableState, ColumnState supporting interfaces (DatabaseState not in shared types, defined locally)
+- Exported all types from `packages/core/src/index.ts`
+- Files changed: packages/core/src/adapters/database.ts (new), packages/core/src/index.ts
+- **Learnings for future iterations:**
+  - DatabaseState is referenced in arch doc Section 7.3 but not defined in @typokit/types — defined locally in the adapter file
+  - Database adapter interfaces follow the same pattern as ServerAdapter: import types from @typokit/types, define interface in adapters/ dir, re-export from index.ts
+  - Adapter interfaces are type-only files — no runtime code, no tests needed
+---
+
+## 2026-03-02T05:31:00Z - US-006
+- Implemented TypoKitPlugin interface and supporting types in `packages/core/src/plugin.ts`
+- Types defined: AsyncSeriesHook<T>, BuildPipeline (with tapable hooks: beforeTransform, afterTypeParse, afterValidators, afterRouteTable, emit, done), CliCommand, InspectEndpoint, AppInstance, TypoKitPlugin
+- TypoKitPlugin has lifecycle hooks: onBuild, onStart, onReady, onError, onStop, onSchemaChange, commands, inspect
+- Added `@typokit/errors` as workspace dependency to core (for AppError type in onError hook)
+- All types exported from `packages/core/src/index.ts`
+- Files changed: packages/core/src/plugin.ts (new), packages/core/src/index.ts, packages/core/package.json, packages/core/tsconfig.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - AppInstance is not defined in the arch doc — created minimal interface (name, plugins, services) to be expanded by US-009 createApp
+  - Plugin file imports from both @typokit/types and @typokit/errors — core now depends on both packages
+  - AsyncSeriesHook follows tapable pattern: tap(name, fn) to register, call(...args) to invoke
+  - CliCommand and InspectEndpoint are not explicitly defined in arch doc — inferred from plugin usage context
+---
+
+## 2026-03-02T05:35:00Z - US-007
+- Implemented middleware system in `packages/core/src/middleware.ts`
+- `defineMiddleware<TContext>()` function for typed middleware with context narrowing
+- `executeMiddlewareChain()` runs middleware in priority order (lower first), accumulates context
+- `createRequestContext()` creates context with `ctx.fail()` and placeholder `ctx.log`
+- `ctx.fail(status, code, message, details?)` throws correct AppError subclass via `createAppError`
+- 14 unit tests covering all acceptance criteria
+- Files changed: packages/core/src/middleware.ts (new), packages/core/src/middleware.test.ts (new), packages/core/src/index.ts
+- **Learnings for future iterations:**
+  - ESLint requires `import type` for symbols used only as types — use separate import lines for type-only vs value imports
+  - `createRequestContext()` is the factory for RequestContext — use it in tests and eventually in the server pipeline
+  - `ctx.fail()` returns `never` (always throws) — use `createAppError` from @typokit/errors internally
+  - Middleware chain executor spreads returned properties onto context — runtime type narrowing is just object spread
+  - `globalThis.crypto.randomUUID()` is not available with ES2022 lib — use `Math.random()` fallback for request IDs
+---
+
+## 2026-03-02T05:46:00Z - US-008
+- Implemented `defineHandlers<TRoutes>()` function in `packages/core/src/handler.ts`
+- Types: `HandlerInput<TContract>`, `HandlerFn<TContract>`, `HandlerDefs<TRoutes>` — all infer from RouteContract generics
+- Each handler receives `{ params, query, body, ctx }` with types from the corresponding RouteContract
+- Handler return type enforced to match `TResponse` from contract
+- 9 unit tests covering: handler definitions, typed params/query/body, ctx access, return type matching, sync handlers, single-route contracts, complex types
+- Files changed: packages/core/src/handler.ts (new), packages/core/src/handler.test.ts (new), packages/core/src/index.ts
+- **Learnings for future iterations:**
+  - `defineHandlers` is a simple pass-through function — the real value is in the type system enforcement
+  - Use `RouteContract<unknown, unknown, unknown, unknown>` as the constraint (not `any`) for the generic bound
+  - ESLint enforces no unused destructured params — prefix with `_` (e.g., `_query`) for intentionally unused params in tests
+  - Void contract fields use `undefined as void` when calling handlers in tests
+---
