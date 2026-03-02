@@ -1,6 +1,742 @@
 ---
 title: Generate, Migrate, and Test
-description: CLI commands for code generation, migrations, and testing.
+description: CLI reference for TypoKit code generation, database migration, and testing commands.
 ---
 
-This page is coming soon.
+import { Aside } from "@astrojs/starlight/components";
+
+Reference for TypoKit CLI commands that generate code from your schema, manage database migrations, and run tests.
+
+Every command accepts these **global flags**:
+
+| Flag | Description |
+|------|-------------|
+| `--root <dir>` | Project root directory (default: current working directory) |
+| `--verbose`, `-v` | Show detailed output including timing and file-level information |
+
+---
+
+## Generate Commands
+
+All generate commands read your TypeScript type files (configured via `typeFiles` in `typokit.config.ts`) and route files, then emit derived artifacts to the output directory (default: `.typokit/`).
+
+### `typokit generate:db`
+
+Generate database schema files (SQL DDL and JSON metadata) from your TypeScript entity types.
+
+**Syntax**
+
+```bash
+typokit generate:db
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Reads all type files from the configured `typeFiles` globs
+2. Extracts entity interfaces annotated with `@table` JSDoc tags
+3. Calls `diffSchemas()` to compare current types against the last-known schema snapshot
+4. Emits SQL DDL statements and a JSON metadata file to the output directory
+
+**Example**
+
+```bash
+typokit generate:db
+```
+
+```
+● Reading type files...        12 files
+● Extracting entities...       6 tables
+● Generating DDL...            done
+
+✔ Database schema generated (6 tables)
+  .typokit/db/schema.sql       (2.4kB)
+  .typokit/db/schema.json      (1.1kB)
+```
+
+With `--json`:
+
+```bash
+typokit generate:db --json
+```
+
+```json
+{
+  "success": true,
+  "filesWritten": [".typokit/db/schema.sql", ".typokit/db/schema.json"],
+  "tables": 6,
+  "duration": 312
+}
+```
+
+<Aside type="tip">
+The generated DDL is a complete snapshot of your schema, not a migration. Use `typokit migrate:generate` to create incremental migration files.
+</Aside>
+
+---
+
+### `typokit generate:client`
+
+Generate a type-safe API client from your route contracts.
+
+**Syntax**
+
+```bash
+typokit generate:client
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Reads all route files from the configured `routeFiles` globs
+2. Extracts route contracts with their typed parameters, query strings, request bodies, and responses
+3. Generates a TypeScript client module with a `createClient()` factory function
+4. Emits the client to the output directory
+
+**Example**
+
+```bash
+typokit generate:client
+```
+
+```
+● Reading route files...       8 modules
+● Extracting contracts...      24 operations
+● Generating client...         done
+
+✔ Client generated (24 operations)
+  .typokit/client/index.ts     (6.8kB)
+```
+
+Generated client usage:
+
+```typescript
+import { createClient } from ".typokit/client";
+
+const api = createClient({ baseUrl: "http://localhost:3000" });
+
+// Fully typed — params, query, body, and response
+const users = await api.getUsers({ query: { page: 1 } });
+const user = await api.getUser({ params: { id: "abc" } });
+```
+
+<Aside type="note">
+The generated client is deterministic — the same route contracts always produce identical client code. Regenerating after changes is safe and idempotent.
+</Aside>
+
+---
+
+### `typokit generate:openapi`
+
+Generate an OpenAPI 3.1 specification from your routes and types.
+
+**Syntax**
+
+```bash
+typokit generate:openapi [--output <path>]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--output <path>` | Custom output path (default: `.typokit/openapi.json`) |
+| `--verbose`, `-v` | Show detailed output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Reads all route files and type files
+2. Builds a complete OpenAPI 3.1 specification including paths, schemas, parameters, and responses
+3. Writes the spec as a JSON file to the output location
+
+**Example**
+
+```bash
+typokit generate:openapi
+```
+
+```
+● Reading routes and types...  8 modules, 12 type files
+● Building OpenAPI spec...     24 operations, 18 schemas
+● Writing spec...              done
+
+✔ OpenAPI spec generated
+  .typokit/openapi.json        (14.2kB)
+```
+
+With a custom output path:
+
+```bash
+typokit generate:openapi --output ./dist/openapi.json
+```
+
+```
+✔ OpenAPI spec generated
+  dist/openapi.json             (14.2kB)
+```
+
+<Aside type="tip">
+Use the `--output` flag to place the spec in a location accessible by tools like Swagger UI, Redoc, or CI pipelines that validate API contracts.
+</Aside>
+
+---
+
+### `typokit generate:tests`
+
+Regenerate contract test stubs from your route contracts.
+
+**Syntax**
+
+```bash
+typokit generate:tests
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Reads all route contracts from configured `routeFiles` globs
+2. Generates contract test files that validate request/response shapes against the schema
+3. Writes test files to `__generated__/tests/` in the output directory
+
+**Example**
+
+```bash
+typokit generate:tests
+```
+
+```
+● Reading route contracts...   24 operations
+● Generating contract tests... done
+
+✔ Contract tests generated (24 test files)
+  __generated__/tests/getUsers.contract.test.ts
+  __generated__/tests/createUser.contract.test.ts
+  __generated__/tests/getUser.contract.test.ts
+  ... (24 files)
+```
+
+<Aside type="note">
+Generated tests are overwritten each time you run this command. Do not edit them manually — modify your route contracts and regenerate instead.
+</Aside>
+
+---
+
+## Migrate Commands
+
+Migration commands manage incremental database schema changes. Migrations are always generated as drafts for review — they never auto-apply.
+
+### `typokit migrate:generate`
+
+Generate a migration draft from the diff between your current TypeScript types and the last-known schema snapshot.
+
+**Syntax**
+
+```bash
+typokit migrate:generate --name <name>
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--name <name>` | Migration name (required) |
+| `--verbose`, `-v` | Show detailed output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Compares the current entity types against the saved schema snapshot
+2. Generates a timestamped SQL migration file with the detected changes
+3. Generates a JSON metadata file describing each change
+4. Annotates destructive changes (column drops, type changes) with `-- DESTRUCTIVE: requires review`
+5. Updates the schema snapshot after generation
+
+**Example**
+
+```bash
+typokit migrate:generate --name add-user-avatar
+```
+
+```
+● Comparing schemas...         2 changes detected
+● Generating migration...      done
+
+✔ Migration generated
+  .typokit/migrations/20260302_120000_add-user-avatar.sql
+  .typokit/migrations/20260302_120000_add-user-avatar.json
+
+Changes:
+  + users.avatar_url       VARCHAR(255)    (add column)
+  + users.avatar_updated   TIMESTAMP       (add column)
+```
+
+When destructive changes are detected:
+
+```bash
+typokit migrate:generate --name remove-legacy-fields
+```
+
+```
+● Comparing schemas...         3 changes detected (1 destructive)
+● Generating migration...      done
+
+✔ Migration generated
+  .typokit/migrations/20260302_130000_remove-legacy-fields.sql
+  .typokit/migrations/20260302_130000_remove-legacy-fields.json
+
+Changes:
+  - users.legacy_role      VARCHAR(50)     (drop column) ⚠ DESTRUCTIVE
+  ~ posts.status           ENUM → VARCHAR  (type change)
+  + posts.published_at     TIMESTAMP       (add column)
+```
+
+<Aside type="caution">
+Destructive changes are annotated with `-- DESTRUCTIVE: requires review` in the SQL file. Always review generated migration files before applying them.
+</Aside>
+
+---
+
+### `typokit migrate:diff`
+
+Show pending schema changes without generating a migration file.
+
+**Syntax**
+
+```bash
+typokit migrate:diff [--json]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON instead of human-readable table |
+| `--verbose`, `-v` | Show detailed output |
+
+**What it does**
+
+1. Compares the current entity types against the saved schema snapshot
+2. Displays pending changes as a human-readable table or JSON
+3. Does **not** modify any files — this is a read-only inspection command
+
+**Example**
+
+```bash
+typokit migrate:diff
+```
+
+```
+Pending schema changes:
+
+  Table     Column         Change          Type
+  ─────     ──────         ──────          ────
+  users     avatar_url     add column      VARCHAR(255)
+  users     avatar_updated add column      TIMESTAMP
+  posts     published_at   add column      TIMESTAMP
+
+3 changes pending (0 destructive)
+```
+
+With `--json`:
+
+```bash
+typokit migrate:diff --json
+```
+
+```json
+{
+  "changes": [
+    {
+      "table": "users",
+      "column": "avatar_url",
+      "change": "add_column",
+      "type": "VARCHAR(255)",
+      "destructive": false
+    },
+    {
+      "table": "users",
+      "column": "avatar_updated",
+      "change": "add_column",
+      "type": "TIMESTAMP",
+      "destructive": false
+    },
+    {
+      "table": "posts",
+      "column": "published_at",
+      "change": "add_column",
+      "type": "TIMESTAMP",
+      "destructive": false
+    }
+  ],
+  "sql": "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255);\nALTER TABLE users ADD COLUMN avatar_updated TIMESTAMP;\nALTER TABLE posts ADD COLUMN published_at TIMESTAMP;",
+  "total": 3,
+  "destructive": 0
+}
+```
+
+<Aside type="tip">
+Run `migrate:diff` before `migrate:generate` to preview what changes will be included in the migration without creating any files.
+</Aside>
+
+---
+
+### `typokit migrate:apply`
+
+Apply pending migrations to the database.
+
+**Syntax**
+
+```bash
+typokit migrate:apply [--force]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Apply destructive migrations without interactive review |
+| `--verbose`, `-v` | Show detailed output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Reads all migration files from the migrations directory
+2. Checks which migrations have already been applied (tracked in `.applied` log)
+3. Applies pending migrations in chronological order
+4. Blocks on destructive migrations unless `--force` is passed
+5. Records applied migrations in the `.applied` log
+
+**Example**
+
+```bash
+typokit migrate:apply
+```
+
+```
+● Checking pending migrations...  2 pending
+● Applying 20260302_120000_add-user-avatar.sql...    ✔
+● Applying 20260302_130000_add-indexes.sql...         ✔
+
+✔ 2 migrations applied (148ms)
+```
+
+When destructive migrations are pending:
+
+```bash
+typokit migrate:apply
+```
+
+```
+● Checking pending migrations...  1 pending
+
+⚠ Migration 20260302_130000_remove-legacy-fields.sql contains destructive changes:
+  - users.legacy_role (drop column)
+
+Blocked. Use --force to apply destructive migrations.
+```
+
+```bash
+typokit migrate:apply --force
+```
+
+```
+● Checking pending migrations...  1 pending
+● Applying 20260302_130000_remove-legacy-fields.sql... ✔ (destructive)
+
+✔ 1 migration applied (92ms)
+```
+
+With `--json`:
+
+```bash
+typokit migrate:apply --json
+```
+
+```json
+{
+  "success": true,
+  "applied": [
+    {
+      "file": "20260302_120000_add-user-avatar.sql",
+      "duration": 84,
+      "destructive": false
+    }
+  ],
+  "total": 1,
+  "duration": 148
+}
+```
+
+<Aside type="caution">
+Destructive migrations (column drops, type changes) are blocked by default. Always review the SQL file before using `--force`. In CI pipelines, use `migrate:diff --json` to check for destructive changes programmatically before applying.
+</Aside>
+
+---
+
+## Test Commands
+
+Test commands run your project's tests using auto-detected or explicitly specified test runners.
+
+TypoKit detects the test runner by checking for config files in this priority order:
+
+| Priority | Runner | Config files checked |
+|----------|--------|---------------------|
+| 1 | Jest | `jest.config.{js,ts,mjs,cjs}` |
+| 2 | Vitest | `vitest.config.{js,ts,mjs,cjs}` |
+| 3 | Rstest | `rstest.config.{js,ts,mjs,cjs}` |
+| fallback | Vitest | (used when no config found) |
+
+### `typokit test`
+
+Run all tests (contract tests + integration tests) using the detected test runner.
+
+**Syntax**
+
+```bash
+typokit test [--runner <runner>]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--runner <runner>` | Override test runner detection (`jest`, `vitest`, or `rstest`) |
+| `--verbose`, `-v` | Show verbose test output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Auto-detects the test runner (or uses the `--runner` override)
+2. Checks if contract test stubs are stale — regenerates them if the schema has changed since the last build
+3. Spawns the test runner as a subprocess with the full test suite
+
+**Example**
+
+```bash
+typokit test
+```
+
+```
+● Detected runner: vitest
+● Checking contract tests...   up to date
+● Running tests...
+
+ ✓ __generated__/tests/getUsers.contract.test.ts (3 tests)
+ ✓ __generated__/tests/createUser.contract.test.ts (2 tests)
+ ✓ tests/integration/users.test.ts (5 tests)
+ ✓ tests/integration/auth.test.ts (4 tests)
+
+ Tests  14 passed (4 files)
+ Time   1.2s
+
+✔ All tests passed
+```
+
+With `--runner` override:
+
+```bash
+typokit test --runner jest
+```
+
+```
+● Using runner: jest
+● Checking contract tests...   regenerated (schema changed)
+● Running tests...
+
+PASS __generated__/tests/getUsers.contract.test.ts
+PASS __generated__/tests/createUser.contract.test.ts
+PASS tests/integration/users.test.ts
+PASS tests/integration/auth.test.ts
+
+Tests:  14 passed, 14 total
+Time:   2.1s
+
+✔ All tests passed
+```
+
+With `--json`:
+
+```bash
+typokit test --json
+```
+
+```json
+{
+  "success": true,
+  "runner": "vitest",
+  "passed": 14,
+  "failed": 0,
+  "duration": 1200,
+  "contractsRegenerated": false
+}
+```
+
+<Aside type="note">
+When contract tests are regenerated automatically, the output includes a note: `regenerated (schema changed)`. This means your route contracts changed since the last build and fresh test stubs were generated before running.
+</Aside>
+
+---
+
+### `typokit test:contracts`
+
+Run only the generated contract tests.
+
+**Syntax**
+
+```bash
+typokit test:contracts [--runner <runner>]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--runner <runner>` | Override test runner detection (`jest`, `vitest`, or `rstest`) |
+| `--verbose`, `-v` | Show verbose test output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Auto-detects the test runner (or uses the `--runner` override)
+2. Regenerates contract tests if schemas have changed
+3. Runs only the tests in `__generated__/tests/` using runner-specific path patterns
+
+Runner-specific patterns:
+
+| Runner | Pattern |
+|--------|---------|
+| Jest | `--testPathPattern __generated__/.*\.contract\.test` |
+| Vitest | `run __generated__/` |
+| Rstest | `run --testPathPattern __generated__/.*\.contract\.test` |
+
+**Example**
+
+```bash
+typokit test:contracts
+```
+
+```
+● Detected runner: vitest
+● Checking contract tests...   up to date
+● Running contract tests...
+
+ ✓ __generated__/tests/getUsers.contract.test.ts (3 tests)
+ ✓ __generated__/tests/createUser.contract.test.ts (2 tests)
+ ✓ __generated__/tests/getUser.contract.test.ts (2 tests)
+ ✓ __generated__/tests/updateUser.contract.test.ts (2 tests)
+ ✓ __generated__/tests/deleteUser.contract.test.ts (1 test)
+
+ Tests  10 passed (5 files)
+ Time   0.8s
+
+✔ Contract tests passed
+```
+
+<Aside type="tip">
+Contract tests validate that your API responses match the shapes defined in your route contracts. Run them after changing type definitions to catch schema mismatches early.
+</Aside>
+
+---
+
+### `typokit test:integration`
+
+Run integration tests with real services (database, external APIs).
+
+**Syntax**
+
+```bash
+typokit test:integration [--runner <runner>]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--runner <runner>` | Override test runner detection (`jest`, `vitest`, or `rstest`) |
+| `--verbose`, `-v` | Show verbose test output |
+| `--json` | Output result metadata as JSON |
+
+**What it does**
+
+1. Auto-detects the test runner (or uses the `--runner` override)
+2. Runs only the tests in the integration test directory using runner-specific path patterns
+
+Runner-specific patterns:
+
+| Runner | Pattern |
+|--------|---------|
+| Jest | `--testPathPattern integration` |
+| Vitest | `run --dir tests/integration` |
+| Rstest | `run --testPathPattern integration` |
+
+**Example**
+
+```bash
+typokit test:integration
+```
+
+```
+● Detected runner: vitest
+● Running integration tests...
+
+ ✓ tests/integration/users.test.ts (5 tests)
+ ✓ tests/integration/auth.test.ts (4 tests)
+ ✓ tests/integration/posts.test.ts (6 tests)
+
+ Tests  15 passed (3 files)
+ Time   3.4s
+
+✔ Integration tests passed
+```
+
+With `--runner` override:
+
+```bash
+typokit test:integration --runner jest
+```
+
+```
+● Using runner: jest
+● Running integration tests...
+
+PASS tests/integration/users.test.ts
+PASS tests/integration/auth.test.ts
+PASS tests/integration/posts.test.ts
+
+Tests:  15 passed, 15 total
+Time:   4.2s
+
+✔ Integration tests passed
+```
+
+<Aside type="caution">
+Integration tests connect to real services. Make sure your database and any required external services are running before executing this command. Database tests use isolated transactions that are automatically rolled back — no cleanup required.
+</Aside>
+
+---
+
+## See Also
+
+- [Scaffolding and Development](/typokit/cli-reference/scaffolding-dev/) — Project scaffolding and development server commands
+- [Inspect Commands](/typokit/cli-reference/inspect/) — Query framework state from the CLI
+- [Building Your First API](/typokit/guides/building-first-api/) — Step-by-step tutorial using generate and test commands
+- [Database Adapters](/typokit/core-concepts/database-adapters/) — How TypoKit interacts with your database
