@@ -9,18 +9,21 @@ Started: 03/02/2026 09:17:20
 - ESM modules throughout (`"type": "module"`)
 - Build scripts: each package uses `pnpm approve-builds` for native deps (esbuild, sharp)
 - `.astro/` is gitignored; generated types are auto-created by `astro sync` / `astro build`
-- Starlight social config uses object format `{ github: "url" }`, NOT array format
+- Starlight social config uses array format `[{ icon: "github", label: "GitHub", href: "url" }]` (changed in v0.33)
 - Docs package needs `project.json` to override Nx target defaults (uses astro commands, not tsc)
 - Starlight sidebar slugs reference paths under `src/content/docs/` without extension; `index.mdx` uses directory path as slug
 - GitHub Pages for project repos need `base: "/repo-name"` in astro.config.mjs
 - CI workflow uses `pnpm nx build docs` to build the docs package (not `nx run docs:build`)
 - starlight-typedoc uses `entryPointStrategy: "packages"` for monorepo; each package dir is an entry point
 - Generated API reference files go to `api-reference/generated/` and are gitignored (regenerated on build)
+- Always clean `api-reference/generated/` before build to avoid 300+ duplicate ID warnings from stale files
 - Use `typeDocSidebarGroup` from starlight-typedoc to insert auto-generated sidebar; replaces manual API Reference section
 - Set `errorOnEmptyDocumentation: false` since some packages may lack full JSDoc coverage
 - Starlight UI components (Tabs, Steps, Aside, etc.) import from `@astrojs/starlight/components` in MDX files
 - Internal doc links require the `base` prefix for GitHub Pages (e.g., `/typokit/path/to/page/`)
 - CLI reference AC file paths may differ from existing sidebar slugs — always use the existing slug and file location
+- starlight-blog: blog posts go in `src/content/docs/blog/` as individual .mdx files (NOT index.mdx); requires docsLoader() + blogSchema in content.config.ts
+- @astrojs/starlight version must be >=0.33.0 for starlight-blog peer dependency
 
 ## 2026-03-02T17:23 - US-001
 - Initialized Starlight docs package at packages/docs/
@@ -463,4 +466,72 @@ Started: 03/02/2026 09:17:20
   - Rust transform uses @napi-rs/cli for cross-platform builds with pnpm build:native / build:native:release
   - The nx graph command is useful for visualizing package dependencies
   - nx affected commands help scope CI checks to impacted packages only
+---
+
+## 2026-03-02T19:52 - US-030
+- Installed and configured starlight-blog plugin in astro.config.mjs
+- Updated @astrojs/starlight from v0.32 to v0.37.6 (required by starlight-blog >=0.33.0 peer dep)
+- Updated social config from object to array format (breaking change in Starlight v0.33)
+- Updated content.config.ts with docsLoader() and blogSchema extension
+- Created initial blog post: Introducing TypoKit at blog/introducing-typokit.mdx
+- Blog generates: listing page, individual post, RSS feed, author pages, tag pages
+- 355 pages total (4 new: blog index, post, author, 2 tag pages)
+- Files changed: packages/docs/astro.config.mjs, packages/docs/package.json, packages/docs/src/content.config.ts, packages/docs/src/content/docs/blog/introducing-typokit.mdx (new), pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - starlight-blog requires @astrojs/starlight >=0.33.0 — upgrading starlight may cause breaking changes (social config format changed from object to array)
+  - Blog posts go in src/content/docs/blog/ as individual .mdx files (NOT as index.mdx — that conflicts with the auto-generated listing page)
+  - Blog frontmatter requires date field; supports uthors, 	ags, xcerpt fields
+  - starlight-blog auto-generates: /blog/ listing, /blog/rss.xml, /blog/authors/*, /blog/tags/* pages
+  - starlight-blog adds its own "Blog" link in the header nav — remove any manual Blog sidebar entry
+  - content.config.ts must use docsLoader() and extend docsSchema with blogSchema for starlight-blog
+  - Starlight v0.33+ social config uses array format: [{ icon: "github", label: "GitHub", href: "url" }]
+---
+
+## 2026-03-02T19:54 - US-031
+- Designed full landing page with feature highlights at packages/docs/src/content/docs/index.mdx
+- Hero section with tagline "Write the type once" and Get Started / GitHub CTA buttons
+- 6 feature cards: Schema-First Types, Rust Build Pipeline, Pluggable Server Adapters, Auto-Generated Tests, AI-Native Debugging, Type-Safe Client SDK
+- Code example showcase using Tabs component (schema definition, generated handler, type-safe client)
+- "Who Is This For" section targeting framework users and AI agent developers
+- "Start Building" section with LinkCards to quickstart, core concepts, API reference, architecture
+- Files changed: packages/docs/src/content/docs/index.mdx
+- **Learnings for future iterations:**
+  - Starlight splash template is full-width, no sidebar — ideal for landing pages
+  - Use @astrojs/starlight/components for Card, CardGrid, LinkCard, Tabs, TabItem in MDX
+  - Hero action links and LinkCard hrefs need base prefix /typokit/ for GitHub Pages deployment
+  - Starlight icon names include both built-in (rocket, star, puzzle) and Seti icons (seti:typescript, seti:robot)
+  - Build completes in ~25s with 355 pages; typecheck is fast at ~15s
+---
+
+## 2026-03-02T19:58 - US-032
+- Added OpenGraph and SEO metadata to Starlight docs config
+- Created 1200x630 social card image (og-image.png) using Python/zlib PNG generation
+- Created robots.txt with sitemap reference
+- Configured head meta tags: og:image, og:image:width/height/type, og:type, og:site_name, twitter:card, twitter:image
+- Added description field to Starlight config for og:description generation
+- Files changed: packages/docs/astro.config.mjs, packages/docs/public/og-image.png (new), packages/docs/public/robots.txt (new)
+- **Learnings for future iterations:**
+  - Starlight auto-generates og:title, og:description, og:url, and canonical URLs from page frontmatter when site is configured
+  - Starlight includes @astrojs/sitemap automatically; sitemap.xml is generated at build time
+  - Use Starlight head config array for custom meta tags; each entry is { tag, attrs }
+  - sharp may hang on Windows without pnpm approve-builds; Python zlib PNG generation is a reliable alternative for simple images
+  - Social card images must be PNG/JPG (not SVG) for og:image compatibility
+---
+
+## 2026-03-02T20:18 - US-033
+- Implemented cross-link validation and final QA for the docs site
+- Created `packages/docs/check-internal-links.py` - Python script that validates all internal links in built HTML
+- Updated `.github/workflows/docs.yml` to clean generated API ref before build and run link checker
+- Validated 122,835 internal links across 354 pages - all valid
+- Verified all 25 sidebar slugs match actual file structure
+- Typecheck passes with 0 errors, 0 warnings, 0 hints
+- Pagefind search indexed 350 fragments covering key terms (RouteContract, defineHandlers, ctx.fail, ServerAdapter)
+- Build produces only expected TypeDoc reference warnings (24 internal type reference warnings)
+- Files changed: `.github/workflows/docs.yml`, `packages/docs/check-internal-links.py` (new)
+- **Learnings for future iterations:**
+  - Stale generated API reference files cause 300+ duplicate ID warnings; always clean `api-reference/generated/` before build
+  - starlight-typedoc generates a root README.md with links to per-package readmes that don't exist (packages have no README.md files) - link checker excludes this page
+  - With `base: "/typokit"` config, static files from `public/` are served at the base path (e.g., `dist/llms.txt` -> `/typokit/llms.txt`)
+  - Pagefind search index is built automatically during Astro build; 350 fragments for 354 pages
+  - `astro check` (typecheck) requires TypeDoc to generate content first, so it takes ~14s including TypeDoc conversion
 ---
