@@ -52,3 +52,15 @@ declare module "url" {
 interface ImportMeta {
   url: string;
 }
+
+declare module "http" {
+  interface IncomingMessage {
+    statusCode?: number;
+    on(event: string, cb: (data?: unknown) => void): void;
+    setEncoding(enc: string): void;
+  }
+  interface ClientRequest {
+    on(event: string, cb: (err: Error) => void): void;
+  }
+  export function get(url: string, cb: (res: IncomingMessage) => void): ClientRequest;
+}

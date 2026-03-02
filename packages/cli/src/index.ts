@@ -8,6 +8,8 @@ export { executeBuild } from "./commands/build.js";
 export type { BuildCommandOptions, BuildError } from "./commands/build.js";
 export { executeDev, createDevState, detectChangedFiles, updateTrackedFiles, buildDepGraph, getAffectedOutputs, isCacheValid, updateCache } from "./commands/dev.js";
 export type { DevCommandOptions, DevServerState } from "./commands/dev.js";
+export { executeInspect, inspectRoutes, inspectRoute, inspectMiddleware, inspectDependencies, inspectSchema, inspectErrors, inspectPerformance, inspectServer, inspectBuildPipeline } from "./commands/inspect.js";
+export type { InspectOptions, InspectResult } from "./commands/inspect.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -55,7 +57,7 @@ export async function run(argv: string[]): Promise<number> {
     resolve: (...args: string[]) => string;
   };
 
-  const { command, flags } = parseArgs(argv);
+  const { command, flags, positional } = parseArgs(argv);
   const verbose = flags["verbose"] === true || flags["v"] === true;
 
   const { createLogger: createLog } = await import("./logger.js");
@@ -65,12 +67,15 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("Usage: typokit <command> [options]");
     logger.info("");
     logger.info("Commands:");
-    logger.info("  build    Run the full build pipeline");
-    logger.info("  dev      Start dev server with watch mode");
+    logger.info("  build              Run the full build pipeline");
+    logger.info("  dev                Start dev server with watch mode");
+    logger.info("  inspect <sub>      Inspect framework state (routes, schema, etc.)");
     logger.info("");
     logger.info("Options:");
     logger.info("  --verbose, -v         Show detailed output");
     logger.info("  --root <dir>          Project root directory (default: cwd)");
+    logger.info("  --json                Output as JSON (for inspect commands)");
+    logger.info("  --format json         Alias for --json");
     logger.info("  --debug-port <port>   Debug sidecar port (default: 9800)");
     return 0;
   }
@@ -131,6 +136,33 @@ export async function run(argv: string[]): Promise<number> {
     // In a real scenario, we'd await a signal here
     // For now, return 0 to indicate successful start
     return 0;
+  }
+
+  if (command === "inspect") {
+    const g = globalThis as Record<string, unknown>;
+    const proc = g["process"] as { cwd(): string } | undefined;
+    const cwd = proc?.cwd() ?? ".";
+    const rootDir = typeof flags["root"] === "string"
+      ? resolve(flags["root"])
+      : cwd;
+
+    const { loadConfig: loadConf } = await import("./config.js");
+    const config = await loadConf(rootDir);
+
+    const { executeInspect: execInspect } = await import("./commands/inspect.js");
+    const subcommand = positional[0] ?? "";
+    const subPositional = positional.slice(1);
+
+    const result = await execInspect({
+      rootDir,
+      config,
+      logger,
+      subcommand,
+      positional: subPositional,
+      flags,
+    });
+
+    return result.success ? 0 : 1;
   }
 
   logger.error(`Unknown command: ${command}`);
