@@ -1,10 +1,10 @@
 // @typokit/core — App Factory (createApp)
 
 import type { ServerHandle, Logger, TypoKitRequest, RequestContext, TypoKitResponse } from "@typokit/types";
-import { AppError } from "@typokit/errors";
 import type { ServerAdapter } from "./adapters/server.js";
 import type { TypoKitPlugin, AppInstance } from "./plugin.js";
 import type { MiddlewareEntry } from "./middleware.js";
+import { createErrorMiddleware } from "./error-middleware.js";
 
 // ─── Route Group ─────────────────────────────────────────────
 
@@ -43,42 +43,6 @@ export interface TypoKitApp {
     ctx: RequestContext,
     next: () => Promise<TypoKitResponse>,
   ) => Promise<TypoKitResponse>;
-}
-
-// ─── Error Middleware ────────────────────────────────────────
-
-/**
- * Built-in error middleware — catches AppError and serializes to ErrorResponse.
- * Unknown errors become 500 Internal Server Error.
- */
-export function createErrorMiddleware(): (
-  req: TypoKitRequest,
-  ctx: RequestContext,
-  next: () => Promise<TypoKitResponse>,
-) => Promise<TypoKitResponse> {
-  return async (_req, _ctx, next) => {
-    try {
-      return await next();
-    } catch (error: unknown) {
-      if (error instanceof AppError) {
-        return {
-          status: error.status,
-          headers: { "content-type": "application/json" },
-          body: error.toJSON(),
-        };
-      }
-      return {
-        status: 500,
-        headers: { "content-type": "application/json" },
-        body: {
-          error: {
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Internal Server Error",
-          },
-        },
-      };
-    }
-  };
 }
 
 // ─── createApp Factory ──────────────────────────────────────

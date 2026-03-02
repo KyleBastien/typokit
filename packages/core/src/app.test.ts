@@ -5,7 +5,8 @@ import type { TypoKitRequest, TypoKitResponse, RequestContext, ErrorResponse } f
 import { NotFoundError } from "@typokit/errors";
 import type { ServerAdapter } from "./adapters/server.js";
 import type { TypoKitPlugin, AppInstance } from "./plugin.js";
-import { createApp, createErrorMiddleware } from "./app.js";
+import { createApp } from "./app.js";
+import { createErrorMiddleware } from "./error-middleware.js";
 
 // ─── Helpers ─────────────────────────────────────────────────
 

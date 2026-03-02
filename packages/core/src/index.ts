@@ -34,5 +34,8 @@ export {
   type CreateAppOptions,
   type TypoKitApp,
   createApp,
-  createErrorMiddleware,
 } from "./app.js";
+export {
+  type ErrorMiddlewareOptions,
+  createErrorMiddleware,
+} from "./error-middleware.js";
