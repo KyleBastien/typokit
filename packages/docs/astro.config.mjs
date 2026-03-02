@@ -9,8 +9,19 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "TypoKit",
+      description: "Schema-first, type-safe API framework for TypeScript. Build robust APIs with full type safety from schema to client.",
       social: [
         { icon: "github", label: "GitHub", href: "https://github.com/typokit/typokit" },
+      ],
+      head: [
+        { tag: "meta", attrs: { property: "og:image", content: "https://kylebastien.github.io/typokit/og-image.png" } },
+        { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+        { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+        { tag: "meta", attrs: { property: "og:image:type", content: "image/png" } },
+        { tag: "meta", attrs: { property: "og:type", content: "website" } },
+        { tag: "meta", attrs: { property: "og:site_name", content: "TypoKit Documentation" } },
+        { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
+        { tag: "meta", attrs: { name: "twitter:image", content: "https://kylebastien.github.io/typokit/og-image.png" } },
       ],
       plugins: [
         starlightBlog({

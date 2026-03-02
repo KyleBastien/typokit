@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kylebastien.github.io/typokit/sitemap-index.xml
