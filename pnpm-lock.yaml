@@ -30,7 +30,14 @@ importers:
         specifier: ^8.0.0
         version: 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
 
-  packages/cli: {}
+  packages/cli:
+    dependencies:
+      '@typokit/transform-native':
+        specifier: workspace:*
+        version: link:../transform-native
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/client: {}
 

@@ -12,6 +12,9 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "typokit": "./dist/bin.js"
+  },
   "version": "0.1.0",
   "type": "module",
   "files": [
@@ -20,5 +23,9 @@
   ],
   "private": true,
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/types": "workspace:*",
+    "@typokit/transform-native": "workspace:*"
+  }
 }
