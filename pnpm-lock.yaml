@@ -32,6 +32,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
       '@typokit/transform-native':
         specifier: workspace:*
         version: link:../transform-native

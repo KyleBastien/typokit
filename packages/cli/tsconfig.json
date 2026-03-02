@@ -16,6 +16,7 @@
   ],
   "references": [
     { "path": "../types" },
+    { "path": "../core" },
     { "path": "../transform-native" }
   ]
 }

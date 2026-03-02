@@ -2,7 +2,8 @@
 
 import type { CliLogger } from "../logger.js";
 import type { TypoKitConfig } from "../config.js";
-import type { BuildResult, GeneratedOutput } from "@typokit/types";
+import type { BuildResult, BuildContext, GeneratedOutput } from "@typokit/types";
+import type { TypoKitPlugin, BuildPipelineInstance } from "@typokit/core";
 
 export interface BuildCommandOptions {
   /** Project root directory */
@@ -13,6 +14,8 @@ export interface BuildCommandOptions {
   logger: CliLogger;
   /** Whether verbose mode is enabled */
   verbose: boolean;
+  /** Plugins to register with the build pipeline */
+  plugins?: TypoKitPlugin[];
 }
 
 /** Structured build error with source context */
@@ -224,17 +227,46 @@ async function runCompiler(
  * Execute the build command.
  *
  * 1. Resolve type and route files from config patterns
- * 2. Run the Rust native transform pipeline (buildPipeline)
- * 3. Run the TypeScript compiler
- * 4. Return structured BuildResult
+ * 2. Create build pipeline and let plugins register taps via onBuild()
+ * 3. Fire beforeTransform hook
+ * 4. Run the Rust native transform pipeline (buildPipeline)
+ * 5. Fire afterTypeParse, afterValidators, afterRouteTable hooks
+ * 6. Fire emit hook (plugins can add outputs)
+ * 7. Run the TypeScript compiler
+ * 8. Fire done hook
+ * 9. Return structured BuildResult
  */
 export async function executeBuild(
   options: BuildCommandOptions,
-): Promise<BuildResult> {
+): Promise<BuildResult & { pipeline?: BuildPipelineInstance }> {
+  const { createBuildPipeline } = await import(
+    /* @vite-ignore */ "@typokit/core"
+  ) as {
+    createBuildPipeline: () => BuildPipelineInstance;
+  };
+
   const startTime = Date.now();
-  const { config, rootDir, logger, verbose } = options;
+  const { config, rootDir, logger, verbose, plugins = [] } = options;
   const errors: string[] = [];
   const outputs: GeneratedOutput[] = [];
+
+  // Create build pipeline and let plugins register their taps
+  const pipeline = createBuildPipeline();
+  for (const plugin of plugins) {
+    if (plugin.onBuild) {
+      plugin.onBuild(pipeline);
+      if (verbose) {
+        logger.verbose(`Plugin "${plugin.name}" registered build hooks`);
+      }
+    }
+  }
+
+  const buildCtx: BuildContext = {
+    rootDir,
+    outDir: config.outputDir,
+    dev: false,
+    outputs,
+  };
 
   // Step 1: Resolve file patterns
   logger.step("build", "Resolving source files...");
@@ -248,13 +280,16 @@ export async function executeBuild(
     for (const f of routeFiles) logger.verbose(`  ${f}`);
   }
 
-  // Step 2: Run native transform pipeline
+  // Step 2: Fire beforeTransform hook
+  await pipeline.hooks.beforeTransform.call(buildCtx);
+
+  // Step 3: Run native transform pipeline
 
   if (typeFiles.length > 0 || routeFiles.length > 0) {
     logger.step("transform", "Running native transform pipeline...");
 
     try {
-      const { buildPipeline } = await import(
+      const { buildPipeline: nativeBuildPipeline } = await import(
         /* @vite-ignore */ "@typokit/transform-native"
       ) as {
         buildPipeline: (opts: {
@@ -268,7 +303,7 @@ export async function executeBuild(
         }>;
       };
 
-      const result = await buildPipeline({
+      const result = await nativeBuildPipeline({
         typeFiles,
         routeFiles,
         outputDir: config.outputDir,
@@ -287,6 +322,19 @@ export async function executeBuild(
         logger.verbose(`Content hash: ${result.contentHash}`);
         for (const f of result.filesWritten) logger.verbose(`  wrote: ${f}`);
       }
+
+      // Fire afterTypeParse hook (types extracted during transform)
+      await pipeline.hooks.afterTypeParse.call({}, buildCtx);
+
+      // Fire afterValidators hook
+      await pipeline.hooks.afterValidators.call(outputs, buildCtx);
+
+      // Fire afterRouteTable hook
+      await pipeline.hooks.afterRouteTable.call({
+        segment: "",
+        children: {},
+        handlers: {},
+      }, buildCtx);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`Transform failed: ${message}`);
@@ -302,7 +350,10 @@ export async function executeBuild(
     logger.info("No type or route files found — skipping transform");
   }
 
-  // Step 3: Run TypeScript compiler
+  // Step 4: Fire emit hook — plugins can add their own outputs
+  await pipeline.hooks.emit.call(outputs, buildCtx);
+
+  // Step 5: Run TypeScript compiler
   logger.step("compile", "Compiling TypeScript...");
   const compileResult = await runCompiler(options);
 
@@ -329,10 +380,18 @@ export async function executeBuild(
   const duration = Date.now() - startTime;
   logger.success(`Build finished in ${duration}ms`);
 
-  return {
+  const buildResult: BuildResult = {
     success: true,
     outputs,
     duration,
     errors: [],
+  };
+
+  // Step 6: Fire done hook
+  await pipeline.hooks.done.call(buildResult);
+
+  return {
+    ...buildResult,
+    pipeline,
   };
 }

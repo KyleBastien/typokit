@@ -15,6 +15,16 @@ export {
   type TypoKitPlugin,
 } from "./plugin.js";
 export {
+  AsyncSeriesHookImpl,
+  createBuildPipeline,
+  getPipelineTaps,
+  BUILD_HOOK_PHASES,
+  type BuildPipelineInstance,
+  type TapEntry,
+  type TapInfo,
+  type BuildHookPhase,
+} from "./hooks.js";
+export {
   type MiddlewareInput,
   type Middleware,
   type MiddlewareEntry,

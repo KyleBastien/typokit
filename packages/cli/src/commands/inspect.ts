@@ -557,10 +557,28 @@ export async function inspectBuildPipeline(rootDir: string, config: Required<Typ
   const cacheHashPath = join(rootDir, config.outputDir, ".cache-hash");
   const lastBuild = existsSync(cacheHashPath) ? "cached" : "no build found";
 
+  // Try to load plugins and show their registered taps
+  let registeredTaps: Array<{ hookName: string; tapName: string; order: number }> = [];
+  try {
+    const { createBuildPipeline, getPipelineTaps } = await import(
+      /* @vite-ignore */ "@typokit/core"
+    ) as {
+      createBuildPipeline: () => {
+        hooks: Record<string, { tap(name: string, fn: (...args: unknown[]) => void): void }>;
+      };
+      getPipelineTaps: (pipeline: unknown) => Array<{ hookName: string; tapName: string; order: number }>;
+    };
+    const pipeline = createBuildPipeline();
+    registeredTaps = getPipelineTaps(pipeline);
+  } catch {
+    // Core not available — skip tap introspection
+  }
+
   return {
     success: true,
     data: {
       hooks,
+      registeredTaps,
       lastBuildStatus: lastBuild,
       outputDir: config.outputDir,
     },
