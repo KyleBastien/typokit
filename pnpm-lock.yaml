@@ -37,6 +37,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@typokit/errors':
+        specifier: workspace:*
+        version: link:../errors
       '@typokit/types':
         specifier: workspace:*
         version: link:../types

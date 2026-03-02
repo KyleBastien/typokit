@@ -15,6 +15,7 @@
     "src/**/*.ts"
   ],
   "references": [
+    { "path": "../errors" },
     { "path": "../types" }
   ]
 }
