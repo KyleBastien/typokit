@@ -99,7 +99,21 @@ importers:
 
   packages/server-hono: {}
 
-  packages/server-native: {}
+  packages/server-native:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/platform-node':
+        specifier: workspace:*
+        version: link:../platform-node
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.13
 
   packages/testing: {}
 

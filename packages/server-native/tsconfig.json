@@ -13,5 +13,10 @@
   },
   "include": [
     "src/**/*.ts"
+  ],
+  "references": [
+    { "path": "../types" },
+    { "path": "../core" },
+    { "path": "../platform-node" }
   ]
 }
