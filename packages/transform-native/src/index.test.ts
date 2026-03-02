@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@rstest/core";
-import { parseAndExtractTypes } from "./index.js";
+import { parseAndExtractTypes, compileRoutes, generateOpenApi } from "./index.js";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
@@ -209,5 +209,138 @@ interface Task {
     await expect(
       parseAndExtractTypes(["/nonexistent/path/test.ts"])
     ).rejects.toThrow();
+  });
+});
+
+describe("compileRoutes", () => {
+  it("should compile route contracts into a radix tree TypeScript file", async () => {
+    const source = `
+interface UsersRoutes {
+  "GET /users": RouteContract<void, void, void, void>;
+  "POST /users": RouteContract<void, void, void, void>;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, void>;
+}
+interface HealthRoutes {
+  "GET /health": RouteContract<void, void, void, void>;
+}
+`;
+    const filePath = createTempTsFile(source);
+    try {
+      const result = await compileRoutes([filePath]);
+
+      expect(result).toContain("AUTO-GENERATED");
+      expect(result).toContain("CompiledRouteTable");
+      expect(result).toContain("routeTree");
+      expect(result).toContain("users");
+      expect(result).toContain("health");
+      expect(result).toContain("paramName");
+      expect(result).toContain("id");
+    } finally {
+      cleanupFile(filePath);
+    }
+  });
+
+  it("should handle wildcard routes", async () => {
+    const source = `
+interface FileRoutes {
+  "GET /files/*path": RouteContract<void, void, void, void>;
+}
+`;
+    const filePath = createTempTsFile(source);
+    try {
+      const result = await compileRoutes([filePath]);
+      expect(result).toContain("wildcardChild");
+      expect(result).toContain("path");
+    } finally {
+      cleanupFile(filePath);
+    }
+  });
+
+  it("should throw for nonexistent files", async () => {
+    await expect(
+      compileRoutes(["/nonexistent/path/test.ts"])
+    ).rejects.toThrow();
+  });
+});
+
+describe("generateOpenApi", () => {
+  it("should generate a valid OpenAPI 3.1 spec", async () => {
+    const routeSource = `
+interface UsersRoutes {
+  "GET /users": RouteContract<void, void, void, void>;
+  "POST /users": RouteContract<void, void, void, void>;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, void>;
+}
+`;
+    const routeFile = createTempTsFile(routeSource);
+    try {
+      const result = await generateOpenApi([routeFile], []);
+      const spec = JSON.parse(result);
+
+      expect(spec.openapi).toBe("3.1.0");
+      expect(spec.info.title).toBeDefined();
+      expect(spec.info.version).toBeDefined();
+      expect(spec.paths["/users"]).toBeDefined();
+      expect(spec.paths["/users"]["get"]).toBeDefined();
+      expect(spec.paths["/users"]["post"]).toBeDefined();
+      expect(spec.paths["/users/{id}"]).toBeDefined();
+      expect(spec.paths["/users/{id}"]["get"]).toBeDefined();
+    } finally {
+      cleanupFile(routeFile);
+    }
+  });
+
+  it("should include path parameters in the spec", async () => {
+    const routeSource = `
+interface UsersRoutes {
+  "GET /users/:id": RouteContract<{ id: string }, void, void, void>;
+}
+`;
+    const routeFile = createTempTsFile(routeSource);
+    try {
+      const result = await generateOpenApi([routeFile], []);
+      const spec = JSON.parse(result);
+
+      const params = spec.paths["/users/{id}"]["get"].parameters;
+      expect(params).toBeDefined();
+      expect(params.length).toBeGreaterThanOrEqual(1);
+      const idParam = params.find((p: Record<string, unknown>) => p.name === "id");
+      expect(idParam).toBeDefined();
+      expect(idParam.in).toBe("path");
+      expect(idParam.required).toBe(true);
+    } finally {
+      cleanupFile(routeFile);
+    }
+  });
+
+  it("should generate component schemas from type files", async () => {
+    const routeSource = `
+interface UsersRoutes {
+  "GET /users": RouteContract<void, void, void, PublicUser>;
+}
+`;
+    const typeSource = `
+interface PublicUser {
+  id: string;
+  name: string;
+  email: string;
+}
+`;
+    const routeFile = createTempTsFile(routeSource);
+    const typeFile = createTempTsFile(typeSource);
+    try {
+      const result = await generateOpenApi([routeFile], [typeFile]);
+      const spec = JSON.parse(result);
+
+      expect(spec.components).toBeDefined();
+      expect(spec.components.schemas).toBeDefined();
+      expect(spec.components.schemas["PublicUser"]).toBeDefined();
+      expect(spec.components.schemas["PublicUser"].type).toBe("object");
+      expect(spec.components.schemas["PublicUser"].properties.id).toBeDefined();
+      expect(spec.components.schemas["PublicUser"].properties.name).toBeDefined();
+    } finally {
+      cleanupFile(routeFile);
+      cleanupFile(typeFile);
+    }
   });
 });

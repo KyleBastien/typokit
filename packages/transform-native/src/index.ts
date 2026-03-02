@@ -15,6 +15,11 @@ interface NativeBindings {
   parseAndExtractTypes(
     filePaths: string[]
   ): Record<string, JsTypeMetadata>;
+  compileRoutes(filePaths: string[]): string;
+  generateOpenApi(
+    routeFilePaths: string[],
+    typeFilePaths: string[]
+  ): string;
 }
 
 // Load the platform-specific native addon
@@ -108,5 +113,36 @@ export async function parseAndExtractTypes(
     }
   }
   return result;
+}
+
+/**
+ * Compile route contracts from TypeScript files into a radix tree.
+ *
+ * Parses interfaces with route contract keys (e.g., "GET /users") and
+ * builds a compiled radix tree serialized as TypeScript source code.
+ *
+ * @param filePaths - Array of file paths containing route contract interfaces
+ * @returns TypeScript source code for the compiled route table
+ */
+export async function compileRoutes(
+  filePaths: string[]
+): Promise<string> {
+  const native = await getNative();
+  return native.compileRoutes(filePaths);
+}
+
+/**
+ * Generate an OpenAPI 3.1.0 specification from route contracts and type definitions.
+ *
+ * @param routeFilePaths - Array of file paths containing route contract interfaces
+ * @param typeFilePaths - Array of file paths containing type definitions
+ * @returns OpenAPI 3.1.0 specification as a JSON string
+ */
+export async function generateOpenApi(
+  routeFilePaths: string[],
+  typeFilePaths: string[],
+): Promise<string> {
+  const native = await getNative();
+  return native.generateOpenApi(routeFilePaths, typeFilePaths);
 }
 
