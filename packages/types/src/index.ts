@@ -170,7 +170,9 @@ export interface RequestContext {
 /** Metadata about a single extracted type */
 export interface TypeMetadata {
   name: string;
-  properties: Record<string, { type: string; optional: boolean }>;
+  properties: Record<string, { type: string; optional: boolean; jsdoc?: Record<string, string> }>;
+  /** Interface-level JSDoc tags (e.g. @table) */
+  jsdoc?: Record<string, string>;
 }
 
 /** Maps type names to their extracted metadata */
