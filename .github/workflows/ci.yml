@@ -39,3 +39,43 @@ jobs:
 
       - name: Test
         run: pnpm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: typokit
+          POSTGRES_PASSWORD: typokit
+          POSTGRES_DB: typokit_e2e
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm run build
+
+      - name: Run E2E tests
+        env:
+          DATABASE_URL: postgresql://typokit:typokit@localhost:5432/typokit_e2e
+        run: pnpm --filter @typokit/example-todo-server run test:e2e

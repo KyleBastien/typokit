@@ -11,10 +11,14 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "test": "rstest run --passWithNoTests",
     "test:contracts": "rstest run --passWithNoTests src/__generated__/",
+    "test:e2e": "rstest run src/e2e.test.ts",
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -29,8 +33,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.18.0",
+    "@typokit/platform-node": "workspace:*",
     "@typokit/server-native": "workspace:*",
     "@typokit/testing": "workspace:*",
-    "@typokit/platform-node": "workspace:*"
+    "pg": "^8.19.0"
   }
 }
