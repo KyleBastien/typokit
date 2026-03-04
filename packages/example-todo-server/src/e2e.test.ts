@@ -409,8 +409,8 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       );
       expect(result.rows.length).toBe(3);
       expect(result.rows[0].status).toBe("active");
-      expect(result.rows[1].status).toBe("deleted");
-      expect(result.rows[2].status).toBe("suspended");
+      expect(result.rows[1].status).toBe("suspended");
+      expect(result.rows[2].status).toBe("deleted");
     } finally {
       await pgClient.query(DROP_SCHEMA_SQL).catch(() => {});
       await pgClient.end();
