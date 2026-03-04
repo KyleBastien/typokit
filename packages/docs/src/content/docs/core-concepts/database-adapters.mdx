@@ -5,7 +5,7 @@ description: How TypoKit generates database-compatible type definitions from you
 
 import { Aside } from '@astrojs/starlight/components';
 
-TypoKit is **not** an ORM. It doesn't manage connections, build queries, or abstract SQL. Instead, it provides a thin adapter layer that **generates** database-compatible type definitions from your `@app/schema` types — and gets out of the way.
+TypoKit is **not** an ORM. It doesn't manage connections, build queries, or abstract SQL. Instead, it provides a thin adapter layer that **generates** database-compatible type definitions from your `types.ts` types — and gets out of the way.
 
 Your database tool owns connections, queries, transactions, and pooling. TypoKit owns the schema-to-migration pipeline.
 
@@ -13,14 +13,14 @@ Your database tool owns connections, queries, transactions, and pooling. TypoKit
 
 Traditional ORMs couple your types to their query builder. TypoKit takes a different approach:
 
-1. You define types once in `@app/schema` using JSDoc annotations
+1. You define types once in `types.ts` using JSDoc annotations
 2. The database adapter **generates** schema artifacts for your chosen tool
 3. You use your tool's native API with full type safety
 
 This means you get the productivity of schema generation with the power and flexibility of your preferred database library — no magic, no hidden SQL, no leaky abstractions.
 
 <Aside type="tip">
-Because TypoKit only generates types and schemas, you can switch database tools (e.g., Drizzle → Kysely) by swapping the adapter and re-running the build. Your `@app/schema` types don't change.
+Because TypoKit only generates types and schemas, you can switch database tools (e.g., Drizzle → Kysely) by swapping the adapter and re-running the build. Your `types.ts` types don't change.
 </Aside>
 
 ## The DatabaseAdapter Interface
@@ -74,7 +74,7 @@ All four adapters support both **PostgreSQL** and **SQLite** dialects.
 
 ## How Type Metadata Flows
 
-Every adapter receives the same input — a `SchemaTypeMap` built from your `@app/schema` types. JSDoc tags on your types drive the database schema generation:
+Every adapter receives the same input — a `SchemaTypeMap` built from your `types.ts` types. JSDoc tags on your types drive the database schema generation:
 
 ```typescript
 /**
@@ -296,7 +296,7 @@ Understanding what TypoKit owns versus what your database tool owns is key:
 
 | Concern | Owner | Details |
 |---------|-------|---------|
-| Type definitions | **TypoKit** | `@app/schema` with JSDoc annotations |
+| Type definitions | **TypoKit** | `types.ts` with JSDoc annotations |
 | Schema generation | **TypoKit** | Adapter generates tool-specific artifacts |
 | Migration drafts | **TypoKit** | Diffs types vs DB state, produces SQL |
 | Destructive detection | **TypoKit** | Flags drops/changes for review |

@@ -39,20 +39,35 @@ Go from zero to a running TypoKit API in under 5 minutes. By the end of this gui
    <Tabs>
      <TabItem label="pnpm">
        ```bash
-       pnpm dlx @typokit/cli scaffold init my-app --server fastify --db drizzle
+       pnpm dlx @typokit/cli scaffold init my-app --server native --db raw
        ```
      </TabItem>
      <TabItem label="npm">
        ```bash
-       npx @typokit/cli scaffold init my-app --server fastify --db drizzle
+       npx @typokit/cli scaffold init my-app --server native --db raw
        ```
      </TabItem>
      <TabItem label="yarn">
        ```bash
-       yarn dlx @typokit/cli scaffold init my-app --server fastify --db drizzle
+       yarn dlx @typokit/cli scaffold init my-app --server native --db raw
        ```
      </TabItem>
    </Tabs>
+
+   <Aside>
+     **`--server`** — Choose your HTTP server adapter:
+     - `native` — Built-in Node.js HTTP server (zero dependencies, recommended for getting started)
+     - `fastify` — [Fastify](https://fastify.dev/) adapter for production workloads
+     - `hono` — [Hono](https://hono.dev/) adapter for edge and multi-runtime environments
+     - `express` — [Express](https://expressjs.com/) adapter for existing Express ecosystems
+
+     **`--db`** — Choose your database strategy:
+     - `raw` — Plain SQL queries via `@typokit/db-raw` (no ORM overhead, full control)
+     - `drizzle` — [Drizzle ORM](https://orm.drizzle.team/) for type-safe query building
+     - `kysely` — [Kysely](https://kysely.dev/) for a lightweight type-safe SQL query builder
+     - `prisma` — [Prisma](https://www.prisma.io/) for a full-featured ORM with migrations and studio
+     - `none` — No database setup (add your own later)
+   </Aside>
 
    You should see output like:
 
@@ -82,15 +97,9 @@ Go from zero to a running TypoKit API in under 5 minutes. By the end of this gui
    ├── src/
    │   ├── app.ts               # App factory — registers routes and middleware
    │   ├── types.ts              # Your schema type definitions
-   │   ├── routes/
-   │   │   └── users/
-   │   │       ├── contracts.ts  # RouteContract definitions
-   │   │       ├── handlers.ts   # Handler implementations
-   │   │       └── middleware.ts  # Route-specific middleware
-   │   ├── middleware/
-   │   │   └── require-auth.ts   # Global middleware
-   │   └── services/
-   │       └── user-service.ts   # Business logic layer
+   │   ├── routes/               # Route modules (you'll add these next)
+   │   ├── middleware/            # Global middleware
+   │   └── services/             # Business logic layer
    ├── package.json
    ├── tsconfig.json
    └── .typokit/                 # Auto-generated (validators, routes, schemas)
@@ -137,7 +146,7 @@ Go from zero to a running TypoKit API in under 5 minutes. By the end of this gui
    ```typescript
    // src/routes/todos/contracts.ts
    import type { RouteContract } from "@typokit/types";
-   import type { Todo, CreateTodoInput } from "../../types.js";
+   import type { Todo, CreateTodoInput } from "../../types.ts";
 
    export interface TodoRoutes {
      "GET /todos": RouteContract<void, void, void, Todo[]>;
@@ -149,15 +158,16 @@ Go from zero to a running TypoKit API in under 5 minutes. By the end of this gui
    ```typescript
    // src/routes/todos/handlers.ts
    import type { HandlerInput } from "@typokit/core";
-   import type { TodoRoutes } from "./contracts.js";
+   import type { TodoRoutes } from "./contracts.ts";
+   import type { Todo } from "../../types.ts";
 
-   const todos: import("../../types.js").Todo[] = [];
+   const todos: Todo[] = [];
 
-   type H<K extends keyof TodoRoutes> = (
-     input: HandlerInput<TodoRoutes[K]>
-   ) => Promise<TodoRoutes[K]["response"]>;
+   type RouteHandlerFn<Route extends keyof TodoRoutes> = (
+     input: HandlerInput<TodoRoutes[Route]>
+   ) => Promise<TodoRoutes[Route]["response"]>;
 
-   const handlers: { [K in keyof TodoRoutes]: H<K> } = {
+   const handlers: { [Route in keyof TodoRoutes]: RouteHandlerFn<Route> } = {
      "GET /todos": async () => {
        return todos;
      },
@@ -189,11 +199,11 @@ Go from zero to a running TypoKit API in under 5 minutes. By the end of this gui
    ```typescript
    // src/app.ts
    import { createApp } from "@typokit/core";
-   import { fastifyServer } from "@typokit/server-fastify";
-   import todoHandlers from "./routes/todos/handlers.js";
+   import { nativeServer } from "@typokit/server-native";
+   import todoHandlers from "./routes/todos/handlers.ts";
 
    export const app = createApp({
-     server: fastifyServer(),
+     server: nativeServer(),
      routes: [
        {
          prefix: "/todos",

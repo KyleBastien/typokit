@@ -45,7 +45,7 @@ typokit init [name]
 1. Prompts for project name (if not provided as argument)
 2. Prompts for server adapter (Native, Fastify, Hono, or Express)
 3. Prompts for database adapter (Drizzle, Kysely, Prisma, or Raw SQL)
-4. Creates project directory with four packages: `@app/schema`, `@app/server`, `@app/db`, `@app/client`
+4. Creates project directory with `src/types.ts`, route modules, and configuration
 5. Generates `typokit.config.ts` with chosen adapters
 6. Installs dependencies with the detected package manager
 
@@ -60,10 +60,12 @@ typokit init my-api
 ? Choose a database adapter: › Drizzle
 
 ✔ Created my-api/
-  ├── packages/schema/    @app/schema
-  ├── packages/server/    @app/server
-  ├── packages/db/        @app/db
-  └── packages/client/    @app/client
+  ├── src/
+  │   ├── types.ts          schema type definitions
+  │   ├── app.ts            app factory
+  │   └── routes/           route contracts & handlers
+  ├── typokit.config.ts
+  └── package.json
 
 ✔ Dependencies installed
 ✔ Ready! Run `cd my-api && typokit dev` to start.
@@ -149,7 +151,7 @@ export const deleteUser: RouteContract<{ id: string }, void, void, void> = {
 ```
 
 <Aside type="note">
-The scaffolded contracts use placeholder types. Replace `User`, `CreateUserInput`, and `UpdateUserInput` with your actual schema-first types from `@app/schema`.
+The scaffolded contracts use placeholder types. Replace `User`, `CreateUserInput`, and `UpdateUserInput` with your actual schema-first types from `types.ts`.
 </Aside>
 
 ---

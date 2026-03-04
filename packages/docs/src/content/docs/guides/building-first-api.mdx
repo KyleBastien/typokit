@@ -46,15 +46,16 @@ All endpoints will be fully typed, automatically validated, and protected by an 
      </TabItem>
    </Tabs>
 
-   This creates four packages in a monorepo layout:
+   This creates a project with a clean `src/` layout:
 
    ```
    notes-api/
-   ├── packages/
-   │   ├── schema/     # @app/schema — entity types
-   │   ├── server/     # @app/server — routes, handlers, middleware
-   │   ├── db/         # @app/db — database config + migrations
-   │   └── client/     # @app/client — generated API client
+   ├── src/
+   │   ├── types.ts              # Your schema type definitions
+   │   ├── app.ts                # App factory — registers routes & middleware
+   │   ├── routes/               # Route contracts & handlers
+   │   ├── middleware/            # Global middleware
+   │   └── services/             # Business logic layer
    ├── typokit.config.ts
    └── package.json
    ```
@@ -123,7 +124,7 @@ Export the type from the package barrel:
 
 ```typescript
 // packages/schema/src/index.ts
-export type { Note, CreateNoteInput, UpdateNoteInput, NoteSummary } from "./entities/note.js";
+export type { Note, CreateNoteInput, UpdateNoteInput, NoteSummary } from "./entities/note.ts";
 ```
 
 Also add a shared pagination response type that you'll reuse:
@@ -143,8 +144,8 @@ export interface PaginatedResponse<T> {
 
 ```typescript
 // packages/schema/src/index.ts (updated)
-export type { Note, CreateNoteInput, UpdateNoteInput, NoteSummary } from "./entities/note.js";
-export type { PaginatedResponse } from "./shared/pagination.js";
+export type { Note, CreateNoteInput, UpdateNoteInput, NoteSummary } from "./entities/note.ts";
+export type { PaginatedResponse } from "./shared/pagination.ts";
 ```
 
 ---
@@ -163,7 +164,7 @@ import type {
   UpdateNoteInput,
   NoteSummary,
   PaginatedResponse,
-} from "@app/schema";
+} from "../../types.ts";
 
 export interface NotesRoutes {
   "POST /notes": RouteContract<
@@ -217,9 +218,9 @@ Create `packages/server/src/routes/notes/handlers.ts`:
 
 ```typescript
 import { defineHandlers } from "@typokit/core";
-import type { NotesRoutes } from "./contracts.js";
-import { db } from "../../db.js";
-import { notes } from "../../.typokit/schemas/notes.js";
+import type { NotesRoutes } from "./contracts.ts";
+import { db } from "../../db.ts";
+import { notes } from "../../.typokit/schemas/notes.ts";
 import { eq, desc, sql } from "drizzle-orm";
 
 export default defineHandlers<NotesRoutes>({
@@ -407,8 +408,8 @@ Create `packages/server/src/app.ts`:
 ```typescript
 import { createApp } from "@typokit/core";
 import { nativeServer } from "@typokit/server-native";
-import { requireAuth } from "./middleware/require-auth.js";
-import noteHandlers from "./routes/notes/handlers.js";
+import { requireAuth } from "./middleware/require-auth.ts";
+import noteHandlers from "./routes/notes/handlers.ts";
 
 const app = createApp({
   server: nativeServer(),
@@ -651,7 +652,7 @@ cat __generated__/notes.contract.test.ts
 // Auto-generated contract tests — do not edit
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createTestClient } from "@typokit/testing";
-import { app } from "../src/app.js";
+import { app } from "../src/app.ts";
 
 describe("Notes API", () => {
   let client;
@@ -725,7 +726,7 @@ Create `packages/server/tests/integration/notes.test.ts`:
 ```typescript
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createIntegrationSuite, createFactory } from "@typokit/testing";
-import { app } from "../../src/app.js";
+import { app } from "../../src/app.ts";
 
 describe("Notes — business logic", () => {
   let suite;

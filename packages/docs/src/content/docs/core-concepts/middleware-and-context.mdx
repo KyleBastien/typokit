@@ -72,7 +72,7 @@ ctx.fail(400, "VALIDATION_ERROR", "Invalid input", {
 ```
 
 <Aside type="note">
-  `ctx.fail()` has a return type of `never`. TypeScript knows code after `ctx.fail()` is unreachable, so you don't need `return` or `else` blocks after calling it.
+  `ctx.fail()` has a return type of `never`. TypeScript knows code after `ctx.fail()` is unreachable, so you don't need `return` or `else` blocks after calling it. Enable ESLint's [`no-unreachable`](https://eslint.org/docs/latest/rules/no-unreachable) rule to catch any dead code after `ctx.fail()` calls as an error.
 </Aside>
 
 ### `ctx.log`

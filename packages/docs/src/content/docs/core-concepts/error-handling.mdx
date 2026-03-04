@@ -113,6 +113,10 @@ ctx.fail(status: number, code: string, message: string, details?: Record<string,
   `ctx.fail()` means handlers don't need to import error classes at all. This keeps handler files dependency-free and makes them easier for AI agents to generate and reason about.
 </Aside>
 
+<Aside type="tip">
+  Enable ESLint's [`no-unreachable`](https://eslint.org/docs/latest/rules/no-unreachable) rule to catch any dead code after `ctx.fail()` calls as an error. Since `ctx.fail()` returns `never`, TypeScript knows subsequent code is unreachable — but only ESLint can enforce this as a hard failure.
+</Aside>
+
 ## Built-in Error Middleware
 
 TypoKit includes `createErrorMiddleware()` that wraps every request in a try/catch and automatically serializes errors into consistent JSON responses:
@@ -233,7 +237,7 @@ TypoKit's error responses are designed to be machine-readable. When the debug si
     }
   ],
   "sourceFile": "src/routes/users/handlers.ts",
-  "schemaFile": "@app/schema/src/entities/user.ts:8",
+  "schemaFile": "src/types.ts:8",
   "relatedTests": ["__generated__/users.contract.test.ts:15"]
 }
 ```

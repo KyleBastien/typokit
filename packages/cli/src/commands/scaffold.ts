@@ -76,7 +76,7 @@ export function generateRouteHandlers(name: string): string {
   const pascalName = toPascalCase(name);
   return `// Route handlers for ${name}
 import type { RouteHandler, RequestContext } from "@typokit/types";
-import type { ${pascalName}, Create${pascalName}Body, Update${pascalName}Body } from "./contracts.js";
+import type { ${pascalName}, Create${pascalName}Body, Update${pascalName}Body } from "./contracts.ts";
 
 /** List all ${name} */
 export const list${pascalName}: RouteHandler = async (ctx: RequestContext) => {
@@ -217,6 +217,8 @@ export function generateTsconfig(): string {
         target: "ES2022",
         module: "NodeNext",
         moduleResolution: "NodeNext",
+        allowImportingTsExtensions: true,
+        rewriteRelativeImportExtensions: true,
         strict: true,
         esModuleInterop: true,
         skipLibCheck: true,

@@ -62,7 +62,7 @@ The Rust transform executes eight stages in sequence:
 </Steps>
 
 ```
-@app/schema (pure TS)
+src/types.ts (pure TS)
        │
        ▼
 ┌─────────────────────────────────┐
@@ -261,7 +261,7 @@ TypoKit uses **content-hash caching** for incremental rebuilds. Each source file
 
 In `typokit dev` mode, the native transform runs incrementally:
 
-- File watcher detects changes to `@app/schema` types
+- File watcher detects changes to `types.ts` types
 - Rust transform re-parses only changed files (AST cache held in memory)
 - Only affected validators and routes are regenerated (dependency graph tracked in Rust)
 - Hot reload applies changes without full restart

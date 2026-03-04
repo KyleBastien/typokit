@@ -1,5 +1,5 @@
 {
-  "$schema": "https://nx.dev/reference/project-schema",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "name": "docs",
   "projectType": "application",
   "targets": {
