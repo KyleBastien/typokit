@@ -217,6 +217,6 @@ describe("scaffold — route contracts match arch doc Section 4.4", () => {
 
   it("handler imports match contracts types", () => {
     const handlers = generateRouteHandlers("products");
-    expect(handlers).toContain('import type { Products, CreateProductsBody, UpdateProductsBody } from "./contracts.js"');
+    expect(handlers).toContain('import type { Products, CreateProductsBody, UpdateProductsBody } from "./contracts.ts"');
   });
 });

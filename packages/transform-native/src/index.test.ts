@@ -4,6 +4,18 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 
+// Skip all tests when the native binary is not available for the current platform
+const triples: Record<string, Record<string, string>> = {
+  win32: { x64: "win32-x64-msvc" },
+  darwin: { x64: "darwin-x64", arm64: "darwin-arm64" },
+  linux: { x64: "linux-x64-gnu", arm64: "linux-arm64-gnu" },
+};
+const triple = triples[process.platform]?.[process.arch];
+const hasNativeBinary = !!triple && fs.existsSync(
+  path.resolve(import.meta.dirname, "..", `index.${triple}.node`)
+);
+const describeNative = describe.skipIf(!hasNativeBinary);
+
 // Helper to create a temporary TypeScript file
 function createTempTsFile(content: string): string {
   const tmpDir = os.tmpdir();
@@ -21,7 +33,7 @@ function cleanupFile(filePath: string): void {
   }
 }
 
-describe("parseAndExtractTypes", () => {
+describeNative("parseAndExtractTypes", () => {
   it("should parse a simple User interface with JSDoc tags", async () => {
     const source = `
 /**
@@ -212,7 +224,7 @@ interface Task {
   });
 });
 
-describe("compileRoutes", () => {
+describeNative("compileRoutes", () => {
   it("should compile route contracts into a radix tree TypeScript file", async () => {
     const source = `
 interface UsersRoutes {
@@ -263,7 +275,7 @@ interface FileRoutes {
   });
 });
 
-describe("generateOpenApi", () => {
+describeNative("generateOpenApi", () => {
   it("should generate a valid OpenAPI 3.1 spec", async () => {
     const routeSource = `
 interface UsersRoutes {
@@ -345,7 +357,7 @@ interface PublicUser {
   });
 });
 
-describe("diffSchemas", () => {
+describeNative("diffSchemas", () => {
   it("should detect added entity", async () => {
     const oldTypes = {};
     const newTypes = {
@@ -439,7 +451,7 @@ describe("diffSchemas", () => {
   });
 });
 
-describe("generateTestStubs", () => {
+describeNative("generateTestStubs", () => {
   it("should generate test stubs from route contracts", async () => {
     const source = `
 interface UsersRoutes {
@@ -471,7 +483,7 @@ interface UsersRoutes {
   });
 });
 
-describe("prepareValidatorInputs", () => {
+describeNative("prepareValidatorInputs", () => {
   it("should prepare type metadata for Typia bridge", async () => {
     const source = `
 interface User {
@@ -501,7 +513,7 @@ interface Post {
   });
 });
 
-describe("collectValidatorOutputs", () => {
+describeNative("collectValidatorOutputs", () => {
   it("should map type names to file paths", async () => {
     const results: [string, string][] = [
       ["User", "export function validateUser() {}"],
@@ -515,7 +527,7 @@ describe("collectValidatorOutputs", () => {
   });
 });
 
-describe("computeContentHash", () => {
+describeNative("computeContentHash", () => {
   it("should produce deterministic hash regardless of file order", async () => {
     const f1 = createTempTsFile("interface A { id: string; }");
     const f2 = createTempTsFile("interface B { id: string; }");
@@ -543,7 +555,7 @@ describe("computeContentHash", () => {
   });
 });
 
-describe("buildPipeline", () => {
+describeNative("buildPipeline", () => {
   function createTempDir(): string {
     const tmpDir = os.tmpdir();
     const dir = path.join(tmpDir, `typokit-pipeline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
