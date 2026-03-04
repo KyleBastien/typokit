@@ -10,35 +10,40 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [20, 22]
-
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: nrwl/nx-set-shas@v4
 
       - uses: pnpm/action-setup@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 24
           cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build all packages
-        run: pnpm run build
+        if: github.event_name == 'push'
+        run: pnpm nx run-many -t build
 
-      - name: Typecheck
-        run: pnpm run typecheck
+      - name: Build affected packages
+        if: github.event_name == 'pull_request'
+        run: pnpm nx affected -t build
 
-      - name: Lint
-        run: pnpm run lint
+      - name: Typecheck affected
+        run: pnpm nx affected -t typecheck
 
-      - name: Test
-        run: pnpm run test
+      - name: Lint affected
+        run: pnpm nx affected -t lint
+
+      - name: Test affected
+        run: pnpm nx affected -t test
 
   e2e:
     runs-on: ubuntu-latest
@@ -60,22 +65,31 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: nrwl/nx-set-shas@v4
 
       - uses: pnpm/action-setup@v4
 
-      - name: Use Node.js 22
+      - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build all packages
-        run: pnpm run build
+        if: github.event_name == 'push'
+        run: pnpm nx run-many -t build
+
+      - name: Build affected packages
+        if: github.event_name == 'pull_request'
+        run: pnpm nx affected -t build
 
       - name: Run E2E tests
         env:
           DATABASE_URL: postgresql://typokit:typokit@localhost:5432/typokit_e2e
-        run: pnpm --filter @typokit/example-todo-server run test:e2e
+        run: pnpm nx affected -t test:e2e

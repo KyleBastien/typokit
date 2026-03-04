@@ -11,7 +11,11 @@
     "build": "nx run-many --target=build",
     "test": "nx run-many --target=test",
     "lint": "nx run-many --target=lint",
-    "typecheck": "nx run-many --target=typecheck"
+    "typecheck": "nx run-many --target=typecheck",
+    "affected:build": "nx affected -t build",
+    "affected:test": "nx affected -t test",
+    "affected:lint": "nx affected -t lint",
+    "affected:typecheck": "nx affected -t typecheck"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
