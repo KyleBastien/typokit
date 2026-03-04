@@ -1,0 +1,78 @@
+---
+title: Introducing TypoKit
+date: 2026-03-02
+authors:
+  - name: TypoKit Team
+    title: Core Contributors
+tags:
+  - announcement
+  - release
+excerpt: >
+  Introducing TypoKit — an AI-native, schema-first TypeScript API framework
+  with a Rust-powered build pipeline. Learn about our vision and what makes
+  TypoKit different.
+---
+
+We're excited to introduce **TypoKit** — an AI-native, schema-first TypeScript API framework built for the next generation of backend development.
+
+## Why TypoKit?
+
+Modern API development demands more than just a request handler. Teams need **type safety** from database to client, **performance** that scales, and tooling that works with AI coding assistants — not against them.
+
+TypoKit was designed from the ground up to address these challenges:
+
+- **Schema-First Types** — Define your API schema once and get TypeScript types, runtime validation (via Typia), OpenAPI specs, and client SDKs generated automatically.
+- **Rust Build Pipeline** — A high-performance native transform pipeline powered by napi-rs processes your schemas in milliseconds, not seconds.
+- **AI-Native Architecture** — File-per-concern layout, structured error output, and machine-readable inspection commands make TypoKit the ideal framework for AI-assisted development.
+
+## Schema-First by Design
+
+At the heart of TypoKit is a simple idea: **your TypeScript types are the single source of truth**. Define a type, and the build pipeline generates everything else:
+
+```typescript
+// types/User.ts — this is all you write
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: Date;
+}
+```
+
+From this single definition, TypoKit generates:
+
+- Runtime validators with detailed error messages
+- OpenAPI 3.1 schema definitions
+- Type-safe route handlers with full IntelliSense
+- Test stubs and fixtures
+- Client SDK types
+
+## The Rust Advantage
+
+TypoKit's build pipeline isn't just fast — it's **native-speed fast**. By leveraging Rust via napi-rs, the transform pipeline processes your entire API schema in a fraction of the time traditional TypeScript tooling requires.
+
+The build pipeline flows through well-defined stages — parse, extract, route table generation, OpenAPI generation, and more — each orchestrated through a tapable hook system that plugins can extend.
+
+## Bring Your Own Stack
+
+TypoKit adapts to your infrastructure, not the other way around:
+
+- **Server Adapters** — Run on Express, Fastify, Hono, or the built-in native HTTP server
+- **Platform Adapters** — Deploy to Node.js, Bun, or Deno
+- **Database Adapters** — Connect with Drizzle, Kysely, Prisma, or raw SQL
+- **Plugin System** — Extend TypoKit with WebSocket support, debug tooling, and custom plugins
+
+## What's Next
+
+We're just getting started. Here's what's on the roadmap:
+
+- **More client generators** — React Query and SWR adapters are available today, with more coming
+- **Enhanced AI tooling** — Deeper integration with coding assistants through structured output and `llms.txt`
+- **Performance benchmarks** — Detailed comparisons showing TypoKit's compiled router performance
+- **Community plugins** — A growing ecosystem of community-built plugins
+
+## Get Started
+
+Ready to try TypoKit? Check out the [Quickstart guide](/typokit/getting-started/quickstart/) to build your first API in minutes, or explore the [Architecture Overview](/typokit/architecture/overview/) to understand how it all fits together.
+
+We'd love to hear your feedback. Find us on [GitHub](https://github.com/typokit/typokit) and let us know what you think!

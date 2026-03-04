@@ -1,0 +1,41 @@
+{
+  "scripts": {
+    "test": "rstest run --passWithNoTests",
+    "build": "tsc -p tsconfig.json",
+    "build:native": "napi build --platform --dts src/index.d.ts --js false",
+    "build:native:release": "napi build --platform --release --dts src/index.d.ts --js false",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "name": "@typokit/transform-native",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "*.node"
+  ],
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/types": "workspace:*"
+  },
+  "napi": {
+    "binaryName": "index",
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl"
+    ]
+  }
+}

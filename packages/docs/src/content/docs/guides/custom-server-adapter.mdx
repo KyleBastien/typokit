@@ -1,0 +1,508 @@
+---
+title: Custom Server Adapter
+description: Build a custom server adapter to integrate TypoKit with any HTTP framework.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+TypoKit ships with four official server adapters (Native, Fastify, Hono, Express), but the `ServerAdapter` interface is public and stable — you can build your own adapter to integrate TypoKit with **any** HTTP framework.
+
+This guide walks through building a complete custom adapter from scratch, explaining each method's responsibility and showing how the compiled route table flows through the adapter.
+
+<Aside type="tip">
+  Before building a custom adapter, make sure you understand the request processing model described in [Server Adapters](/typokit/core-concepts/server-adapters/).
+</Aside>
+
+---
+
+## The ServerAdapter Interface
+
+Every adapter implements the `ServerAdapter` interface exported from `@typokit/core`:
+
+```typescript
+import type {
+  CompiledRouteTable,
+  HandlerMap,
+  MiddlewareChain,
+  SerializerMap,
+  ServerHandle,
+  TypoKitRequest,
+  TypoKitResponse,
+  ValidatorMap,
+} from "@typokit/types";
+
+export interface ServerAdapter {
+  /** Adapter name for logging and diagnostics */
+  name: string;
+
+  /**
+   * Register TypoKit's compiled routes into the server framework.
+   */
+  registerRoutes(
+    routeTable: CompiledRouteTable,
+    handlerMap: HandlerMap,
+    middlewareChain: MiddlewareChain,
+    validatorMap?: ValidatorMap,
+    serializerMap?: SerializerMap,
+  ): void;
+
+  /**
+   * Start the server. Returns a handle for shutdown.
+   */
+  listen(port: number): Promise<ServerHandle>;
+
+  /**
+   * Convert the framework's native request into TypoKitRequest.
+   */
+  normalizeRequest(raw: unknown): TypoKitRequest;
+
+  /**
+   * Write TypoKit's response back through the framework's native response.
+   */
+  writeResponse(raw: unknown, response: TypoKitResponse): void;
+
+  /**
+   * Optional: expose the underlying framework instance for escape hatches.
+   */
+  getNativeServer?(): unknown;
+}
+```
+
+Here's what each piece does:
+
+| Method | Purpose |
+|---|---|
+| `name` | String identifier used in logs and diagnostics (e.g., `"fastify"`, `"my-custom-server"`) |
+| `registerRoutes()` | Walks the compiled route table and registers each route in your framework's native format |
+| `listen()` | Starts the HTTP server on a given port; returns a `ServerHandle` with a `close()` method |
+| `normalizeRequest()` | Converts the framework's native request object into a `TypoKitRequest` |
+| `writeResponse()` | Converts a `TypoKitResponse` into the framework's native response mechanism |
+| `getNativeServer()` | Optional escape hatch — returns the raw framework instance so users can register framework-native plugins |
+
+---
+
+## Key Types
+
+Before building the adapter, understand the types that flow through it:
+
+```typescript
+// The request shape TypoKit works with internally
+interface TypoKitRequest {
+  method: HttpMethod;
+  path: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: unknown;
+  query: Record<string, string | string[] | undefined>;
+  params: Record<string, string>;
+}
+
+// The response shape handlers return
+interface TypoKitResponse {
+  status: number;
+  headers: Record<string, string | string[]>;
+  body: unknown;
+}
+
+// Compiled radix tree node
+interface CompiledRoute {
+  segment: string;
+  children?: Record<string, CompiledRoute>;
+  paramChild?: CompiledRoute & { paramName: string };
+  wildcardChild?: CompiledRoute & { paramName: string };
+  handlers?: Partial<Record<HttpMethod, RouteHandler>>;
+}
+
+// Returned by listen() for graceful shutdown
+interface ServerHandle {
+  close(): Promise<void>;
+}
+```
+
+---
+
+## Step-by-Step: Building a Custom Adapter
+
+Let's build a custom adapter for a hypothetical framework called **"Micro"**. The same patterns apply to any framework.
+
+<Steps>
+
+1. ### Set up the package
+
+   Create a new package in your monorepo (or a standalone npm package):
+
+   ```bash
+   mkdir packages/server-micro
+   cd packages/server-micro
+   ```
+
+   Your `package.json` should depend on `@typokit/core` and `@typokit/types`:
+
+   ```json
+   {
+     "name": "@myapp/server-micro",
+     "type": "module",
+     "main": "src/index.ts",
+     "dependencies": {
+       "@typokit/core": "workspace:*",
+       "@typokit/types": "workspace:*",
+       "micro-framework": "^3.0.0"
+     }
+   }
+   ```
+
+2. ### Walk the compiled route table
+
+   The route table is a **compiled radix tree** — a tree of `CompiledRoute` nodes where each node may have static children, a parameterized child (`:id`), or a wildcard child (`*path`). You need a helper to flatten it into a list of routes your framework can register:
+
+   ```typescript
+   import type { CompiledRoute, HttpMethod } from "@typokit/types";
+
+   interface FlatRoute {
+     method: HttpMethod;
+     path: string;
+     handlerRef: string;
+   }
+
+   function collectRoutes(
+     node: CompiledRoute,
+     prefix: string,
+     entries: FlatRoute[],
+   ): void {
+     const currentPath = prefix + (node.segment ? `/${node.segment}` : "");
+
+     // Collect all HTTP methods registered at this node
+     if (node.handlers) {
+       for (const [method, handler] of Object.entries(node.handlers)) {
+         entries.push({
+           method: method as HttpMethod,
+           path: currentPath || "/",
+           handlerRef: handler.ref,
+         });
+       }
+     }
+
+     // Recurse into static children
+     if (node.children) {
+       for (const child of Object.values(node.children)) {
+         collectRoutes(child, currentPath, entries);
+       }
+     }
+
+     // Recurse into parameterized child
+     if (node.paramChild) {
+       collectRoutes(node.paramChild, currentPath, entries);
+     }
+
+     // Recurse into wildcard child
+     if (node.wildcardChild) {
+       collectRoutes(node.wildcardChild, currentPath, entries);
+     }
+   }
+   ```
+
+   <Aside type="note">
+     Each official adapter implements its own `collectRoutes()` internally — it is **not** an exported utility. This is intentional: different frameworks may need different route shapes.
+   </Aside>
+
+3. ### Implement normalizeRequest()
+
+   This is the bridge between your framework's request format and TypoKit's standard `TypoKitRequest`. Extract method, path, headers, body, query string, and URL params:
+
+   ```typescript
+   import type { TypoKitRequest } from "@typokit/types";
+   import { URL } from "node:url";
+
+   function normalizeRequest(nativeReq: MicroRequest): TypoKitRequest {
+     const url = new URL(nativeReq.url, `http://${nativeReq.headers.host}`);
+
+     // Convert query string to Record
+     const query: Record<string, string | string[] | undefined> = {};
+     for (const [key, value] of url.searchParams.entries()) {
+       const existing = query[key];
+       if (existing === undefined) {
+         query[key] = value;
+       } else if (Array.isArray(existing)) {
+         existing.push(value);
+       } else {
+         query[key] = [existing, value];
+       }
+     }
+
+     return {
+       method: nativeReq.method.toUpperCase() as any,
+       path: url.pathname,
+       headers: nativeReq.headers as Record<string, string | string[] | undefined>,
+       body: nativeReq.body ?? undefined,
+       query,
+       params: {}, // Populated by the route lookup
+     };
+   }
+   ```
+
+   <Aside type="caution">
+     The `params` field is initially empty in `normalizeRequest()`. URL parameters (`:id`, `*path`) are extracted during route lookup by your framework and injected before the handler runs.
+   </Aside>
+
+4. ### Implement writeResponse()
+
+   Convert TypoKit's response back into whatever your framework expects:
+
+   ```typescript
+   import type { TypoKitResponse } from "@typokit/types";
+
+   function writeResponse(nativeRes: MicroResponse, response: TypoKitResponse): void {
+     // Set status code
+     nativeRes.statusCode = response.status;
+
+     // Set response headers
+     for (const [key, value] of Object.entries(response.headers)) {
+       nativeRes.setHeader(key, value);
+     }
+
+     // Write body as JSON
+     if (response.body !== undefined && response.body !== null) {
+       nativeRes.setHeader("content-type", "application/json");
+       nativeRes.end(JSON.stringify(response.body));
+     } else {
+       nativeRes.end();
+     }
+   }
+   ```
+
+5. ### Implement registerRoutes()
+
+   This is the core method. It takes the compiled route table, flattens it, and registers each route with your framework. For each request, it must:
+   - Normalize the request
+   - Run the middleware chain
+   - Execute the matched handler
+   - Write the response
+
+   ```typescript
+   import type { ServerAdapter } from "@typokit/core";
+   import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
+   import type {
+     CompiledRouteTable,
+     HandlerMap,
+     MiddlewareChain,
+   } from "@typokit/types";
+
+   export function createMicroAdapter(options?: MicroOptions): ServerAdapter {
+     let app: MicroFramework;
+
+     return {
+       name: "micro",
+
+       registerRoutes(routeTable, handlerMap, middlewareChain) {
+         app = new MicroFramework(options);
+
+         // Flatten the radix tree into registrable routes
+         const routes: FlatRoute[] = [];
+         collectRoutes(routeTable, "", routes);
+
+         for (const route of routes) {
+           app.route(route.method, route.path, async (nativeReq, nativeRes) => {
+             try {
+               // 1. Normalize framework request → TypoKitRequest
+               const req = normalizeRequest(nativeReq);
+
+               // 2. Inject URL params extracted by the framework
+               req.params = nativeReq.params ?? {};
+
+               // 3. Create request context
+               const ctx = createRequestContext(req);
+
+               // 4. Run TypoKit middleware chain
+               const enrichedCtx = await executeMiddlewareChain(
+                 req,
+                 ctx,
+                 middlewareChain.entries,
+               );
+
+               // 5. Look up and execute the handler
+               const handler = handlerMap[route.handlerRef];
+               const response = await handler(req, enrichedCtx);
+
+               // 6. Write the response
+               writeResponse(nativeRes, response);
+             } catch (error) {
+               // Let TypoKit's error middleware handle this
+               // or write a fallback 500 response
+               writeResponse(nativeRes, {
+                 status: 500,
+                 headers: {},
+                 body: { error: "Internal Server Error" },
+               });
+             }
+           });
+         }
+       },
+
+       async listen(port) {
+         await app.listen(port);
+         return {
+           close: async () => app.close(),
+         };
+       },
+
+       normalizeRequest: normalizeRequest as any,
+       writeResponse: writeResponse as any,
+
+       getNativeServer() {
+         return app;
+       },
+     };
+   }
+   ```
+
+6. ### Wire it up in your app
+
+   Use the custom adapter just like any official one:
+
+   ```typescript
+   // app.ts
+   import { createApp } from "@typokit/core";
+   import { createMicroAdapter } from "@myapp/server-micro";
+
+   const app = createApp({
+     server: createMicroAdapter({ /* options */ }),
+     // ... other config
+   });
+
+   await app.listen(3000);
+   ```
+
+</Steps>
+
+---
+
+## Consuming the Compiled Route Table
+
+The route table is a **radix tree** optimized during TypoKit's build step. Understanding its shape is critical for writing `collectRoutes()`:
+
+```
+Root (segment: "")
+├── "api" (static child)
+│   ├── "users" (static child)
+│   │   ├── handlers: { GET: ..., POST: ... }
+│   │   └── paramChild: { segment: ":id", paramName: "id" }
+│   │       └── handlers: { GET: ..., PUT: ..., DELETE: ... }
+│   └── "notes" (static child)
+│       └── handlers: { GET: ..., POST: ... }
+└── "health" (static child)
+    └── handlers: { GET: ... }
+```
+
+Each `CompiledRoute` node has:
+
+- **`segment`** — the path segment at this tree level (e.g., `"users"`, `":id"`)
+- **`children`** — a hash map of static child segments for O(1) lookup
+- **`paramChild`** — a single parameterized child (`:id`), with its `paramName`
+- **`wildcardChild`** — a single wildcard child (`*path`), captures all remaining segments
+- **`handlers`** — a map of HTTP methods to handler references at this node
+
+When walking the tree, always check children in this order: **static → parameterized → wildcard**. Static matches take priority.
+
+---
+
+## Testing Your Custom Adapter
+
+TypoKit's adapter test suite is reusable. You can test your adapter against the same expectations as the official ones:
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { createApp } from "@typokit/core";
+import { createMicroAdapter } from "@myapp/server-micro";
+
+describe("Micro adapter", () => {
+  it("starts and stops cleanly", async () => {
+    const app = createApp({
+      server: createMicroAdapter(),
+    });
+
+    const handle = await app.listen(0); // Random port
+    expect(handle).toBeDefined();
+    await handle.close();
+  });
+
+  it("normalizes requests correctly", () => {
+    const adapter = createMicroAdapter();
+    const req = adapter.normalizeRequest(mockMicroRequest({
+      method: "POST",
+      url: "/api/users?page=2",
+      headers: { "content-type": "application/json" },
+      body: { name: "Ada" },
+    }));
+
+    expect(req.method).toBe("POST");
+    expect(req.path).toBe("/api/users");
+    expect(req.query.page).toBe("2");
+    expect(req.body).toEqual({ name: "Ada" });
+  });
+
+  it("writes responses with correct status and headers", () => {
+    const adapter = createMicroAdapter();
+    const mockRes = createMockResponse();
+
+    adapter.writeResponse(mockRes, {
+      status: 201,
+      headers: { "x-request-id": "abc-123" },
+      body: { id: 1, name: "Ada" },
+    });
+
+    expect(mockRes.statusCode).toBe(201);
+    expect(mockRes.getHeader("x-request-id")).toBe("abc-123");
+  });
+
+  it("handles full request cycle", async () => {
+    const app = createApp({
+      server: createMicroAdapter(),
+      routes: [
+        {
+          prefix: "/api/health",
+          handlers: {
+            GET: async () => ({
+              status: 200,
+              headers: {},
+              body: { ok: true },
+            }),
+          },
+        },
+      ],
+    });
+
+    const handle = await app.listen(0);
+
+    const res = await fetch(`http://localhost:${handle.port}/api/health`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+
+    await handle.close();
+  });
+});
+```
+
+<Aside type="tip">
+  Test each method in isolation first (`normalizeRequest`, `writeResponse`), then test the full request cycle. This makes debugging much easier when something goes wrong.
+</Aside>
+
+---
+
+## Common Pitfalls
+
+**Body parsing** — Some frameworks parse JSON bodies automatically, others don't. Make sure `normalizeRequest()` handles both cases. Check `content-type` headers and parse JSON only when appropriate.
+
+**Parameter extraction** — URL parameters (`:id`) are typically extracted by the framework's router during route matching. Make sure they get injected into `req.params` before the handler runs.
+
+**Header casing** — HTTP headers are case-insensitive, but different frameworks normalize them differently. TypoKit expects lowercase header keys. Convert if needed in `normalizeRequest()`.
+
+**Async shutdown** — The `close()` method on `ServerHandle` must be async and should drain in-flight requests before shutting down. Don't just call `server.close()` synchronously.
+
+**Content-Type on responses** — Always set `content-type: application/json` when writing a JSON body. Some frameworks do this automatically; if yours doesn't, set it explicitly in `writeResponse()`.
+
+---
+
+## Next Steps
+
+- Read the [Server Adapters](/typokit/core-concepts/server-adapters/) concept page for the full request processing model
+- Browse the source of official adapters in the TypoKit repository for production-grade patterns
+- Check the [Middleware and Context](/typokit/core-concepts/middleware-and-context/) guide to understand how the middleware chain works within your adapter

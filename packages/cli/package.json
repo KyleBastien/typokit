@@ -1,0 +1,32 @@
+{
+  "scripts": {
+    "test": "rstest run --passWithNoTests",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "name": "@typokit/cli",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "typokit": "./dist/bin.js"
+  },
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/core": "workspace:*",
+    "@typokit/types": "workspace:*",
+    "@typokit/transform-native": "workspace:*"
+  }
+}

@@ -1,0 +1,319 @@
+---
+title: Database Adapters
+description: How TypoKit generates database-compatible type definitions from your schema types through pluggable database adapters.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+TypoKit is **not** an ORM. It doesn't manage connections, build queries, or abstract SQL. Instead, it provides a thin adapter layer that **generates** database-compatible type definitions from your `types.ts` types — and gets out of the way.
+
+Your database tool owns connections, queries, transactions, and pooling. TypoKit owns the schema-to-migration pipeline.
+
+## Philosophy: Generate Types, Not Queries
+
+Traditional ORMs couple your types to their query builder. TypoKit takes a different approach:
+
+1. You define types once in `types.ts` using JSDoc annotations
+2. The database adapter **generates** schema artifacts for your chosen tool
+3. You use your tool's native API with full type safety
+
+This means you get the productivity of schema generation with the power and flexibility of your preferred database library — no magic, no hidden SQL, no leaky abstractions.
+
+<Aside type="tip">
+Because TypoKit only generates types and schemas, you can switch database tools (e.g., Drizzle → Kysely) by swapping the adapter and re-running the build. Your `types.ts` types don't change.
+</Aside>
+
+## The DatabaseAdapter Interface
+
+Every database adapter implements this core interface from `@typokit/core`:
+
+```typescript
+export interface DatabaseAdapter {
+  /** Generate DB schema artifacts from TypoKit types */
+  generate(types: SchemaTypeMap): GeneratedOutput[];
+
+  /** Diff current DB state against types, produce migration draft */
+  diff(types: SchemaTypeMap, currentState: DatabaseState): MigrationDraft;
+
+  /** Generate typed repository helpers (optional) */
+  generateRepositories?(types: SchemaTypeMap): GeneratedOutput[];
+}
+```
+
+The `generate()` method produces schema files (Drizzle tables, Prisma models, SQL DDL, etc.). The `diff()` method compares your current types against the database state and produces a migration draft.
+
+Supporting types:
+
+```typescript
+export interface GeneratedOutput {
+  filePath: string;
+  content: string;
+  overwrite: boolean;
+}
+
+export interface MigrationDraft {
+  name: string;
+  sql: string;
+  destructive: boolean;
+  changes: SchemaChange[];
+}
+```
+
+## Adapter Comparison
+
+TypoKit ships four database adapters. Choose the one that matches your team's preferred database tool:
+
+| Adapter | Package | Output | Best For |
+|---------|---------|--------|----------|
+| **Drizzle** | `@typokit/db-drizzle` | Drizzle ORM schema + enums | Type-safe SQL-adjacent queries |
+| **Kysely** | `@typokit/db-kysely` | Kysely `Database` interface | Pure type-safe query builder |
+| **Prisma** | `@typokit/db-prisma` | `.prisma` schema file | Prisma-based projects |
+| **Raw SQL** | `@typokit/db-raw` | Plain SQL DDL + TS interfaces | Teams that prefer raw SQL |
+
+All four adapters support both **PostgreSQL** and **SQLite** dialects.
+
+## How Type Metadata Flows
+
+Every adapter receives the same input — a `SchemaTypeMap` built from your `types.ts` types. JSDoc tags on your types drive the database schema generation:
+
+```typescript
+/**
+ * @table users
+ */
+interface User {
+  /** @id @generated */
+  id: string;
+
+  /** @unique @maxLength 255 */
+  email: string;
+
+  /** @maxLength 100 */
+  displayName: string;
+
+  /** @default "active" */
+  status: "active" | "suspended" | "deleted";
+
+  /** @generated */
+  createdAt: Date;
+
+  /** @generated */
+  updatedAt: Date;
+}
+```
+
+**Naming conventions** applied by all adapters:
+- **Type → Table:** `User` → `users` (pluralize + snake_case), overridable via `@table`
+- **Property → Column:** `displayName` → `display_name` (snake_case)
+- **Union types → Enums:** `"active" | "suspended"` becomes a database enum
+
+## Drizzle Adapter
+
+The Drizzle adapter generates separate `.ts` files per table with full Drizzle ORM schema definitions.
+
+```typescript
+import { DrizzleDatabaseAdapter } from "@typokit/db-drizzle";
+
+const adapter = new DrizzleDatabaseAdapter({
+  dialect: "postgresql", // or "sqlite"
+  outputDir: ".typokit/schemas",
+});
+```
+
+**Generated output** (`users.ts`):
+
+```typescript
+import { pgTable, uuid, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
+
+export const userStatusEnum = pgEnum("user_status", [
+  "active",
+  "suspended",
+  "deleted",
+]);
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  status: userStatusEnum("status").default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+```
+
+Use the generated schema directly with Drizzle's query builder — no wrappers or abstractions.
+
+## Kysely Adapter
+
+The Kysely adapter generates a single `database.ts` file with typed interfaces for every table, plus a combined `Database` interface.
+
+```typescript
+import { KyselyDatabaseAdapter } from "@typokit/db-kysely";
+
+const adapter = new KyselyDatabaseAdapter({
+  dialect: "postgresql", // or "sqlite"
+  outputDir: ".typokit/schemas",
+});
+```
+
+**Generated output** (`database.ts`):
+
+```typescript
+import type { Generated } from "kysely";
+
+export interface UsersTable {
+  id: Generated<string>;
+  email: string;
+  displayName: string;
+  status: "active" | "suspended" | "deleted";
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
+export interface Database {
+  users: UsersTable;
+}
+```
+
+Fields marked `@generated` or `@id @generated` use Kysely's `Generated<T>` wrapper, making them optional in `INSERT` operations but present in `SELECT` results.
+
+## Prisma Adapter
+
+The Prisma adapter generates a complete `schema.prisma` file with datasource, generator, enums, and models.
+
+```typescript
+import { PrismaDatabaseAdapter } from "@typokit/db-prisma";
+
+const adapter = new PrismaDatabaseAdapter({
+  provider: "postgresql", // or "sqlite"
+  outputDir: ".typokit/schemas",
+});
+```
+
+**Generated output** (`schema.prisma`):
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  displayName String
+  status      UserStatus @default(active)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("users")
+}
+```
+
+<Aside type="note">
+The `@@map("users")` directive maps the PascalCase model name to the snake_case table name, keeping Prisma conventions consistent with TypoKit's naming.
+</Aside>
+
+## Raw SQL Adapter
+
+The raw SQL adapter generates separate `.sql` DDL files per table plus a `types.ts` with TypeScript interfaces — ideal for teams that prefer full control over their SQL.
+
+```typescript
+import { RawSqlDatabaseAdapter } from "@typokit/db-raw";
+
+const adapter = new RawSqlDatabaseAdapter({
+  dialect: "postgresql", // or "sqlite"
+  outputDir: ".typokit/schemas",
+});
+```
+
+**Generated output** (`users.sql`):
+
+```sql
+-- AUTO-GENERATED by @typokit/db-raw from User type
+-- Do not edit manually — modify the source type instead
+
+CREATE TYPE user_status AS ENUM ('active', 'suspended', 'deleted');
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) NOT NULL UNIQUE,
+  display_name VARCHAR(100) NOT NULL,
+  status user_status NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Generated types** (`types.ts`):
+
+```typescript
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  status: "active" | "suspended" | "deleted";
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+## Migration Philosophy
+
+TypoKit generates migrations as **drafts, never auto-applied**. This is a deliberate design choice:
+
+1. **Diffing** — The adapter compares your current types against the database state and detects additions, removals, and modifications
+2. **Draft generation** — Changes are written to a migration file for your review
+3. **Destructive flagging** — Any migration that drops columns, tables, or changes types is marked `destructive: true` and annotated with `-- DESTRUCTIVE: requires review`
+4. **CI blocking** — Destructive migrations block CI until explicitly reviewed and approved
+
+```typescript
+// All adapters implement the same diff pattern
+diff(types: SchemaTypeMap, currentState: DatabaseState): MigrationDraft {
+  const changes = diffTypes(types, currentState);
+  const destructive = changes.some((c) => c.type === "remove");
+  const sql = generateMigrationSql(changes, dialect);
+  return { name, sql, destructive, changes };
+}
+```
+
+<Aside type="caution">
+TypoKit will **never** auto-apply a destructive migration. Column drops, type changes, and table removals always require human review. This protects production data from accidental schema changes.
+</Aside>
+
+## The Ownership Boundary
+
+Understanding what TypoKit owns versus what your database tool owns is key:
+
+| Concern | Owner | Details |
+|---------|-------|---------|
+| Type definitions | **TypoKit** | `types.ts` with JSDoc annotations |
+| Schema generation | **TypoKit** | Adapter generates tool-specific artifacts |
+| Migration drafts | **TypoKit** | Diffs types vs DB state, produces SQL |
+| Destructive detection | **TypoKit** | Flags drops/changes for review |
+| Connection pooling | **Your tool** | Drizzle/Kysely/Prisma manages connections |
+| Query building | **Your tool** | Use native APIs with generated types |
+| Transaction management | **Your tool** | Full control over transaction boundaries |
+| Migration execution | **Your tool** | You decide when and how to apply migrations |
+
+<Aside type="tip">
+This clean separation means you can use advanced features of your database tool — custom connection pools, read replicas, query caching — without any interference from TypoKit.
+</Aside>
+
+## Choosing an Adapter
+
+- **Drizzle** — Best for teams that want a typed query builder that stays close to SQL. Generates per-table files that integrate naturally with Drizzle's relational queries.
+- **Kysely** — Best for teams that want pure type safety with zero runtime overhead. Kysely's `Database` interface gives you autocomplete on every table and column.
+- **Prisma** — Best for teams already using Prisma or who prefer its migration tooling and Prisma Studio for data browsing.
+- **Raw SQL** — Best for teams with existing SQL workflows, DBAs who want to review and modify DDL directly, or projects with complex SQL that doesn't fit ORM patterns.
+
+All four produce the same logical schema from the same source types. The only difference is the output format.

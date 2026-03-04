@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "references": [
+    { "path": "../types" },
+    { "path": "../errors" },
+    { "path": "../core" },
+    { "path": "../example-todo-schema" },
+    { "path": "../server-native" },
+    { "path": "../testing" },
+    { "path": "../platform-node" },
+    { "path": "../plugin-debug" }
+  ]
+}

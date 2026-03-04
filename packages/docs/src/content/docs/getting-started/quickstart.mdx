@@ -1,0 +1,293 @@
+---
+title: Quickstart
+description: Get up and running with TypoKit in under 5 minutes.
+---
+
+import { Tabs, TabItem, Steps, Aside } from "@astrojs/starlight/components";
+
+Go from zero to a running TypoKit API in under 5 minutes. By the end of this guide you'll have a type-safe API server with auto-generated validation, routing, and OpenAPI docs.
+
+## Prerequisites
+
+- **Node.js 24+** — [Download](https://nodejs.org/)
+- A package manager — **pnpm** (recommended), npm, or yarn
+
+<Tabs>
+  <TabItem label="pnpm">
+    ```bash
+    npm install -g pnpm
+    ```
+  </TabItem>
+  <TabItem label="npm">
+    npm is included with Node.js — no extra install needed.
+  </TabItem>
+  <TabItem label="yarn">
+    ```bash
+    corepack enable
+    ```
+  </TabItem>
+</Tabs>
+
+## Create a New Project
+
+<Steps>
+
+1. **Scaffold your app**
+
+   Run the TypoKit initializer to create a new project:
+
+   <Tabs>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm dlx @typokit/cli scaffold init my-app --server native --db raw
+       ```
+     </TabItem>
+     <TabItem label="npm">
+       ```bash
+       npx @typokit/cli scaffold init my-app --server native --db raw
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn dlx @typokit/cli scaffold init my-app --server native --db raw
+       ```
+     </TabItem>
+   </Tabs>
+
+   <Aside>
+     **`--server`** — Choose your HTTP server adapter:
+     - `native` — Built-in Node.js HTTP server (zero dependencies, recommended for getting started)
+     - `fastify` — [Fastify](https://fastify.dev/) adapter for production workloads
+     - `hono` — [Hono](https://hono.dev/) adapter for edge and multi-runtime environments
+     - `express` — [Express](https://expressjs.com/) adapter for existing Express ecosystems
+
+     **`--db`** — Choose your database strategy:
+     - `raw` — Plain SQL queries via `@typokit/db-raw` (no ORM overhead, full control)
+     - `drizzle` — [Drizzle ORM](https://orm.drizzle.team/) for type-safe query building
+     - `kysely` — [Kysely](https://kysely.dev/) for a lightweight type-safe SQL query builder
+     - `prisma` — [Prisma](https://www.prisma.io/) for a full-featured ORM with migrations and studio
+     - `none` — No database setup (add your own later)
+   </Aside>
+
+   You should see output like:
+
+   ```
+   ✔ Created my-app/
+   ✔ Initialized package.json
+   ✔ Installed dependencies
+   ✔ Generated project structure
+
+   Your TypoKit project is ready!
+   cd my-app && typokit dev
+   ```
+
+2. **Enter your project and install dependencies**
+
+   ```bash
+   cd my-app
+   pnpm install
+   ```
+
+3. **Explore the project structure**
+
+   Your scaffolded project looks like this:
+
+   ```
+   my-app/
+   ├── src/
+   │   ├── app.ts               # App factory — registers routes and middleware
+   │   ├── types.ts              # Your schema type definitions
+   │   ├── routes/               # Route modules (you'll add these next)
+   │   ├── middleware/            # Global middleware
+   │   └── services/             # Business logic layer
+   ├── package.json
+   ├── tsconfig.json
+   └── .typokit/                 # Auto-generated (validators, routes, schemas)
+   ```
+
+   <Aside>
+     The `.typokit/` directory is auto-generated during build — don't edit files there directly.
+   </Aside>
+
+   See the [Project Structure](/typokit/getting-started/project-structure/) page for a full breakdown.
+
+4. **Define a type**
+
+   Open `src/types.ts`. This is where you define your domain types — the single source of truth for your entire stack:
+
+   ```typescript
+   // src/types.ts
+
+   /** @table */
+   export interface Todo {
+     /** @id @generated uuid */
+     id: string;
+
+     /** @minLength 1 @maxLength 200 */
+     title: string;
+
+     completed: boolean;
+
+     /** @generated now */
+     createdAt: Date;
+   }
+
+   export type CreateTodoInput = Omit<Todo, "id" | "createdAt">;
+   ```
+
+   TypoKit reads these plain TypeScript types and generates validators, database schemas, and OpenAPI definitions automatically. No decorators, no Zod — just types.
+
+   Learn more in [Schema-First Types](/typokit/core-concepts/schema-first-types/).
+
+5. **Create a route**
+
+   Define a route contract and handler for your `Todo` type:
+
+   ```typescript
+   // src/routes/todos/contracts.ts
+   import type { RouteContract } from "@typokit/types";
+   import type { Todo, CreateTodoInput } from "../../types.ts";
+
+   export interface TodoRoutes {
+     "GET /todos": RouteContract<void, void, void, Todo[]>;
+     "POST /todos": RouteContract<void, void, CreateTodoInput, Todo>;
+     "GET /todos/:id": RouteContract<{ id: string }, void, void, Todo>;
+   }
+   ```
+
+   ```typescript
+   // src/routes/todos/handlers.ts
+   import type { HandlerInput } from "@typokit/core";
+   import type { TodoRoutes } from "./contracts.ts";
+   import type { Todo } from "../../types.ts";
+
+   const todos: Todo[] = [];
+
+   type RouteHandlerFn<Route extends keyof TodoRoutes> = (
+     input: HandlerInput<TodoRoutes[Route]>
+   ) => Promise<TodoRoutes[Route]["response"]>;
+
+   const handlers: { [Route in keyof TodoRoutes]: RouteHandlerFn<Route> } = {
+     "GET /todos": async () => {
+       return todos;
+     },
+
+     "POST /todos": async ({ body }) => {
+       const todo = {
+         id: crypto.randomUUID(),
+         title: body.title,
+         completed: body.completed,
+         createdAt: new Date(),
+       };
+       todos.push(todo);
+       return todo;
+     },
+
+     "GET /todos/:id": async ({ params, ctx }) => {
+       const todo = todos.find((t) => t.id === params.id);
+       return todo ?? ctx.fail(404, "TODO_NOT_FOUND", `Todo ${params.id} not found`);
+     },
+   };
+
+   export default handlers;
+   ```
+
+   Learn more in [Routing and Handlers](/typokit/core-concepts/routing-and-handlers/).
+
+6. **Register the route in your app**
+
+   ```typescript
+   // src/app.ts
+   import { createApp } from "@typokit/core";
+   import { nativeServer } from "@typokit/server-native";
+   import todoHandlers from "./routes/todos/handlers.ts";
+
+   export const app = createApp({
+     server: nativeServer(),
+     routes: [
+       {
+         prefix: "/todos",
+         handlers: todoHandlers,
+       },
+     ],
+   });
+
+   app.listen({ port: 3000 }).then(() => {
+     console.log("🚀 Server running at http://localhost:3000");
+   });
+   ```
+
+7. **Start the dev server**
+
+   ```bash
+   pnpm typokit dev
+   ```
+
+   You should see:
+
+   ```
+   ✔ Schema introspection complete (2 types found)
+   ✔ Validators generated
+   ✔ Routes compiled
+   ✔ OpenAPI spec generated
+   🚀 Server running at http://localhost:3000
+   👀 Watching for changes...
+   ```
+
+8. **Test your API**
+
+   Open a new terminal and try it out:
+
+   ```bash
+   # Create a todo
+   curl -X POST http://localhost:3000/todos \
+     -H "Content-Type: application/json" \
+     -d '{"title": "Learn TypoKit", "completed": false}'
+   ```
+
+   ```json
+   {
+     "id": "a1b2c3d4-...",
+     "title": "Learn TypoKit",
+     "completed": false,
+     "createdAt": "2026-03-02T12:00:00.000Z"
+   }
+   ```
+
+   ```bash
+   # List all todos
+   curl http://localhost:3000/todos
+   ```
+
+   ```json
+   [
+     {
+       "id": "a1b2c3d4-...",
+       "title": "Learn TypoKit",
+       "completed": false,
+       "createdAt": "2026-03-02T12:00:00.000Z"
+     }
+   ]
+   ```
+
+</Steps>
+
+## What Just Happened?
+
+With just a few TypeScript types and a handful of files, TypoKit:
+
+- **Validated** your request body against the `CreateTodoInput` type
+- **Routed** requests to the correct handler with full type safety
+- **Generated** an OpenAPI spec at `/openapi.json`
+- **Watched** your files for changes and rebuilt incrementally
+
+## Next Steps
+
+Now that you have a running app, dive deeper:
+
+- **[Project Structure](/typokit/getting-started/project-structure/)** — Understand the layout of a TypoKit project
+- **[Schema-First Types](/typokit/core-concepts/schema-first-types/)** — Master the type system that powers everything
+- **[Routing and Handlers](/typokit/core-concepts/routing-and-handlers/)** — Learn about route contracts and handler patterns
+- **[Middleware and Context](/typokit/core-concepts/middleware-and-context/)** — Add authentication, logging, and more
+- **[Error Handling](/typokit/core-concepts/error-handling/)** — Type-safe error responses with `ctx.fail()`
+- **[Building Your First API](/typokit/guides/building-first-api/)** — A complete, end-to-end tutorial

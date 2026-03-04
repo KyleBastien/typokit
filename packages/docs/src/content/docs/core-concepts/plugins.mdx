@@ -1,0 +1,362 @@
+---
+title: Plugins
+description: Extend TypoKit with plugins — from build-time code generation to runtime services like WebSockets and debug tooling.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+TypoKit's plugin system lets you hook into the **build pipeline** and the **application lifecycle** with a single interface. Plugins can generate code at build time, register services at startup, and expose CLI commands — all without touching your application code.
+
+## The TypoKitPlugin Interface
+
+Every plugin implements the `TypoKitPlugin` interface exported from `@typokit/core`:
+
+```typescript
+import type {
+  TypoKitPlugin,
+  BuildPipeline,
+  AppInstance,
+  AppError,
+  RequestContext,
+  SchemaChange,
+  CliCommand,
+  InspectEndpoint,
+} from "@typokit/core";
+
+export interface TypoKitPlugin {
+  name: string;
+
+  // ─── BUILD-TIME HOOKS (called during `typokit build`)
+  onBuild?(pipeline: BuildPipeline): void;
+
+  // ─── RUNTIME LIFECYCLE HOOKS
+  onStart?(app: AppInstance): Promise<void>;       // Before server listens
+  onReady?(app: AppInstance): Promise<void>;       // After routes registered & listening
+  onError?(error: AppError, ctx: RequestContext): void; // Unhandled errors observed
+  onStop?(app: AppInstance): Promise<void>;        // Graceful shutdown
+
+  // ─── DEV-ONLY HOOKS
+  onSchemaChange?(changes: SchemaChange[]): void;  // Schema file changed (dev mode)
+
+  // ─── OPTIONAL EXTENSIONS
+  commands?(): CliCommand[];          // Expose CLI subcommands
+  inspect?(): InspectEndpoint[];      // Debug sidecar endpoints
+}
+```
+
+All hooks are optional — implement only the ones you need.
+
+## Build-Time Hooks: The Tapable Pipeline
+
+The `onBuild` hook receives a `BuildPipeline` with six async series hooks. Each hook fires sequentially, and every registered tap completes before the next phase begins:
+
+```
+beforeTransform → afterTypeParse → afterValidators → afterRouteTable → emit → done
+```
+
+```typescript
+export interface BuildPipeline {
+  hooks: {
+    /** Register additional type sources before parsing */
+    beforeTransform: AsyncSeriesHook<[BuildContext]>;
+
+    /** Inspect or modify parsed types */
+    afterTypeParse: AsyncSeriesHook<[SchemaTypeMap, BuildContext]>;
+
+    /** Add custom validators alongside generated ones */
+    afterValidators: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
+
+    /** Inspect the compiled route table */
+    afterRouteTable: AsyncSeriesHook<[CompiledRouteTable, BuildContext]>;
+
+    /** Emit generated artifacts (validators, clients, etc.) */
+    emit: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
+
+    /** Cleanup and reporting */
+    done: AsyncSeriesHook<[BuildResult]>;
+  };
+}
+```
+
+Plugins tap into individual phases using `pipeline.hooks.{phase}.tap(name, fn)`:
+
+```typescript
+const myPlugin: TypoKitPlugin = {
+  name: "my-metrics-plugin",
+
+  onBuild(pipeline) {
+    // Tap into the afterTypeParse phase
+    pipeline.hooks.afterTypeParse.tap("my-metrics", async (typeMap, ctx) => {
+      console.log(`Parsed ${typeMap.size} types`);
+    });
+
+    // Tap into the emit phase to generate additional files
+    pipeline.hooks.emit.tap("my-metrics", async (outputs, ctx) => {
+      outputs.push({
+        path: "metrics/type-stats.json",
+        content: JSON.stringify({ typeCount: ctx.types.size }),
+      });
+    });
+  },
+};
+```
+
+<Aside type="tip">
+Build-time hooks run during `typokit build` and `typokit dev --watch`. They have access to the full type map, route table, and generated output — use them for code generation, analysis, and reporting.
+</Aside>
+
+## Runtime Lifecycle Hooks
+
+Runtime hooks fire during application startup and shutdown, in this order:
+
+```
+createApp() → onStart → server.listen() → onReady
+                                               │
+                                          (app running)
+                                               │
+                              app.close() → onStop → server.close()
+```
+
+| Hook | When | Typical use |
+|------|------|-------------|
+| `onStart` | Before the server begins listening | Register services, open database connections, start background workers |
+| `onReady` | After routes are registered and the server is listening | Health check registration, log "ready" message, start sidecar servers |
+| `onError` | When an unhandled error is observed | Error tracking, metric collection, alerting |
+| `onStop` | During graceful shutdown | Close connections, flush buffers, stop background workers |
+| `onSchemaChange` | A type file changed (dev mode only) | Clear caches, regenerate derived data |
+
+Lifecycle hooks are invoked **in plugin registration order** and run sequentially (each `onStart` completes before the next plugin's `onStart` runs).
+
+## Plugin Registration in createApp()
+
+Plugins are passed as an array in the `createApp()` options:
+
+```typescript
+import { createApp } from "@typokit/core";
+import { createNativeAdapter } from "@typokit/adapter-native";
+import { debugPlugin } from "@typokit/plugin-debug";
+import { wsPlugin } from "@typokit/plugin-ws";
+
+const app = createApp({
+  server: createNativeAdapter(),
+  plugins: [
+    debugPlugin({ port: 9229 }),
+    wsPlugin({ heartbeatInterval: 30_000 }),
+  ],
+});
+
+await app.listen(3000);
+```
+
+Plugins are stored on the `AppInstance` and their lifecycle hooks are called automatically:
+
+```typescript
+export interface AppInstance {
+  name: string;
+  plugins: TypoKitPlugin[];
+  services: Record<string, unknown>; // DI container for plugins
+}
+```
+
+<Aside type="note">
+Plugins register services on `app.services` during `onStart`. This is the standard way for plugins to expose functionality to your application code and to other plugins.
+</Aside>
+
+## Why No onRequest / onResponse Hooks
+
+You might expect plugins to have `onRequest` and `onResponse` hooks like other frameworks. TypoKit deliberately omits these — plugins that need per-request behavior **register middleware instead**.
+
+This avoids two separate per-request execution models and keeps the system composable:
+
+```typescript
+import { defineMiddleware } from "@typokit/core";
+
+const rateLimitPlugin: TypoKitPlugin = {
+  name: "rate-limit",
+
+  async onStart(app) {
+    // Register a TypoKit middleware — same system your app uses
+    app.services["rate-limit"] = defineMiddleware<{ rateLimit: { remaining: number } }>({
+      name: "rate-limit",
+      priority: -100, // Run early
+      async handler(ctx) {
+        const remaining = await checkLimit(ctx.requestId);
+        if (remaining <= 0) {
+          ctx.fail(429, "Rate limit exceeded");
+        }
+        return { rateLimit: { remaining } };
+      },
+    });
+  },
+};
+```
+
+**Benefits of this approach:**
+
+- **Single execution model** — middleware and plugin per-request logic use the same pipeline, with the same priority ordering and context type-narrowing
+- **Composable** — middleware from plugins composes with your application middleware naturally
+- **Testable** — middleware can be tested independently, without a plugin harness
+- **AI-agent friendly** — one consistent concept to reason about, not two parallel hooks systems
+
+For HTTP-level concerns that must run before TypoKit normalization (CORS, compression), plugins can access the raw server via `app.getNativeServer()` and register framework-native middleware directly.
+
+## Official Plugins
+
+### @typokit/plugin-debug
+
+A read-only HTTP debug sidecar that exposes introspection endpoints on a separate port. Designed for both human developers and AI agents.
+
+```typescript
+import { debugPlugin } from "@typokit/plugin-debug";
+
+createApp({
+  server: createNativeAdapter(),
+  plugins: [
+    debugPlugin({
+      port: 9229,           // Sidecar port (default: 9229)
+      apiKey: process.env.DEBUG_API_KEY, // Optional auth for production
+      allowedIPs: ["10.0.0.0/8"],        // CIDR allowlist
+    }),
+  ],
+});
+```
+
+**Endpoints exposed:**
+
+| Endpoint | Description |
+|----------|-------------|
+| `/_debug/routes` | Route table with params, methods, and handler metadata |
+| `/_debug/middleware` | Registered middleware names and priority ordering |
+| `/_debug/performance` | Request latency histograms (p50, p95, p99) |
+| `/_debug/errors` | Recent errors (1000-entry ring buffer) |
+| `/_debug/health` | Memory usage, uptime, and process metrics |
+| `/_debug/dependencies` | Service dependency graph |
+| `/_debug/traces` | OpenTelemetry span data (500-entry ring buffer) |
+| `/_debug/logs` | Application log entries (2000-entry ring buffer) |
+
+**Security modes:**
+
+- **Development** — No authentication, binds to `0.0.0.0`, auto-enabled
+- **Production** — Opt-in with API key, IP allowlist with CIDR support, rate limiting
+
+**Hooks used:** `onStart` (register data collection services), `onReady` (start sidecar server), `onError` (record errors), `onStop` (shut down sidecar), `onSchemaChange` (clear cached route table).
+
+### @typokit/plugin-ws
+
+Schema-first typed WebSocket support with runtime validation and connection management. This plugin hooks into both build-time and runtime phases.
+
+```typescript
+import { wsPlugin } from "@typokit/plugin-ws";
+
+createApp({
+  server: createNativeAdapter(),
+  plugins: [
+    wsPlugin({
+      heartbeatInterval: 30_000,  // Keep-alive ping interval (ms)
+    }),
+  ],
+});
+```
+
+**Build-time code generation:**
+
+The plugin taps into the build pipeline to generate WebSocket validators and route tables:
+
+- `afterTypeParse` — Extracts WebSocket channel contracts from the type map
+- `emit` — Generates `ws-validators.ts` and `ws-route-table.ts`
+
+**Runtime services** (exposed via `app.services._ws`):
+
+| Method | Description |
+|--------|-------------|
+| `getConnectionManager()` | Access the `WsConnectionManager` |
+| `send(connectionId, data)` | Send a message to a single connection |
+| `broadcast(channel, data)` | Broadcast to all connections on a channel |
+| `registerValidator(channel, fn)` | Add a custom message validator |
+| `registerHandlers(defs)` | Register channel handlers dynamically |
+
+**Connection lifecycle:**
+
+```
+Client connects → handleWsUpgrade() → onConnect
+                                          │
+                                    onMessage (validated) ←→ handler dispatch
+                                          │
+                  Client disconnects → onDisconnect
+```
+
+Messages are validated against the channel's schema before dispatch. Invalid messages are rejected with a structured error frame. A heartbeat timer (default 30s) keeps connections alive and detects stale clients.
+
+## Writing Your Own Plugin
+
+Here's a complete example of a plugin that tracks request counts and exposes them via a CLI command:
+
+```typescript
+import type { TypoKitPlugin, AppInstance } from "@typokit/core";
+
+let requestCount = 0;
+
+export function requestCounterPlugin(): TypoKitPlugin {
+  return {
+    name: "request-counter",
+
+    async onStart(app: AppInstance) {
+      // Register a service other plugins and handlers can use
+      app.services["request-counter"] = {
+        getCount: () => requestCount,
+        reset: () => { requestCount = 0; },
+      };
+    },
+
+    onError(error, ctx) {
+      // Track errors separately if needed
+      console.error(`[request-counter] Error in ${ctx.requestId}:`, error.message);
+    },
+
+    async onStop(app: AppInstance) {
+      console.log(`[request-counter] Total requests served: ${requestCount}`);
+    },
+
+    // Expose a CLI subcommand: `typokit request-counter stats`
+    commands() {
+      return [
+        {
+          name: "request-counter:stats",
+          description: "Show request count statistics",
+          handler: () => {
+            console.log(`Requests: ${requestCount}`);
+          },
+        },
+      ];
+    },
+
+    // Expose a debug sidecar endpoint
+    inspect() {
+      return [
+        {
+          path: "/_inspect/request-counter",
+          handler: () => ({ count: requestCount }),
+        },
+      ];
+    },
+  };
+}
+```
+
+<Aside type="caution">
+Plugins that register services during `onStart` should clean them up during `onStop`. Failing to close database connections, timers, or sidecar servers can prevent graceful shutdown.
+</Aside>
+
+## Plugin Design Guidelines
+
+1. **Name your plugin** — The `name` field is used in logs, error messages, and the debug sidecar. Use a descriptive kebab-case name.
+
+2. **Use services for DI** — Register capabilities on `app.services` during `onStart` so other plugins and handlers can discover them at runtime.
+
+3. **Prefer middleware over lifecycle hooks for per-request logic** — If you need to run code on every request, register middleware during `onStart`. Don't try to replicate onRequest/onResponse semantics.
+
+4. **Keep build hooks pure** — `onBuild` taps should read from the pipeline context and append to outputs. Avoid side effects that depend on the file system or network.
+
+5. **Handle errors gracefully** — If your plugin's `onReady` or `onStop` throws, it can break the application lifecycle. Wrap cleanup in try/catch.
+
+6. **Support both dev and production** — The debug plugin demonstrates this pattern: full access in dev mode, opt-in with authentication in production.

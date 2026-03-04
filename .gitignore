@@ -1,3 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Rust/napi-rs build artifacts
+target/
+*.node
+packages/transform-native/index.js
+packages/transform-native/false
+
+# TypoKit generated
+.typokit/
+__generated__/
+
+# Astro generated
+.astro/
+
+# TypeDoc generated API reference (regenerated on build)
+packages/docs/src/content/docs/api-reference/generated/
+
+# Nx
+.nx/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
 # Ralph working files
 scripts/ralph/prd.json
 scripts/ralph/progress.txt

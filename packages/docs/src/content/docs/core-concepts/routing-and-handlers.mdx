@@ -1,0 +1,406 @@
+---
+title: Routing and Handlers
+description: Define route contracts with full type safety, implement handlers that receive validated input, and register routes explicitly — no magic file-based routing.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## How Routing Works in TypoKit
+
+TypoKit routes are built from three concepts:
+
+1. **Route contracts** — TypeScript interfaces that bind request params, query, body, and response types to an HTTP method + path
+2. **Handlers** — functions that receive validated, fully-typed input and return the response type
+3. **Explicit registration** — routes are wired up in `app.ts`, not inferred from file names
+
+There's no file-based routing magic. Every route is visible, traceable, and debuggable.
+
+<Aside type="tip">
+  This explicit approach is intentionally AI-friendly. An agent can read `app.ts` and know every route in the application without scanning the filesystem.
+</Aside>
+
+## Route Contracts
+
+A route contract is a type-level description of a single API endpoint. It uses the `RouteContract` generic from `@typokit/types`:
+
+```typescript
+import type { RouteContract } from "@typokit/types";
+
+export interface RouteContract<
+  TParams = void,
+  TQuery = void,
+  TBody = void,
+  TResponse = void,
+> {
+  params: TParams;     // URL path parameters (e.g., :id)
+  query: TQuery;       // Query string parameters
+  body: TBody;         // Request body
+  response: TResponse; // Response payload
+}
+```
+
+All four type parameters default to `void`, so you only specify what the endpoint actually uses.
+
+### Defining Route Contracts
+
+Group related routes into a single interface. Each key is an HTTP method + path pattern:
+
+```typescript
+// src/routes/users/contracts.ts
+
+import type { RouteContract } from "@typokit/types";
+import type {
+  CreateUserInput,
+  UpdateUserInput,
+  PublicUser,
+  PaginatedResponse,
+} from "@typokit/example-todo-schema";
+
+export interface UsersRoutes {
+  "GET /users": RouteContract<
+    void,                                    // no path params
+    { page?: number; pageSize?: number },    // query params
+    void,                                    // no body (GET request)
+    PaginatedResponse<PublicUser>             // response type
+  >;
+
+  "POST /users": RouteContract<
+    void,                 // no path params
+    void,                 // no query params
+    CreateUserInput,      // request body
+    PublicUser            // response type
+  >;
+
+  "GET /users/:id": RouteContract<
+    { id: string },       // path params
+    void,                 // no query params
+    void,                 // no body
+    PublicUser            // response type
+  >;
+
+  "PUT /users/:id": RouteContract<
+    { id: string },
+    void,
+    UpdateUserInput,
+    PublicUser
+  >;
+
+  "DELETE /users/:id": RouteContract<
+    { id: string },
+    void,
+    void,
+    void                  // DELETE returns nothing
+  >;
+}
+```
+
+<Aside type="note">
+  The route key format is `"METHOD /path/:param"`. Path parameters use the `:param` syntax and must match the `TParams` type exactly.
+</Aside>
+
+### What Contracts Give You
+
+From this single interface, the TypoKit build pipeline derives:
+
+| Output | What it uses |
+|--------|-------------|
+| **Runtime validators** | `TBody` and `TQuery` types → request validation |
+| **OpenAPI spec** | All four type params → endpoint documentation |
+| **Type-safe client** | Route keys + types → `api.get("/users/:id", { params: { id } })` |
+| **Contract tests** | `TBody` → valid/invalid request data, `TResponse` → response shape checks |
+| **Handler type safety** | TypeScript compiler enforces that handlers match their contracts |
+
+## Implementing Handlers
+
+Handlers are the functions that execute when a request hits a route. Use `defineHandlers` to create a type-safe handler map:
+
+```typescript
+// src/routes/users/handlers.ts
+
+import { defineHandlers } from "@typokit/core";
+import type { UsersRoutes } from "./contracts.js";
+import * as userService from "../../services/user-service.js";
+
+export default defineHandlers<UsersRoutes>({
+  "GET /users": async ({ query, ctx }) => {
+    const page = query?.page ?? 1;
+    const pageSize = query?.pageSize ?? 20;
+    return userService.listUsers(page, pageSize);
+  },
+
+  "POST /users": async ({ body, ctx }) => {
+    const existing = userService.findUserByEmail(body.email);
+    if (existing) {
+      ctx.fail(409, "USER_EMAIL_CONFLICT",
+        `User with email ${body.email} already exists`);
+    }
+    return userService.createUser(body);
+  },
+
+  "GET /users/:id": async ({ params, ctx }) => {
+    const user = userService.getUserById(params.id);
+    if (!user) {
+      return ctx.fail(404, "USER_NOT_FOUND",
+        `User ${params.id} not found`);
+    }
+    return user;
+  },
+
+  "PUT /users/:id": async ({ params, body, ctx }) => {
+    const existing = userService.getUserById(params.id);
+    if (!existing) {
+      return ctx.fail(404, "USER_NOT_FOUND",
+        `User ${params.id} not found`);
+    }
+    return userService.updateUser(params.id, body);
+  },
+
+  "DELETE /users/:id": async ({ params, ctx }) => {
+    const existing = userService.getUserById(params.id);
+    if (!existing) {
+      ctx.fail(404, "USER_NOT_FOUND",
+        `User ${params.id} not found`);
+    }
+    userService.deleteUser(params.id);
+    return undefined as unknown as void;
+  },
+});
+```
+
+### How `defineHandlers` Works
+
+```typescript
+export function defineHandlers<
+  TRoutes extends Record<string, RouteContract<unknown, unknown, unknown, unknown>>,
+>(handlers: HandlerDefs<TRoutes>): HandlerDefs<TRoutes> {
+  return handlers;
+}
+```
+
+At runtime, `defineHandlers` is a pass-through — it returns the handlers object unchanged. Its purpose is purely **compile-time type enforcement**:
+
+- Every route key in `TRoutes` must have a corresponding handler
+- Each handler's input types must match its contract's `TParams`, `TQuery`, and `TBody`
+- Each handler's return type must match its contract's `TResponse`
+
+If any handler is missing or its types don't match, TypeScript reports a compile error.
+
+### Handler Input Shape
+
+Every handler receives a single object with four properties:
+
+```typescript
+type HandlerInput<TContract extends RouteContract> = {
+  params: TContract["params"];  // Parsed URL path parameters
+  query: TContract["query"];    // Parsed query string
+  body: TContract["body"];      // Parsed and validated request body
+  ctx: RequestContext;          // Request context (see Middleware and Context)
+};
+```
+
+<Aside type="tip">
+  Use destructuring to pick only what you need. A `GET` handler with no query params can just destructure `{ params, ctx }`.
+</Aside>
+
+### Automatic Validation
+
+By the time your handler executes, all input has already been validated:
+
+| Input | Validation | Timing |
+|-------|-----------|--------|
+| **params** | Extracted from URL path, type-coerced | Before handler |
+| **query** | Parsed from query string, type-coerced | Before handler |
+| **body** | Validated against generated Typia validators | Before handler |
+| **response** | Type-checked by TypeScript compiler | Compile time |
+
+If validation fails, TypoKit returns a structured `400 Bad Request` error — your handler never sees invalid data.
+
+```typescript
+"POST /users": async ({ body, ctx }) => {
+  // At this point, body is guaranteed to match CreateUserInput:
+  //   - body.email is a valid email format
+  //   - body.displayName is 2-100 characters
+  //   - All required fields are present
+  //
+  // No manual validation needed!
+  return userService.createUser(body);
+},
+```
+
+## File Convention
+
+TypoKit recommends organizing routes with a consistent per-module file structure:
+
+```
+src/
+  routes/
+    users/
+      contracts.ts      # Route type contracts (required)
+      handlers.ts       # Handler implementations (required)
+      middleware.ts      # Route-specific middleware (optional)
+    todos/
+      contracts.ts
+      handlers.ts
+      middleware.ts
+  middleware/
+    require-auth.ts     # Shared middleware
+  services/
+    user-service.ts     # Business logic
+  app.ts                # Explicit route registration
+```
+
+### What Goes Where
+
+| File | Purpose | Required? |
+|------|---------|-----------|
+| `contracts.ts` | Route interface with `RouteContract` types | Yes |
+| `handlers.ts` | `defineHandlers` implementation for each route | Yes |
+| `middleware.ts` | Route-group middleware (auth, rate limiting, etc.) | No |
+
+<Aside type="caution">
+  Keep business logic in `services/`, not in handlers. Handlers should be thin — validate, delegate to a service, and return the result. This keeps your route modules focused and your business logic testable independently.
+</Aside>
+
+## Explicit Route Registration
+
+Routes are registered in `app.ts` by passing handler maps and configuration to `createApp`:
+
+```typescript
+// src/app.ts
+
+import { createApp } from "@typokit/core";
+import type { ServerAdapter } from "@typokit/types";
+import { requireAuth } from "./middleware/require-auth.js";
+import userHandlers from "./routes/users/handlers.js";
+import todoHandlers from "./routes/todos/handlers.js";
+
+export function createTodoApp(server: ServerAdapter) {
+  return createApp({
+    server,
+    middleware: [],  // Global middleware (applied to all routes)
+    routes: [
+      {
+        prefix: "/users",
+        handlers: userHandlers,
+        middleware: [
+          { name: "requireAuth", middleware: requireAuth, priority: 0 },
+        ],
+      },
+      {
+        prefix: "/todos",
+        handlers: todoHandlers,
+        middleware: [
+          { name: "requireAuth", middleware: requireAuth, priority: 0 },
+        ],
+      },
+    ],
+  });
+}
+```
+
+### Why Explicit Registration?
+
+| Benefit | Details |
+|---------|---------|
+| **Readable** | Open `app.ts` and see every route in the application |
+| **Debuggable** | No hidden imports, no filesystem scanning, no magic conventions |
+| **AI-friendly** | An agent can parse one file to understand the full API surface |
+| **Flexible** | Assign different middleware to different route groups |
+| **Predictable** | Route order is the order you define — no alphabetical or filesystem surprises |
+
+<Aside type="note">
+  TypoKit intentionally avoids file-based routing (like Next.js or Nuxt). In a schema-first framework, the dependency graph must always be explicit and traceable.
+</Aside>
+
+### Route Group Configuration
+
+Each entry in the `routes` array is a `RouteGroup`:
+
+```typescript
+interface RouteGroup {
+  prefix: string;                    // URL prefix (e.g., "/users")
+  handlers: Record<string, unknown>; // Handler map from defineHandlers
+  middleware?: MiddlewareEntry[];     // Optional route-group middleware
+}
+
+interface MiddlewareEntry {
+  name: string;           // Identifier for debugging/logging
+  middleware: Middleware;  // The middleware function
+  priority: number;       // Execution order (lower = earlier)
+}
+```
+
+The `prefix` is prepended to each route key's path. For example, if `userHandlers` defines `"GET /users/:id"` and the prefix is `"/users"`, the final endpoint path is `GET /users/:id` — the prefix matches the contract path.
+
+## Putting It All Together
+
+Here's the full flow from type definition to running server:
+
+**1. Define your entity types** ([Schema-First Types](/typokit/core-concepts/schema-first-types/))
+
+```typescript
+/** @table users */
+export interface User {
+  /** @id @generated uuid */
+  id: string;
+  /** @format email @unique */
+  email: string;
+  /** @minLength 2 @maxLength 100 */
+  displayName: string;
+}
+
+export type CreateUserInput = Omit<User, "id">;
+export type PublicUser = User;
+```
+
+**2. Define route contracts**
+
+```typescript
+export interface UsersRoutes {
+  "POST /users": RouteContract<void, void, CreateUserInput, PublicUser>;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, PublicUser>;
+}
+```
+
+**3. Implement handlers**
+
+```typescript
+export default defineHandlers<UsersRoutes>({
+  "POST /users": async ({ body }) => userService.create(body),
+  "GET /users/:id": async ({ params, ctx }) => {
+    const user = userService.findById(params.id);
+    if (!user) return ctx.fail(404, "NOT_FOUND", "User not found");
+    return user;
+  },
+});
+```
+
+**4. Register routes**
+
+```typescript
+export function createApp(server: ServerAdapter) {
+  return createApp({
+    server,
+    routes: [{ prefix: "/users", handlers: userHandlers }],
+  });
+}
+```
+
+**5. Start the server**
+
+```typescript
+import { createNodeAdapter } from "@typokit/adapter-node";
+
+const server = createNodeAdapter({ port: 3000 });
+const app = createTodoApp(server);
+app.start();
+```
+
+The type safety chain is unbroken from entity definition through to the running HTTP endpoint. If the types don't match at any stage, the compiler catches it.
+
+## Next Steps
+
+- [**Schema-First Types**](/typokit/core-concepts/schema-first-types/) — how entity types and JSDoc tags drive the entire pipeline
+- [**Middleware and Context**](/typokit/core-concepts/middleware-and-context/) — how middleware narrows the context type for handlers
+- [**Error Handling**](/typokit/core-concepts/error-handling/) — structured errors with `ctx.fail()`
+- [**Building Your First API**](/typokit/guides/building-first-api/) — hands-on tutorial from scratch

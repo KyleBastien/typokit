@@ -1,0 +1,492 @@
+---
+title: Observability and Debugging
+description: Trace requests end-to-end, inspect framework state, and debug issues with TypoKit's structured logging, OpenTelemetry integration, debug sidecar, and AI-friendly error context.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Philosophy: Every Request Tells a Story
+
+TypoKit treats observability as a **first-class concern**, not an afterthought. Every request automatically gets:
+
+1. **A trace ID** — A unique identifier that correlates logs, spans, and errors across the entire request lifecycle.
+2. **Structured logs** — JSON-formatted log entries with automatic context enrichment (route, phase, adapter).
+3. **OpenTelemetry spans** — Distributed traces covering middleware, validation, handler execution, and serialization.
+4. **AI-friendly error context** — Structured error responses that include schema references, validation failures, and repair suggestions.
+
+<Aside type="tip">
+  You don't need to instrument your code manually. TypoKit auto-instruments the request lifecycle — middleware execution, validation phases, handler calls, and response serialization all appear as spans in your traces.
+</Aside>
+
+## Structured Logging with `ctx.log`
+
+Every handler and middleware receives a logger via `ctx.log`. This logger automatically includes the current request's `traceId`, `route`, and lifecycle `phase` in every log entry.
+
+### Logger API
+
+```typescript
+interface Logger {
+  trace(message: string, data?: Record<string, unknown>): void;
+  debug(message: string, data?: Record<string, unknown>): void;
+  info(message: string, data?: Record<string, unknown>): void;
+  warn(message: string, data?: Record<string, unknown>): void;
+  error(message: string, data?: Record<string, unknown>): void;
+  fatal(message: string, data?: Record<string, unknown>): void;
+}
+```
+
+### Usage in Handlers
+
+```typescript
+"POST /users": async ({ body, ctx }) => {
+  ctx.log.info("Creating user", { email: body.email });
+
+  const user = await userService.create(body, ctx);
+  ctx.log.info("User created", { userId: user.id });
+
+  return user;
+}
+```
+
+### Log Entry Structure
+
+Every log entry emitted by `ctx.log` is a structured JSON object:
+
+```json
+{
+  "level": "info",
+  "message": "Creating user",
+  "timestamp": "2025-03-01T10:15:32.123Z",
+  "traceId": "a1b2c3d4e5f6...",
+  "route": "POST /users",
+  "phase": "handler",
+  "requestId": "req-xyz-789",
+  "serverAdapter": "fastify",
+  "data": {
+    "email": "alice@example.com"
+  }
+}
+```
+
+The fields `traceId`, `route`, `phase`, `requestId`, and `serverAdapter` are **automatically injected** — you never need to pass them manually.
+
+### Log Configuration
+
+Configure logging behavior in `createApp()`:
+
+```typescript
+createApp({
+  logging: {
+    level: "info",       // "trace" | "debug" | "info" | "warn" | "error" | "fatal"
+    redact: [
+      "*.password",
+      "*.token",
+      "authorization",
+    ],
+  },
+})
+```
+
+<Aside type="note">
+  The default log level is `"debug"` in development and `"info"` in production. Field redaction uses glob patterns — `*.password` redacts any field named `password` at any depth.
+</Aside>
+
+### Log Sinks
+
+The `StructuredLogger` emits to multiple sinks simultaneously:
+
+| Sink | Destination | When Active |
+|------|-------------|-------------|
+| **StdoutSink** | JSON to console | Always |
+| **OtelLogSink** | OTLP `/v1/logs` endpoint | When telemetry is enabled |
+| **DebugSidecar** | `/_debug/logs` endpoint | When debug plugin is active |
+
+All sinks receive the same enriched log entries, ensuring consistency across your observability stack.
+
+## OpenTelemetry Integration (`@typokit/otel`)
+
+TypoKit provides native OpenTelemetry support via the `@typokit/otel` package. Enable it in your app configuration to get distributed traces and metrics with zero manual instrumentation.
+
+### Configuration
+
+```typescript
+createApp({
+  telemetry: {
+    tracing: true,
+    metrics: true,
+    exporter: "otlp",                     // "otlp" | "console"
+    endpoint: "http://localhost:4318",     // OTLP collector endpoint
+    serviceName: "my-api",
+  },
+})
+```
+
+### Auto-Instrumented Spans
+
+TypoKit creates spans for every phase of the request lifecycle:
+
+```
+[Root Span: POST /users]
+  ├─ [middleware:logging]      1ms
+  ├─ [middleware:auth]        12ms
+  ├─ [validation:params]      0ms  ✓
+  ├─ [validation:query]       0ms  ✓
+  ├─ [validation:body]        2ms  ✓
+  ├─ [handler]               45ms
+  ├─ [serialization]          1ms
+  └─ [server:write]           0ms
+```
+
+Each span includes:
+
+```typescript
+interface SpanData {
+  traceId: string;        // 32-char hex trace ID
+  spanId: string;         // 16-char hex span ID
+  parentSpanId?: string;  // Links to parent span
+  name: string;           // e.g., "middleware:auth", "handler"
+  kind: "server" | "internal";
+  startTime: string;      // ISO 8601
+  endTime?: string;
+  durationMs?: number;
+  status: "ok" | "error" | "unset";
+  attributes: Record<string, string | number | boolean>;
+}
+```
+
+### Standard Span Attributes
+
+TypoKit populates these attributes automatically on every root span:
+
+| Attribute | Example | Description |
+|-----------|---------|-------------|
+| `http.method` | `POST` | HTTP method |
+| `http.route` | `/users/:id` | Route pattern |
+| `http.status_code` | `200` | Response status |
+| `error.message` | `"User not found"` | Present when status ≥ 400 |
+
+You can add custom attributes in handlers:
+
+```typescript
+ctx.span?.setAttribute("user.tier", "premium");
+```
+
+### Span Exporters
+
+| Exporter | Use Case |
+|----------|----------|
+| `ConsoleSpanExporter` | Dev mode — outputs JSON to stdout |
+| `OtlpSpanExporter` | Production — POST to OTLP-compatible collector |
+| `NoopSpanExporter` | Testing — silently discards spans |
+
+### Log-to-Span Bridging
+
+The `OtelLogSink` bridges `ctx.log` entries into OTLP log records, attaching trace context (`traceId`, `spanId`) so logs and traces correlate in your observability backend (Jaeger, Grafana, Datadog, etc.).
+
+Severity mapping follows the OpenTelemetry specification:
+
+| Log Level | OTel Severity Number |
+|-----------|---------------------|
+| `trace` | 1 |
+| `debug` | 5 |
+| `info` | 9 |
+| `warn` | 13 |
+| `error` | 17 |
+| `fatal` | 21 |
+
+## Request Lifecycle Trace Format
+
+Every request produces a complete lifecycle trace — a JSON object that records the timing and result of each processing phase:
+
+```json
+{
+  "traceId": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
+  "route": "POST /users",
+  "server": "fastify",
+  "lifecycle": [
+    { "phase": "received", "timestamp": "2025-03-01T10:15:32.100Z", "durationMs": 0 },
+    { "phase": "server:normalize", "timestamp": "2025-03-01T10:15:32.101Z", "durationMs": 1 },
+    { "phase": "middleware:logging", "timestamp": "2025-03-01T10:15:32.102Z", "durationMs": 1 },
+    { "phase": "middleware:auth", "timestamp": "2025-03-01T10:15:32.103Z", "durationMs": 12 },
+    { "phase": "validation:params", "timestamp": "2025-03-01T10:15:32.115Z", "durationMs": 0, "result": "pass" },
+    { "phase": "validation:query", "timestamp": "2025-03-01T10:15:32.115Z", "durationMs": 0, "result": "pass" },
+    { "phase": "validation:body", "timestamp": "2025-03-01T10:15:32.115Z", "durationMs": 2, "result": "pass" },
+    { "phase": "handler", "timestamp": "2025-03-01T10:15:32.117Z", "durationMs": 45 },
+    { "phase": "serialization", "timestamp": "2025-03-01T10:15:32.162Z", "durationMs": 1 },
+    { "phase": "server:write", "timestamp": "2025-03-01T10:15:32.163Z", "durationMs": 0 },
+    { "phase": "response", "timestamp": "2025-03-01T10:15:32.163Z", "durationMs": 0, "status": 200 }
+  ],
+  "totalMs": 63
+}
+```
+
+<Aside type="tip">
+  The lifecycle trace is available via the debug sidecar at `/_debug/spans` and is also exported as nested OTel spans when tracing is enabled. Use it to identify exactly which phase is slow or failing.
+</Aside>
+
+## Debug Sidecar (`@typokit/plugin-debug`)
+
+The debug sidecar is a lightweight HTTP server that runs alongside your application, exposing introspection endpoints for route tables, middleware chains, error logs, performance stats, and more.
+
+### Setup
+
+```typescript
+import { debugPlugin } from "@typokit/plugin-debug";
+
+createApp({
+  plugins: [
+    debugPlugin({
+      port: 9800,            // default sidecar port
+      production: false,     // dev-only by default
+    }),
+  ],
+})
+```
+
+### Dev Mode vs Secured Production Mode
+
+| Feature | Dev Mode (default) | Production Mode |
+|---------|-------------------|-----------------|
+| Authentication | None | API key via `X-Debug-Key` header |
+| IP Allowlist | Disabled | Configurable CIDR ranges |
+| Bind Address | `0.0.0.0` | `127.0.0.1` (internal only) |
+| Rate Limiting | Disabled | Configurable per-IP limits |
+| Field Redaction | Disabled | Active for sensitive fields |
+| Access | Full | Read-only endpoints only |
+
+**Production configuration:**
+
+```typescript
+debugPlugin({
+  port: 9800,
+  production: true,
+  security: {
+    apiKey: process.env.DEBUG_API_KEY,
+    allowlist: ["127.0.0.1", "10.0.0.0/8"],
+    hostname: "127.0.0.1",
+    redact: ["*.password", "authorization"],
+    rateLimit: 100,
+    rateLimitWindow: 60000,   // 1 minute
+  },
+})
+```
+
+<Aside type="caution">
+  Never expose the debug sidecar to the public internet without authentication. In production mode, always set an `apiKey` and restrict the `allowlist` to internal networks.
+</Aside>
+
+### Debug Endpoints
+
+All endpoints return JSON and are served on the sidecar port (default `9800`):
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /_debug/routes` | All registered routes with middleware, validators, and serializers |
+| `GET /_debug/routes/:method/:path` | Single route details |
+| `GET /_debug/middleware` | Full middleware chain with execution priorities |
+| `GET /_debug/deps` | Service dependency graph |
+| `GET /_debug/schema/:name` | Type definition and where it's used (routes, migrations, tests) |
+| `GET /_debug/errors?since=1h&limit=100` | Recent errors with traceId, status, route, and phase |
+| `GET /_debug/performance?route=/users&window=24h` | Latency percentiles (p50/p95/p99) and throughput |
+| `GET /_debug/health` | Server health: connections, memory, event loop lag |
+| `GET /_debug/server` | Active adapter, platform, port, status |
+| `GET /_debug/build-pipeline` | Registered build hooks and execution order |
+| `GET /_debug/spans?since=1m` | Recent OTel spans (structured) |
+| `GET /_debug/logs?since=1m&level=error` | Recent log entries with full context |
+
+**Example: Inspecting a route**
+
+```bash
+curl http://localhost:9800/_debug/routes/POST/users
+```
+
+```json
+{
+  "method": "POST",
+  "path": "/users",
+  "ref": "users#create",
+  "middleware": ["logging", "auth"],
+  "validators": {
+    "body": "CreateUserInput"
+  },
+  "serializer": "User"
+}
+```
+
+**Example: Checking recent errors**
+
+```bash
+curl http://localhost:9800/_debug/errors?since=5m&limit=5
+```
+
+```json
+[
+  {
+    "timestamp": "2025-03-01T10:15:32.123Z",
+    "code": "VALIDATION_FAILED",
+    "status": 400,
+    "message": "Request body validation failed",
+    "route": "POST /users",
+    "phase": "validation:body",
+    "details": { "field": "email", "expected": "string & format:email" }
+  }
+]
+```
+
+## CLI Inspection Commands (`typokit inspect`)
+
+The `typokit inspect` family of commands lets you query framework state from the terminal — useful for debugging, CI pipelines, and AI agent introspection. All commands support a `--json` flag for machine-readable output.
+
+```bash
+typokit inspect routes [--json]                   # All registered routes
+typokit inspect route "GET /users/:id" [--json]   # Single route with full details
+typokit inspect middleware [--json]               # Middleware chain with priorities
+typokit inspect schema User [--json]              # Type definition + usages
+typokit inspect deps [--json]                     # Service dependency graph
+typokit inspect errors [--last 10] [--json]       # Recent errors
+typokit inspect performance [--json]              # Latency percentiles per route
+typokit inspect build-pipeline [--json]           # Hook registration order
+typokit inspect server [--json]                   # Active adapter info
+```
+
+### Example: Inspect a schema
+
+```bash
+typokit inspect schema User --json
+```
+
+```json
+{
+  "name": "User",
+  "properties": {
+    "id": { "type": "string", "tags": { "id": true, "format": "uuid", "generated": true } },
+    "email": { "type": "string", "tags": { "format": "email", "unique": true } },
+    "name": { "type": "string", "tags": { "maxLength": "100" } },
+    "role": { "type": "string", "tags": { "default": "member" } },
+    "createdAt": { "type": "Date", "tags": { "generated": true } }
+  },
+  "usedIn": [
+    "GET /users",
+    "GET /users/:id",
+    "POST /users",
+    "PUT /users/:id",
+    "migration:001_create_users"
+  ]
+}
+```
+
+### Example: Inspect route performance
+
+```bash
+typokit inspect performance --json
+```
+
+```json
+[
+  { "route": "GET /users", "p50": 12, "p95": 45, "p99": 120, "count": 1842 },
+  { "route": "POST /users", "p50": 35, "p95": 89, "p99": 210, "count": 523 },
+  { "route": "GET /users/:id", "p50": 8, "p95": 22, "p99": 55, "count": 4210 }
+]
+```
+
+<Aside type="tip">
+  The `--json` flag makes `typokit inspect` output ideal for piping into AI agents, CI scripts, or dashboards. Combine with `jq` for quick filtering: `typokit inspect routes --json | jq '.[] | select(.middleware | length > 2)'`
+</Aside>
+
+## Structured Error Context for AI Agents
+
+TypoKit's error responses are designed to be **machine-readable** — not just for human developers, but for AI agents that need to understand what went wrong and how to fix it.
+
+### Standard Error Response
+
+Every error returns a consistent JSON structure:
+
+```typescript
+interface ErrorResponse {
+  error: {
+    code: string;           // e.g., "VALIDATION_FAILED", "USER_NOT_FOUND"
+    message: string;        // Human-readable description
+    details?: Record<string, unknown>;
+    traceId?: string;       // For distributed trace correlation
+  };
+}
+```
+
+### Extended AI Error Context
+
+When the debug sidecar is active or in development mode, errors include additional context specifically designed for AI agent consumption:
+
+```json
+{
+  "error": "VALIDATION_FAILED",
+  "traceId": "a1b2c3d4e5f67890",
+  "route": "POST /users",
+  "phase": "request_validation",
+  "schema": "CreateUserInput",
+  "server": "fastify",
+  "failures": [
+    {
+      "path": "$.email",
+      "expected": "string & format:email",
+      "received": "number (42)",
+      "suggestion": "The 'email' field expects a valid email string."
+    }
+  ],
+  "timestamp": "2025-03-01T10:15:32.123Z",
+  "requestId": "req-xyz-789",
+  "serverAdapter": "fastify"
+}
+```
+
+Key fields for AI agents:
+
+| Field | Purpose |
+|-------|---------|
+| `schema` | The TypeScript type that validation ran against |
+| `failures[].path` | JSONPath to the invalid field |
+| `failures[].expected` | What the schema expects (type + constraints) |
+| `failures[].received` | What was actually received |
+| `failures[].suggestion` | Human/AI-readable fix suggestion |
+| `traceId` | Correlate with logs and spans for full context |
+| `phase` | Which lifecycle phase failed (validation, handler, middleware) |
+
+<Aside type="note">
+  In production mode, extended error context is only available through the debug sidecar — public error responses omit internal details like `schema`, `failures`, and stack traces for security.
+</Aside>
+
+## Observability Signal Flow
+
+All observability signals are **correlated via `traceId`** — every log, span, and error from the same request shares a single trace identifier:
+
+```
+Handler Code (ctx.log.info("..."))
+    ↓
+[StructuredLogger]
+    ├→ StdoutSink (JSON to console)
+    ├→ OtelLogSink (OTLP /v1/logs endpoint)
+    └→ DebugSidecar (/_debug/logs endpoint)
+
+[Tracer / Spans]
+    ├→ ConsoleSpanExporter (JSON to console in dev)
+    ├→ OtlpSpanExporter (OTLP /v1/traces endpoint)
+    └→ DebugSidecar (/_debug/spans endpoint)
+
+[AppError thrown]
+    ├→ ErrorMiddleware (catches → serializes ErrorResponse)
+    ├→ ctx.log.error (logs error with full context)
+    ├→ Span.setError (marks span as errored)
+    └→ DebugSidecar (/_debug/errors endpoint)
+```
+
+This unified flow means you can:
+
+1. **Start from a trace ID** in an error response → find every log and span for that request.
+2. **Start from a log entry** → jump to the parent trace to see the full lifecycle.
+3. **Start from a span** → see related logs within that phase and any errors that occurred.
+
+## What's Next
+
+- [Error Handling](/typokit/core-concepts/error-handling/) — Deep dive into the AppError hierarchy and `ctx.fail()` pattern
+- [Middleware and Context](/typokit/core-concepts/middleware-and-context/) — How `ctx.log` and `ctx.services` flow through the middleware chain
+- [Plugins](/typokit/core-concepts/plugins/) — How `@typokit/plugin-debug` hooks into the app lifecycle
+- [Building Your First API](/typokit/guides/building-first-api/) — See observability in action with a real project

@@ -1,0 +1,664 @@
+---
+title: Custom Plugin Development
+description: Build custom TypoKit plugins — hook into the build pipeline, register runtime services, expose CLI commands, and extend your server with framework-native middleware.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+TypoKit plugins let you extend both the **build pipeline** and the **application lifecycle** through a single interface. This guide walks you through building a real plugin — a request-timing plugin that measures handler latency and exposes metrics.
+
+<Aside type="tip">
+  Read the [Plugins concept page](/typokit/core-concepts/plugins/) first for a high-level overview of the plugin system and official plugins.
+</Aside>
+
+## What You'll Build
+
+A `plugin-timing` that:
+
+1. **Build-time** — taps the route table to index all registered routes
+2. **Runtime** — registers middleware that measures request duration
+3. **Services** — exposes a `timing` service for other plugins to query
+4. **CLI commands** — adds a `typokit timing:report` command
+5. **Introspection endpoints** — adds a `/_inspect/timing` endpoint
+6. **Framework-native middleware** — injects a `Server-Timing` header via `getNativeServer()`
+
+## Step 1: Project Setup
+
+<Steps>
+
+1. **Create the package directory**
+
+   ```bash
+   mkdir -p packages/plugin-timing/src
+   cd packages/plugin-timing
+   ```
+
+2. **Initialize `package.json`**
+
+   ```json
+   {
+     "name": "@typokit/plugin-timing",
+     "version": "0.1.0",
+     "private": true,
+     "type": "module",
+     "exports": {
+       ".": "./src/index.ts"
+     },
+     "dependencies": {
+       "@typokit/core": "workspace:*"
+     }
+   }
+   ```
+
+3. **Create `tsconfig.json`**
+
+   ```json
+   {
+     "extends": "../../tsconfig.json",
+     "compilerOptions": {
+       "outDir": "dist",
+       "rootDir": "src"
+     },
+     "include": ["src"]
+   }
+   ```
+
+</Steps>
+
+## Step 2: The Plugin Skeleton
+
+Every plugin is a factory function that returns a `TypoKitPlugin` object:
+
+```typescript
+// packages/plugin-timing/src/index.ts
+import type {
+  TypoKitPlugin,
+  BuildPipeline,
+  AppInstance,
+  AppError,
+  RequestContext,
+  CliCommand,
+  InspectEndpoint,
+} from "@typokit/core";
+
+export interface TimingPluginOptions {
+  /** Percentiles to track (default: [50, 90, 95, 99]) */
+  percentiles?: number[];
+  /** Maximum number of data points to retain (default: 10_000) */
+  maxSamples?: number;
+}
+
+export function timingPlugin(options: TimingPluginOptions = {}): TypoKitPlugin {
+  const { percentiles = [50, 90, 95, 99], maxSamples = 10_000 } = options;
+
+  // Internal state — lives in closure, not on AppInstance
+  const routeLatencies = new Map<string, number[]>();
+  const knownRoutes = new Set<string>();
+
+  return {
+    name: "plugin-timing",
+
+    onBuild(pipeline) { /* Step 3 */ },
+    async onStart(app) { /* Step 4 */ },
+    async onReady(app) { /* Step 5 */ },
+    onError(error, ctx) { /* Step 6 */ },
+    async onStop(app) { /* Step 7 */ },
+
+    commands() { /* Step 8 */ return []; },
+    inspect() { /* Step 9 */ return []; },
+  };
+}
+```
+
+<Aside type="note">
+  Plugin state lives in the **closure** created by the factory function — not on `AppInstance`. This keeps plugins self-contained and avoids naming collisions.
+</Aside>
+
+## Step 3: Build-Time Hooks — Tapping the Pipeline
+
+The `onBuild` hook receives a `BuildPipeline` with six sequential hooks. For our timing plugin, we tap `afterRouteTable` to index all compiled routes:
+
+```typescript
+onBuild(pipeline: BuildPipeline) {
+  // Tap into the route table after it's compiled
+  pipeline.hooks.afterRouteTable.tap("plugin-timing", (routeTable, ctx) => {
+    // Walk the compiled radix tree to collect all routes
+    function collectRoutes(node: typeof routeTable, prefix: string) {
+      if (node.handler) {
+        const route = `${node.handler.method} ${prefix || "/"}`;
+        knownRoutes.add(route);
+      }
+      for (const [segment, child] of Object.entries(node.children ?? {})) {
+        collectRoutes(child, `${prefix}/${segment}`);
+      }
+      if (node.paramChild) {
+        collectRoutes(node.paramChild, `${prefix}/:${node.paramChild.paramName}`);
+      }
+      if (node.wildcardChild) {
+        collectRoutes(node.wildcardChild, `${prefix}/*`);
+      }
+    }
+    collectRoutes(routeTable, "");
+    console.log(`[plugin-timing] Indexed ${knownRoutes.size} routes`);
+  });
+},
+```
+
+### All Six Build Pipeline Hooks
+
+| Hook | Arguments | Use Case |
+|------|-----------|----------|
+| `beforeTransform` | `BuildContext` | Modify config before processing starts |
+| `afterTypeParse` | `SchemaTypeMap, BuildContext` | Inspect or transform parsed types |
+| `afterValidators` | `GeneratedOutput[], BuildContext` | Add custom validators |
+| `afterRouteTable` | `CompiledRouteTable, BuildContext` | Inspect the compiled route tree |
+| `emit` | `GeneratedOutput[], BuildContext` | Add generated files to the output |
+| `done` | `BuildResult` | Post-build reporting, cache warming |
+
+Hooks execute in order. Each uses `AsyncSeriesHook` (tapable pattern) — handlers run sequentially, not in parallel.
+
+<Aside type="tip">
+  Tap into the `emit` hook to **generate code** at build time. Push `GeneratedOutput` items to add TypeScript files, JSON configs, or any other build artifact.
+</Aside>
+
+### Generating Code at Build Time
+
+If your plugin needs to generate files, tap the `emit` hook:
+
+```typescript
+pipeline.hooks.emit.tap("plugin-timing", (outputs, ctx) => {
+  outputs.push({
+    filePath: "timing/routes.json",
+    content: JSON.stringify([...knownRoutes], null, 2),
+    description: "Known routes for timing analysis",
+  });
+});
+```
+
+Generated files are written to the configured `outputDir` (default `.typokit/`).
+
+## Step 4: Runtime — Registering Services and Middleware
+
+The `onStart` hook fires **before the server listens**. This is where you register services on `app.services` and set up middleware:
+
+```typescript
+async onStart(app: AppInstance) {
+  // ─── Register the timing service (DI pattern) ───
+  app.services["timing"] = {
+    /** Record a latency sample for a route */
+    record(route: string, durationMs: number) {
+      let samples = routeLatencies.get(route);
+      if (!samples) {
+        samples = [];
+        routeLatencies.set(route, samples);
+      }
+      samples.push(durationMs);
+
+      // Evict oldest samples when over limit
+      if (samples.length > maxSamples) {
+        samples.splice(0, samples.length - maxSamples);
+      }
+    },
+
+    /** Get percentile stats for a route */
+    stats(route: string) {
+      const samples = routeLatencies.get(route);
+      if (!samples?.length) return null;
+
+      const sorted = [...samples].sort((a, b) => a - b);
+      return Object.fromEntries(
+        percentiles.map((p) => {
+          const idx = Math.ceil((p / 100) * sorted.length) - 1;
+          return [`p${p}`, sorted[Math.max(0, idx)]];
+        })
+      );
+    },
+
+    /** Get stats for all routes */
+    allStats() {
+      const result: Record<string, unknown> = {};
+      for (const route of routeLatencies.keys()) {
+        result[route] = this.stats(route);
+      }
+      return result;
+    },
+  };
+},
+```
+
+<Aside type="caution">
+  Service names prefixed with underscore (e.g., `_debug`, `_ws`) are reserved for official TypoKit plugins. Use unprefixed names for your custom plugins.
+</Aside>
+
+### Registering Typed Middleware
+
+Plugins register middleware by calling `defineMiddleware()` during `onStart`. The middleware runs in the TypoKit pipeline — after request normalization, before handler execution:
+
+```typescript
+import { defineMiddleware } from "@typokit/core";
+
+async onStart(app: AppInstance) {
+  // ... service registration above ...
+
+  // ─── Register timing middleware ───
+  const timingMiddleware = defineMiddleware<{ requestStartTime: number }>({
+    name: "timing",
+    priority: -100, // Run first (lower priority = earlier execution)
+    async handler(ctx) {
+      const start = performance.now();
+
+      // Return context additions — available to all downstream middleware and handlers
+      return { requestStartTime: start };
+    },
+    async afterHandler(ctx) {
+      const duration = performance.now() - ctx.requestStartTime;
+      const route = `${ctx.method} ${ctx.route}`;
+
+      // Record via service
+      const timing = app.services["timing"] as TimingService;
+      timing.record(route, duration);
+
+      ctx.log.debug("Request timing", { route, durationMs: duration });
+    },
+  });
+
+  app.middleware.push(timingMiddleware);
+},
+```
+
+<Aside type="note">
+  Middleware with **lower priority numbers** runs first. Use negative priority (like `-100`) for instrumentation middleware that needs to wrap the entire request lifecycle.
+</Aside>
+
+## Step 5: The `onReady` Hook
+
+`onReady` fires after all routes are registered and the server is listening. Use it for warmup tasks:
+
+```typescript
+async onReady(app: AppInstance) {
+  console.log(`[plugin-timing] Tracking ${knownRoutes.size} routes`);
+  console.log(`[plugin-timing] Reporting percentiles: ${percentiles.join(", ")}`);
+
+  // Optional: warm up internal data structures
+  for (const route of knownRoutes) {
+    routeLatencies.set(route, []);
+  }
+},
+```
+
+## Step 6: The `onError` Hook
+
+`onError` is called whenever an unhandled error is observed. Use it for error-rate tracking:
+
+```typescript
+onError(error: AppError, ctx: RequestContext) {
+  // Track error latencies separately
+  const route = `${ctx.method} ${ctx.route}`;
+  const duration = performance.now() - (ctx as any).requestStartTime;
+
+  const timing = routeLatencies.get(`ERROR ${route}`);
+  if (timing) {
+    timing.push(duration);
+  } else {
+    routeLatencies.set(`ERROR ${route}`, [duration]);
+  }
+},
+```
+
+## Step 7: Graceful Shutdown
+
+`onStop` fires during graceful shutdown. Clean up resources:
+
+```typescript
+async onStop(app: AppInstance) {
+  // Flush any pending metrics
+  console.log(`[plugin-timing] Final stats:`);
+  for (const [route, samples] of routeLatencies) {
+    if (samples.length > 0) {
+      console.log(`  ${route}: ${samples.length} samples`);
+    }
+  }
+
+  routeLatencies.clear();
+  knownRoutes.clear();
+  delete app.services["timing"];
+},
+```
+
+## Step 8: Exposing CLI Commands
+
+The `commands()` method returns an array of `CliCommand` objects. These are available via `typokit <command>`:
+
+```typescript
+commands(): CliCommand[] {
+  return [
+    {
+      name: "timing:report",
+      description: "Display request timing statistics",
+      options: [
+        { name: "route", description: "Filter by route pattern" },
+        { name: "format", description: "Output format (table|json)", required: false },
+      ],
+      async run(args) {
+        const filter = args.route as string | undefined;
+        const format = (args.format as string) ?? "table";
+
+        const allStats: Record<string, unknown> = {};
+        for (const [route, samples] of routeLatencies) {
+          if (filter && !route.includes(filter)) continue;
+          if (samples.length === 0) continue;
+
+          const sorted = [...samples].sort((a, b) => a - b);
+          allStats[route] = {
+            count: samples.length,
+            ...Object.fromEntries(
+              percentiles.map((p) => {
+                const idx = Math.ceil((p / 100) * sorted.length) - 1;
+                return [`p${p}`, `${sorted[Math.max(0, idx)].toFixed(2)}ms`];
+              })
+            ),
+          };
+        }
+
+        if (format === "json") {
+          console.log(JSON.stringify(allStats, null, 2));
+        } else {
+          for (const [route, stats] of Object.entries(allStats)) {
+            console.log(`\n${route}`);
+            for (const [key, value] of Object.entries(stats as Record<string, unknown>)) {
+              console.log(`  ${key}: ${value}`);
+            }
+          }
+        }
+      },
+    },
+  ];
+},
+```
+
+Usage:
+
+```bash
+# View all timing stats
+typokit timing:report
+
+# Filter to a specific route
+typokit timing:report --route "GET /api/users"
+
+# JSON output for scripting
+typokit timing:report --format json
+```
+
+## Step 9: Introspection Endpoints
+
+The `inspect()` method returns endpoints available via `typokit inspect` and the debug sidecar:
+
+```typescript
+inspect(): InspectEndpoint[] {
+  return [
+    {
+      path: "/_inspect/timing",
+      description: "Request timing percentiles for all routes",
+      async handler() {
+        const result: Record<string, unknown> = {};
+        for (const [route, samples] of routeLatencies) {
+          if (samples.length === 0) continue;
+          const sorted = [...samples].sort((a, b) => a - b);
+          result[route] = {
+            sampleCount: samples.length,
+            percentiles: Object.fromEntries(
+              percentiles.map((p) => {
+                const idx = Math.ceil((p / 100) * sorted.length) - 1;
+                return [`p${p}`, sorted[Math.max(0, idx)]];
+              })
+            ),
+          };
+        }
+        return result;
+      },
+    },
+    {
+      path: "/_inspect/timing/slow",
+      description: "Slowest routes by p99 latency",
+      async handler() {
+        const stats = [...routeLatencies.entries()]
+          .filter(([, s]) => s.length > 0)
+          .map(([route, samples]) => {
+            const sorted = [...samples].sort((a, b) => a - b);
+            const p99Idx = Math.ceil(0.99 * sorted.length) - 1;
+            return { route, p99: sorted[Math.max(0, p99Idx)], samples: samples.length };
+          })
+          .sort((a, b) => b.p99 - a.p99)
+          .slice(0, 10);
+        return stats;
+      },
+    },
+  ];
+},
+```
+
+These endpoints are accessible two ways:
+
+```bash
+# Via CLI (connects to running server)
+typokit inspect timing
+typokit inspect timing/slow --json
+
+# Via debug sidecar (if plugin-debug is installed)
+curl http://localhost:9800/_inspect/timing
+```
+
+## Step 10: Framework-Native Middleware via `getNativeServer()`
+
+Sometimes you need to register middleware at the framework level — below TypoKit's normalization layer. Use `getNativeServer()` for this:
+
+```typescript
+async onReady(app: AppInstance) {
+  // ... warmup code from Step 5 ...
+
+  // ─── Inject Server-Timing header via native server ───
+  const server = app.getNativeServer?.();
+
+  if (server && typeof server.use === "function") {
+    // Express/Fastify-compatible
+    server.use((req: any, res: any, next: any) => {
+      const start = performance.now();
+      res.on("finish", () => {
+        const duration = performance.now() - start;
+        res.setHeader("Server-Timing", `total;dur=${duration.toFixed(2)}`);
+      });
+      next();
+    });
+  }
+},
+```
+
+<Aside type="caution">
+  Framework-native middleware runs **before** TypoKit normalization. Use it sparingly — for features like response headers, compression, or CORS that need to operate at the HTTP level. For typed, context-aware middleware, use `defineMiddleware()` instead.
+</Aside>
+
+## Step 11: Register the Plugin
+
+In your application's `app.ts`:
+
+```typescript
+import { createApp } from "@typokit/core";
+import { timingPlugin } from "@typokit/plugin-timing";
+import { debugPlugin } from "@typokit/plugin-debug";
+
+const app = createApp({
+  plugins: [
+    timingPlugin({
+      percentiles: [50, 90, 95, 99],
+      maxSamples: 50_000,
+    }),
+    debugPlugin(), // Optional: enables sidecar access to timing endpoints
+  ],
+});
+```
+
+Plugins execute in **registration order** for all hooks. If plugin B depends on services from plugin A, register A first.
+
+## Complete Plugin Source
+
+Here's the full `plugin-timing` implementation:
+
+```typescript
+// packages/plugin-timing/src/index.ts
+import type {
+  TypoKitPlugin,
+  BuildPipeline,
+  AppInstance,
+  AppError,
+  RequestContext,
+  CliCommand,
+  InspectEndpoint,
+  CompiledRouteTable,
+} from "@typokit/core";
+import { defineMiddleware } from "@typokit/core";
+
+export interface TimingPluginOptions {
+  percentiles?: number[];
+  maxSamples?: number;
+}
+
+export function timingPlugin(options: TimingPluginOptions = {}): TypoKitPlugin {
+  const { percentiles = [50, 90, 95, 99], maxSamples = 10_000 } = options;
+  const routeLatencies = new Map<string, number[]>();
+  const knownRoutes = new Set<string>();
+
+  function computePercentiles(samples: number[]) {
+    const sorted = [...samples].sort((a, b) => a - b);
+    return Object.fromEntries(
+      percentiles.map((p) => {
+        const idx = Math.ceil((p / 100) * sorted.length) - 1;
+        return [`p${p}`, sorted[Math.max(0, idx)]];
+      })
+    );
+  }
+
+  function collectRoutes(node: CompiledRouteTable, prefix: string) {
+    if (node.handler) {
+      knownRoutes.add(`${node.handler.method} ${prefix || "/"}`);
+    }
+    for (const [seg, child] of Object.entries(node.children ?? {})) {
+      collectRoutes(child, `${prefix}/${seg}`);
+    }
+    if (node.paramChild) {
+      collectRoutes(node.paramChild, `${prefix}/:${node.paramChild.paramName}`);
+    }
+    if (node.wildcardChild) {
+      collectRoutes(node.wildcardChild, `${prefix}/*`);
+    }
+  }
+
+  return {
+    name: "plugin-timing",
+
+    onBuild(pipeline) {
+      pipeline.hooks.afterRouteTable.tap("plugin-timing", (routeTable) => {
+        collectRoutes(routeTable, "");
+      });
+    },
+
+    async onStart(app) {
+      app.services["timing"] = {
+        record(route: string, durationMs: number) {
+          let samples = routeLatencies.get(route);
+          if (!samples) { samples = []; routeLatencies.set(route, samples); }
+          samples.push(durationMs);
+          if (samples.length > maxSamples) samples.splice(0, samples.length - maxSamples);
+        },
+        stats(route: string) {
+          const s = routeLatencies.get(route);
+          return s?.length ? computePercentiles(s) : null;
+        },
+        allStats() {
+          const r: Record<string, unknown> = {};
+          for (const [k, v] of routeLatencies) if (v.length) r[k] = computePercentiles(v);
+          return r;
+        },
+      };
+    },
+
+    async onReady(app) {
+      for (const route of knownRoutes) {
+        if (!routeLatencies.has(route)) routeLatencies.set(route, []);
+      }
+    },
+
+    onError(error, ctx) {
+      const route = `ERROR ${ctx.method} ${ctx.route}`;
+      const samples = routeLatencies.get(route) ?? [];
+      routeLatencies.set(route, samples);
+    },
+
+    async onStop(app) {
+      routeLatencies.clear();
+      knownRoutes.clear();
+      delete app.services["timing"];
+    },
+
+    commands(): CliCommand[] {
+      return [{
+        name: "timing:report",
+        description: "Display request timing statistics",
+        options: [
+          { name: "route", description: "Filter by route pattern" },
+          { name: "format", description: "Output format (table|json)" },
+        ],
+        async run(args) {
+          const filter = args.route as string | undefined;
+          const result: Record<string, unknown> = {};
+          for (const [route, samples] of routeLatencies) {
+            if (filter && !route.includes(filter)) continue;
+            if (!samples.length) continue;
+            result[route] = { count: samples.length, ...computePercentiles(samples) };
+          }
+          console.log(JSON.stringify(result, null, 2));
+        },
+      }];
+    },
+
+    inspect(): InspectEndpoint[] {
+      return [
+        {
+          path: "/_inspect/timing",
+          description: "Request timing percentiles",
+          async handler() {
+            const r: Record<string, unknown> = {};
+            for (const [k, v] of routeLatencies) {
+              if (v.length) r[k] = { samples: v.length, ...computePercentiles(v) };
+            }
+            return r;
+          },
+        },
+      ];
+    },
+  };
+}
+```
+
+## Plugin Design Guidelines
+
+1. **Use factory functions** — Always export a function that returns `TypoKitPlugin`, not the object directly. This enables configuration and scoped state.
+
+2. **Keep state in closures** — Store plugin data in the factory's closure scope, not on `app.services`. Expose services only as a read/write API.
+
+3. **Respect the lifecycle** — Set up in `onStart`, use resources in `onReady`, clean up in `onStop`. Don't access services before they're registered.
+
+4. **Choose the right middleware layer**:
+   - **`defineMiddleware()`** — Typed context, runs inside TypoKit pipeline. Use for business logic.
+   - **Framework-native** (via `getNativeServer()`) — Raw HTTP, runs before normalization. Use for headers, compression, CORS.
+
+5. **No `onRequest`/`onResponse` hooks** — By design. Use `defineMiddleware()` for per-request logic in plugins (register it during `onStart`).
+
+6. **Build-time vs. runtime** — Generate code in `onBuild` (via `emit` hook), consume it at runtime. Avoid heavy processing in lifecycle hooks.
+
+7. **Naming conventions** — Official plugins prefix services with `_` (e.g., `_debug`, `_ws`). Custom plugins should use unprefixed names.
+
+## Next Steps
+
+- Read the [Plugins concept page](/typokit/core-concepts/plugins/) for the full interface reference and official plugin details
+- See [Middleware and Context](/typokit/core-concepts/middleware-and-context/) for `defineMiddleware()` and context narrowing
+- Check the [Building Your First API](/typokit/guides/building-first-api/) tutorial for end-to-end usage

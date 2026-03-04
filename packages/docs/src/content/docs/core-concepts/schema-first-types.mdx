@@ -1,0 +1,405 @@
+---
+title: Schema-First Types
+description: Write the type once — a single TypeScript interface drives validation, database schema, API docs, client types, and test factories.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## The Core Idea
+
+TypoKit's schema-first approach starts with a single principle: **define your data types once, and let the build pipeline derive everything else**.
+
+One plain TypeScript interface becomes the single source of truth for:
+
+- **Runtime validators** — request/response validation with zero dependencies
+- **Database schema** — DDL, migrations, and ORM models
+- **OpenAPI 3.1 spec** — automatically generated API documentation
+- **Type-safe client** — fetch wrapper with full autocomplete
+- **Test factories** — valid/invalid data generators for contract tests
+- **Diff reports** — migration drafts when types change
+
+No code duplication. No sync issues. Change the type, and everything downstream updates on the next build.
+
+<Aside type="tip">
+  This is what makes TypoKit AI-friendly. An AI agent can read one TypeScript file and understand the entire shape of your data — constraints, relationships, and all.
+</Aside>
+
+## Defining an Entity Type
+
+Entity types are plain TypeScript interfaces annotated with lightweight JSDoc tags. Here's a complete `User` entity:
+
+```typescript
+// src/entities/user.ts
+
+/** @table users */
+export interface User {
+  /** @id @generated uuid */
+  id: string;
+
+  /** @format email @unique */
+  email: string;
+
+  /** @minLength 2 @maxLength 100 */
+  displayName: string;
+
+  /** @default "active" */
+  status: "active" | "suspended" | "deleted";
+
+  bio?: string;
+
+  /** @generated now */
+  createdAt: Date;
+
+  /** @generated now @onUpdate now */
+  updatedAt: Date;
+}
+```
+
+That's it. No decorators, no schema DSL, no runtime library — just TypeScript with JSDoc annotations that the TypoKit build pipeline reads at compile time.
+
+## JSDoc Tag Reference
+
+TypoKit recognizes the following JSDoc tags on interfaces and their fields:
+
+### Interface-Level Tags
+
+| Tag | Purpose | Example |
+|-----|---------|---------|
+| `@table` | Maps the interface to a database table name | `@table users` |
+
+### Field-Level Tags
+
+| Tag | Purpose | Example |
+|-----|---------|---------|
+| `@id` | Marks field as the primary key | `@id` |
+| `@generated` | Auto-generated value — skipped in create inputs | `@generated uuid`, `@generated now` |
+| `@onUpdate` | Value regenerated on every update | `@onUpdate now` |
+| `@unique` | Adds a unique constraint | `@unique` |
+| `@index` | Adds a database index | `@index` |
+| `@format` | String format validation | `@format email`, `@format url`, `@format uuid`, `@format date-time` |
+| `@minLength` | Minimum string length | `@minLength 2` |
+| `@maxLength` | Maximum string length | `@maxLength 100` |
+| `@default` | Default value for the field | `@default "active"`, `@default now()` |
+
+<Aside type="note">
+  Tags like `@format`, `@minLength`, and `@maxLength` drive **both** runtime validation and database column constraints. One annotation, two outputs.
+</Aside>
+
+### How Tags Map to Outputs
+
+Here's what happens when the build pipeline processes the `User` type:
+
+| Field | Tag(s) | Validator | Database Column |
+|-------|--------|-----------|-----------------|
+| `id` | `@id @generated uuid` | Skipped in `CreateUserInput` | `uuid DEFAULT gen_random_uuid() PRIMARY KEY` |
+| `email` | `@format email @unique` | Email format check | `varchar(255) NOT NULL UNIQUE` |
+| `displayName` | `@minLength 2 @maxLength 100` | Length bounds check | `varchar(100) NOT NULL` |
+| `status` | `@default "active"` | Union type check | `user_status ENUM DEFAULT 'active' NOT NULL` |
+| `bio` | *(optional field)* | Optional string | `text NULL` |
+| `createdAt` | `@generated now` | Skipped in `CreateUserInput` | `timestamp DEFAULT now() NOT NULL` |
+| `updatedAt` | `@generated now @onUpdate now` | Skipped in `CreateUserInput` | `timestamp DEFAULT now() NOT NULL` |
+
+## Derived Types
+
+You rarely send the full entity type over the wire. TypoKit uses standard TypeScript utility types to create input/output contracts from your base entity:
+
+### Create Input — Omit Generated Fields
+
+```typescript
+/** Fields the client sends when creating a user */
+export type CreateUserInput = Omit<User, "id" | "createdAt" | "updatedAt">;
+
+// Resulting shape:
+// {
+//   email: string;          — required, validated as email
+//   displayName: string;    — required, 2-100 chars
+//   status?: "active" | "suspended" | "deleted";  — optional, has @default
+//   bio?: string;           — optional
+// }
+```
+
+<Aside type="tip">
+  Fields with `@default` values become optional in create inputs — the database fills them in if omitted.
+</Aside>
+
+### Update Input — Make Everything Optional
+
+```typescript
+/** Fields the client can send in a PATCH request */
+export type UpdateUserInput = Partial<CreateUserInput>;
+
+// Resulting shape:
+// {
+//   email?: string;
+//   displayName?: string;
+//   status?: "active" | "suspended" | "deleted";
+//   bio?: string;
+// }
+```
+
+### Public Output — Omit Sensitive Fields
+
+```typescript
+/** What the API returns to clients */
+export type PublicUser = Omit<User, "status">;
+
+// Use this to control what's exposed in API responses
+```
+
+### Combining Patterns
+
+```typescript
+/** Admin-only response with all fields */
+export type AdminUser = User;
+
+/** List response with pagination */
+export type UserListResponse = PaginatedResponse<PublicUser>;
+
+/** Summary for dropdown/autocomplete UIs */
+export type UserSummary = Pick<User, "id" | "displayName" | "email">;
+```
+
+These derived types flow into route contracts, where they become the input and output schemas for each API endpoint:
+
+```typescript
+export interface UsersRoutes {
+  "POST /users": RouteContract<void, void, CreateUserInput, PublicUser>;
+  "PATCH /users/:id": RouteContract<{ id: string }, void, UpdateUserInput, PublicUser>;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, PublicUser>;
+  "GET /users": RouteContract<void, { page?: number; pageSize?: number }, void, UserListResponse>;
+}
+```
+
+## What the Build Produces
+
+When you run `typokit build`, the native Rust pipeline parses your type files, extracts JSDoc metadata, and emits several artifacts into the `.typokit/` directory:
+
+### 1. Runtime Validators
+
+Generated using [Typia](https://typia.io/) — extremely fast, zero-dependency validation functions:
+
+```typescript
+// .typokit/validators/CreateUserInput.validator.ts
+export function validateCreateUserInput(input: unknown): {
+  success: boolean;
+  data?: CreateUserInput;
+  errors?: Array<{ path: string; expected: string; actual: unknown }>;
+};
+```
+
+These validators enforce format checks, length bounds, required fields, and union discrimination — all derived from your type definition and JSDoc tags. They run ~10–100× faster than JSON Schema validators.
+
+### 2. Database Schema
+
+Depending on your chosen database adapter, the build generates the appropriate schema definition:
+
+<Tabs>
+  <TabItem label="Drizzle">
+```typescript
+// Generated Drizzle schema
+import { pgTable, uuid, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
+
+export const userStatusEnum = pgEnum("user_status", ["active", "suspended", "deleted"]);
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  status: userStatusEnum("status").default("active").notNull(),
+  bio: varchar("bio"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+```
+  </TabItem>
+  <TabItem label="Prisma">
+```prisma
+// Generated Prisma schema
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  displayName String     @db.VarChar(100)
+  status      UserStatus @default(active)
+  bio         String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+```
+  </TabItem>
+  <TabItem label="Raw SQL">
+```sql
+-- Generated SQL DDL
+CREATE TYPE user_status AS ENUM ('active', 'suspended', 'deleted');
+
+CREATE TABLE users (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email       VARCHAR(255) NOT NULL UNIQUE,
+  display_name VARCHAR(100) NOT NULL,
+  status      user_status NOT NULL DEFAULT 'active',
+  bio         TEXT,
+  created_at  TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+  </TabItem>
+</Tabs>
+
+### 3. OpenAPI 3.1 Specification
+
+Route contracts + type metadata produce a full OpenAPI spec:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "CreateUserInput": {
+        "type": "object",
+        "required": ["email", "displayName"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "displayName": { "type": "string", "minLength": 2, "maxLength": 100 },
+          "status": { "enum": ["active", "suspended", "deleted"], "default": "active" },
+          "bio": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+### 4. Type-Safe Fetch Client
+
+A generated client with full autocomplete for every route:
+
+```typescript
+// .typokit/client/index.ts
+const api = createClient<UsersRoutes>({ baseUrl: "http://localhost:3000" });
+
+const user = await api.post("/users", {
+  body: { email: "ada@example.com", displayName: "Ada Lovelace" }
+});
+// typeof user → PublicUser
+// Compile-time error if body doesn't match CreateUserInput
+```
+
+### 5. Test Factories and Contract Tests
+
+Generated from your types with valid and invalid data variants:
+
+```typescript
+// .typokit/tests/users.contract.test.ts
+describe("POST /users", () => {
+  it("accepts valid CreateUserInput", async () => {
+    const res = await client.post("/users", {
+      body: { email: "test@example.com", displayName: "Test User" }
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects invalid email format", async () => {
+    const res = await client.post("/users", {
+      body: { email: "not-an-email", displayName: "Test" }
+    });
+    expect(res.status).toBe(400);
+  });
+});
+```
+
+### 6. Diff Report
+
+When you change a type, the build detects the differences and generates a migration draft:
+
+```
+typokit build
+
+Schema diff detected for 'User':
+  + added field 'bio' (text, nullable)
+  ~ changed 'displayName' maxLength: 50 → 100
+
+Migration draft written to .typokit/migrations/002_user_add_bio.sql
+⚠ Review before applying — destructive changes are never auto-applied.
+```
+
+## What NOT to Do
+
+TypoKit's schema-first approach works because the TypeScript compiler and build pipeline understand your types natively. Avoid patterns that bypass this:
+
+### ❌ Don't use Zod, Joi, or runtime schema libraries
+
+```typescript
+// ❌ WRONG — duplicates your type definition as runtime code
+import { z } from "zod";
+
+const UserSchema = z.object({
+  email: z.string().email(),
+  displayName: z.string().min(2).max(100),
+});
+type User = z.infer<typeof UserSchema>;
+```
+
+TypoKit generates validators automatically from your interface. Runtime schema libraries create a parallel source of truth that can drift.
+
+### ❌ Don't use decorators
+
+```typescript
+// ❌ WRONG — requires experimental TS features and a custom transformer
+@Entity("users")
+class User {
+  @PrimaryGeneratedColumn("uuid")
+  id: string;
+
+  @Column({ unique: true })
+  email: string;
+}
+```
+
+Decorators are opaque to standard TypeScript tooling and AI agents. JSDoc tags are readable by any tool that can parse comments.
+
+### ❌ Don't define separate schemas for each layer
+
+```typescript
+// ❌ WRONG — three definitions of the same data that will drift apart
+const dbSchema = pgTable("users", { ... });
+const apiSchema = z.object({ ... });
+interface User { ... }
+```
+
+The whole point of schema-first is **one definition**. Let the build pipeline generate the rest.
+
+### ✅ Do this instead
+
+```typescript
+// ✅ CORRECT — one interface, everything else is derived
+/** @table users */
+export interface User {
+  /** @id @generated uuid */
+  id: string;
+
+  /** @format email @unique */
+  email: string;
+
+  /** @minLength 2 @maxLength 100 */
+  displayName: string;
+}
+
+// Derived types for different contexts
+export type CreateUserInput = Omit<User, "id">;
+export type PublicUser = User;
+```
+
+<Aside type="caution">
+  If you find yourself writing validation logic, database column definitions, or API schemas by hand, you're probably working against the framework. Define the type, add JSDoc tags, and let TypoKit generate the rest.
+</Aside>
+
+## Next Steps
+
+- [**Routing and Handlers**](/typokit/core-concepts/routing-and-handlers/) — see how types flow into route contracts
+- [**Middleware and Context**](/typokit/core-concepts/middleware-and-context/) — learn how context types narrow through middleware
+- [**Error Handling**](/typokit/core-concepts/error-handling/) — understand the error model that works with typed responses
+- [**Building Your First API**](/typokit/guides/building-first-api/) — hands-on tutorial using schema-first types

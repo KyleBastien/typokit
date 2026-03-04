@@ -1,0 +1,369 @@
+---
+title: Scaffolding and Development
+description: CLI reference for TypoKit scaffolding and development commands — init, add route, add service, build, and dev.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Reference for TypoKit CLI commands that scaffold new projects and modules, run builds, and start the development server.
+
+Every command accepts these **global flags**:
+
+| Flag | Description |
+|------|-------------|
+| `--root <dir>` | Project root directory (default: current working directory) |
+| `--verbose`, `-v` | Show detailed output including timing and file-level information |
+
+---
+
+## Scaffolding Commands
+
+### `typokit init`
+
+Create a new TypoKit project from a starter template.
+
+**Syntax**
+
+```bash
+typokit init [name]
+```
+
+**Arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Project directory name (optional — prompts if omitted) |
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output |
+
+**What it does**
+
+1. Prompts for project name (if not provided as argument)
+2. Prompts for server adapter (Native, Fastify, Hono, or Express)
+3. Prompts for database adapter (Drizzle, Kysely, Prisma, or Raw SQL)
+4. Creates project directory with `src/types.ts`, route modules, and configuration
+5. Generates `typokit.config.ts` with chosen adapters
+6. Installs dependencies with the detected package manager
+
+**Example**
+
+```bash
+typokit init my-api
+```
+
+```
+? Choose a server adapter: › Native (recommended)
+? Choose a database adapter: › Drizzle
+
+✔ Created my-api/
+  ├── src/
+  │   ├── types.ts          schema type definitions
+  │   ├── app.ts            app factory
+  │   └── routes/           route contracts & handlers
+  ├── typokit.config.ts
+  └── package.json
+
+✔ Dependencies installed
+✔ Ready! Run `cd my-api && typokit dev` to start.
+```
+
+<Aside type="tip">
+The generated project uses pnpm workspaces by default. All four packages are pre-configured to work together out of the box.
+</Aside>
+
+---
+
+### `typokit add route`
+
+Scaffold a new route module with contract and handler files.
+
+**Syntax**
+
+```bash
+typokit add route <name>
+```
+
+**Arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Route name (e.g., `users`, `posts`, `auth/login`) |
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output |
+
+**What it does**
+
+1. Creates `contracts.ts` defining route contracts with typed parameters, query, body, and response
+2. Creates `handlers.ts` with handler stubs matching the contracts
+3. Places files under the configured `routeFiles` glob path (default: `packages/server/src/routes/<name>/`)
+
+**Example**
+
+```bash
+typokit add route users
+```
+
+```
+✔ Created packages/server/src/routes/users/
+  ├── contracts.ts    Route contracts (GET, POST, GET/:id, PUT/:id, DELETE/:id)
+  └── handlers.ts     Handler implementations
+
+Next: Define your types, then register the route group in app.ts.
+```
+
+Generated `contracts.ts`:
+
+```typescript
+import type { RouteContract } from "@typokit/core";
+
+export const getUsers: RouteContract<void, { page?: number }, void, User[]> = {
+  method: "GET",
+  path: "/users",
+};
+
+export const createUser: RouteContract<void, void, CreateUserInput, User> = {
+  method: "POST",
+  path: "/users",
+};
+
+export const getUser: RouteContract<{ id: string }, void, void, User> = {
+  method: "GET",
+  path: "/users/:id",
+};
+
+export const updateUser: RouteContract<{ id: string }, void, UpdateUserInput, User> = {
+  method: "PUT",
+  path: "/users/:id",
+};
+
+export const deleteUser: RouteContract<{ id: string }, void, void, void> = {
+  method: "DELETE",
+  path: "/users/:id",
+};
+```
+
+<Aside type="note">
+The scaffolded contracts use placeholder types. Replace `User`, `CreateUserInput`, and `UpdateUserInput` with your actual schema-first types from `types.ts`.
+</Aside>
+
+---
+
+### `typokit add service`
+
+Scaffold a new service file for shared business logic.
+
+**Syntax**
+
+```bash
+typokit add service <name>
+```
+
+**Arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Service name (e.g., `email`, `auth`, `notifications`) |
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed output |
+
+**What it does**
+
+1. Creates a service file with a factory function and typed interface
+2. Places the file under `packages/server/src/services/<name>.ts`
+
+**Example**
+
+```bash
+typokit add service email
+```
+
+```
+✔ Created packages/server/src/services/email.ts
+
+Next: Import and register the service in your app configuration.
+```
+
+Generated `email.ts`:
+
+```typescript
+export interface EmailService {
+  send(to: string, subject: string, body: string): Promise<void>;
+}
+
+export function createEmailService(): EmailService {
+  return {
+    async send(to, subject, body) {
+      // TODO: Implement email sending
+      throw new Error("Not implemented");
+    },
+  };
+}
+```
+
+<Aside type="tip">
+Services registered via `app.services` are available in handlers through `ctx.services`. See the [Middleware and Context](/typokit/core-concepts/middleware-and-context/) page for details on dependency injection.
+</Aside>
+
+---
+
+## Development Commands
+
+### `typokit build`
+
+Run the full build pipeline — resolving type files, running the Rust transform, emitting plugin outputs, and compiling TypeScript.
+
+**Syntax**
+
+```bash
+typokit build
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Show detailed timing and file-level output |
+
+**What it does**
+
+1. **Resolve files** — Finds all type files and route files from `typokit.config.ts` globs
+2. **Rust transform** — Parses TypeScript AST to extract type metadata, JSDoc tags, and route contracts
+3. **Plugin hooks** — Runs build pipeline hooks (`beforeTransform` → `afterTypeParse` → `afterValidators` → `afterRouteTable` → `emit` → `done`)
+4. **Emit artifacts** — Generates validators, database schemas, OpenAPI spec, client code, and contract tests to the output directory (default: `.typokit/`)
+5. **TypeScript compile** — Compiles the project with `tsc`
+
+**Example**
+
+```bash
+typokit build
+```
+
+```
+● Resolving type files...      12 files found
+● Resolving route files...     8 files found
+● Running transform...         done in 145ms
+● Emitting validators...       12 files
+● Emitting DB schema...        6 tables
+● Emitting OpenAPI spec...     24 operations
+● Emitting client...           8 modules
+● Emitting contract tests...   24 test files
+● TypeScript compile...        done in 2.1s
+
+✔ Build complete (2.4s)
+```
+
+With `--verbose`:
+
+```bash
+typokit build --verbose
+```
+
+```
+● Resolving type files...
+  packages/schema/src/user.ts
+  packages/schema/src/post.ts
+  packages/schema/src/comment.ts
+  ... (12 files)
+● Running Rust transform (145ms)
+  ├── Parse AST: 45ms
+  ├── Extract metadata: 32ms
+  └── Validate schemas: 68ms
+● Plugin: afterTypeParse (2 hooks)
+  ├── plugin-debug: 1ms
+  └── plugin-ws: 3ms
+● Emitting validators...
+  .typokit/validators/user.ts (2.1kB)
+  .typokit/validators/post.ts (1.8kB)
+  ...
+✔ Build complete (2.4s)
+```
+
+<Aside type="caution">
+If you see validation errors during the transform step, check your JSDoc tags. Common issues include misspelled tag names and missing `@table` annotations on entity interfaces.
+</Aside>
+
+---
+
+### `typokit dev`
+
+Start the development server with file watching for incremental rebuilds.
+
+**Syntax**
+
+```bash
+typokit dev [--debug-port <port>]
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--debug-port <port>` | Debug sidecar port (default: `9800`) |
+| `--verbose`, `-v` | Show detailed rebuild output |
+
+**What it does**
+
+1. Runs an initial full build (same as `typokit build`)
+2. Starts the server using the configured server adapter
+3. Watches type files and route files for changes
+4. On file change, performs an **incremental rebuild** using the AST cache and dependency graph — only re-processing affected files
+5. If `@typokit/plugin-debug` is registered, starts the debug sidecar on the specified port
+
+**Example**
+
+```bash
+typokit dev
+```
+
+```
+● Initial build...             done in 2.4s
+● Server listening on          http://localhost:3000
+● Debug sidecar on             http://localhost:9800
+● Watching for changes...
+
+[18:30:45] Changed: packages/schema/src/user.ts
+● Incremental rebuild...       done in 89ms (3 files affected)
+● Server reloaded
+```
+
+With a custom debug port:
+
+```bash
+typokit dev --debug-port 9229
+```
+
+```
+● Initial build...             done in 2.4s
+● Server listening on          http://localhost:3000
+● Debug sidecar on             http://localhost:9229
+● Watching for changes...
+```
+
+<Aside type="tip">
+Incremental rebuilds are fast because TypoKit caches the AST and uses a dependency graph to determine which files are affected by a change. Only the changed files and their dependents are re-processed.
+</Aside>
+
+<Aside type="note">
+The debug sidecar is only started when `@typokit/plugin-debug` is registered in your `createApp()` configuration. Without the plugin, the `--debug-port` flag has no effect. See the [Observability and Debugging](/typokit/core-concepts/observability/) page for details.
+</Aside>
+
+---
+
+## See Also
+
+- [Generate, Migrate, and Test](/typokit/cli-reference/generate-migrate-test/) — Code generation, migration, and testing commands
+- [Inspect Commands](/typokit/cli-reference/inspect/) — Query framework state from the CLI
+- [Getting Started: Quickstart](/typokit/getting-started/quickstart/) — End-to-end walkthrough using these commands
+- [Building Your First API](/typokit/guides/building-first-api/) — Step-by-step tutorial

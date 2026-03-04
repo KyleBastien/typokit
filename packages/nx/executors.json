@@ -1,0 +1,19 @@
+{
+  "executors": {
+    "build": {
+      "implementation": "./dist/executors/build/executor.js",
+      "schema": "./dist/executors/build/schema.json",
+      "description": "Run typokit build with the correct working directory"
+    },
+    "dev": {
+      "implementation": "./dist/executors/dev/executor.js",
+      "schema": "./dist/executors/dev/schema.json",
+      "description": "Run typokit dev server with watch mode"
+    },
+    "test": {
+      "implementation": "./dist/executors/test/executor.js",
+      "schema": "./dist/executors/test/schema.json",
+      "description": "Run typokit test"
+    }
+  }
+}

@@ -1,0 +1,829 @@
+---
+title: Building Your First API
+description: A step-by-step tutorial that walks you through building a complete CRUD API with TypoKit — from schema definition to tested, running endpoints.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+In this guide you'll build a **Notes API** from scratch — a fully typed CRUD service with validation, authentication middleware, database persistence via Drizzle, and auto-generated contract tests. By the end you'll have a running API and a deep understanding of how TypoKit's pieces fit together.
+
+<Aside type="tip">
+  This tutorial assumes you've read the [Quickstart](/typokit/getting-started/quickstart/). If you haven't scaffolded a project yet, start there first.
+</Aside>
+
+## What You'll Build
+
+| Endpoint | Description |
+|---|---|
+| `POST /notes` | Create a new note |
+| `GET /notes` | List notes with pagination |
+| `GET /notes/:id` | Get a single note by ID |
+| `PUT /notes/:id` | Update a note |
+| `DELETE /notes/:id` | Delete a note |
+
+All endpoints will be fully typed, automatically validated, and protected by an auth middleware that adds `userId` to the request context.
+
+---
+
+## Step 1 — Scaffold the Project
+
+<Steps>
+
+1. Create a new TypoKit project using the CLI:
+
+   <Tabs>
+     <TabItem label="pnpm">
+     ```bash
+     pnpm dlx @typokit/cli scaffold init notes-api --server native --db drizzle
+     cd notes-api
+     ```
+     </TabItem>
+     <TabItem label="npm">
+     ```bash
+     npx @typokit/cli scaffold init notes-api --server native --db drizzle
+     cd notes-api
+     ```
+     </TabItem>
+   </Tabs>
+
+   This creates a project with a clean `src/` layout:
+
+   ```
+   notes-api/
+   ├── src/
+   │   ├── types.ts              # Your schema type definitions
+   │   ├── app.ts                # App factory — registers routes & middleware
+   │   ├── routes/               # Route contracts & handlers
+   │   ├── middleware/            # Global middleware
+   │   └── services/             # Business logic layer
+   ├── typokit.config.ts
+   └── package.json
+   ```
+
+2. Install dependencies:
+
+   <Tabs>
+     <TabItem label="pnpm">
+     ```bash
+     pnpm install
+     ```
+     </TabItem>
+     <TabItem label="npm">
+     ```bash
+     npm install
+     ```
+     </TabItem>
+   </Tabs>
+
+</Steps>
+
+---
+
+## Step 2 — Define the Entity Type
+
+The entity type is the single source of truth for your entire API. Every validator, database column, OpenAPI field, and test assertion is derived from it.
+
+Create `packages/schema/src/entities/note.ts`:
+
+```typescript
+/** @table notes */
+export interface Note {
+  /** @id @generated uuid */
+  id: string;
+
+  /** @minLength 1 @maxLength 200 */
+  title: string;
+
+  /** @maxLength 10000 */
+  content: string;
+
+  /** @maxLength 100 */
+  authorId: string;
+
+  /** @default false */
+  archived: boolean;
+
+  /** @generated now */
+  createdAt: Date;
+
+  /** @generated now @onUpdate now */
+  updatedAt: Date;
+}
+
+// Derived types
+export type CreateNoteInput = Omit<Note, "id" | "createdAt" | "updatedAt">;
+export type UpdateNoteInput = Partial<Omit<CreateNoteInput, "authorId">>;
+export type NoteSummary = Pick<Note, "id" | "title" | "archived" | "createdAt">;
+```
+
+<Aside type="note">
+  Every JSDoc tag drives code generation. `@id @generated uuid` means the field is a primary key auto-generated as a UUID — it will be omitted from create inputs and added to the database schema with `defaultRandom()`.
+</Aside>
+
+Export the type from the package barrel:
+
+```typescript
+// packages/schema/src/index.ts
+export type { Note, CreateNoteInput, UpdateNoteInput, NoteSummary } from "./entities/note.ts";
+```
+
+Also add a shared pagination response type that you'll reuse:
+
+```typescript
+// packages/schema/src/shared/pagination.ts
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+}
+```
+
+```typescript
+// packages/schema/src/index.ts (updated)
+export type { Note, CreateNoteInput, UpdateNoteInput, NoteSummary } from "./entities/note.ts";
+export type { PaginatedResponse } from "./shared/pagination.ts";
+```
+
+---
+
+## Step 3 — Define Route Contracts
+
+Route contracts declare the shape of every request and response. They live in a `contracts.ts` file alongside your handlers.
+
+Create `packages/server/src/routes/notes/contracts.ts`:
+
+```typescript
+import type { RouteContract } from "@typokit/types";
+import type {
+  Note,
+  CreateNoteInput,
+  UpdateNoteInput,
+  NoteSummary,
+  PaginatedResponse,
+} from "../../types.ts";
+
+export interface NotesRoutes {
+  "POST /notes": RouteContract<
+    void,                           // no path params
+    void,                           // no query params
+    CreateNoteInput,                // request body
+    Note                            // response
+  >;
+
+  "GET /notes": RouteContract<
+    void,
+    { page?: number; pageSize?: number },
+    void,
+    PaginatedResponse<NoteSummary>
+  >;
+
+  "GET /notes/:id": RouteContract<
+    { id: string },                 // path params
+    void,
+    void,
+    Note
+  >;
+
+  "PUT /notes/:id": RouteContract<
+    { id: string },
+    void,
+    UpdateNoteInput,
+    Note
+  >;
+
+  "DELETE /notes/:id": RouteContract<
+    { id: string },
+    void,
+    void,
+    void
+  >;
+}
+```
+
+<Aside type="tip">
+  Each key in the interface is an HTTP method + path pattern. `RouteContract` takes four type parameters: `TParams`, `TQuery`, `TBody`, and `TResponse`. Use `void` for any part that doesn't apply.
+</Aside>
+
+---
+
+## Step 4 — Implement Handlers
+
+Handlers receive fully validated, typed input. If a request doesn't match the contract, TypoKit rejects it with a `400` error before your handler runs.
+
+Create `packages/server/src/routes/notes/handlers.ts`:
+
+```typescript
+import { defineHandlers } from "@typokit/core";
+import type { NotesRoutes } from "./contracts.ts";
+import { db } from "../../db.ts";
+import { notes } from "../../.typokit/schemas/notes.ts";
+import { eq, desc, sql } from "drizzle-orm";
+
+export default defineHandlers<NotesRoutes>({
+  "POST /notes": async ({ body, ctx }) => {
+    const [created] = await db
+      .insert(notes)
+      .values({
+        title: body.title,
+        content: body.content,
+        authorId: body.authorId,
+        archived: body.archived ?? false,
+      })
+      .returning();
+
+    ctx.log.info("Note created", { noteId: created.id });
+    return created;
+  },
+
+  "GET /notes": async ({ query }) => {
+    const page = query?.page ?? 1;
+    const pageSize = query?.pageSize ?? 20;
+    const offset = (page - 1) * pageSize;
+
+    const data = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        archived: notes.archived,
+        createdAt: notes.createdAt,
+      })
+      .from(notes)
+      .orderBy(desc(notes.createdAt))
+      .limit(pageSize)
+      .offset(offset);
+
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notes);
+
+    return {
+      data,
+      pagination: {
+        total: Number(count),
+        page,
+        pageSize,
+        totalPages: Math.ceil(Number(count) / pageSize),
+      },
+    };
+  },
+
+  "GET /notes/:id": async ({ params, ctx }) => {
+    const [note] = await db
+      .select()
+      .from(notes)
+      .where(eq(notes.id, params.id));
+
+    if (!note) {
+      ctx.fail(404, "NOTE_NOT_FOUND", `Note ${params.id} not found`);
+    }
+
+    return note;
+  },
+
+  "PUT /notes/:id": async ({ params, body, ctx }) => {
+    const [existing] = await db
+      .select()
+      .from(notes)
+      .where(eq(notes.id, params.id));
+
+    if (!existing) {
+      ctx.fail(404, "NOTE_NOT_FOUND", `Note ${params.id} not found`);
+    }
+
+    const [updated] = await db
+      .update(notes)
+      .set(body)
+      .where(eq(notes.id, params.id))
+      .returning();
+
+    ctx.log.info("Note updated", { noteId: params.id });
+    return updated;
+  },
+
+  "DELETE /notes/:id": async ({ params, ctx }) => {
+    const [existing] = await db
+      .select()
+      .from(notes)
+      .where(eq(notes.id, params.id));
+
+    if (!existing) {
+      ctx.fail(404, "NOTE_NOT_FOUND", `Note ${params.id} not found`);
+    }
+
+    await db.delete(notes).where(eq(notes.id, params.id));
+    ctx.log.info("Note deleted", { noteId: params.id });
+  },
+});
+```
+
+Key patterns in the handlers:
+
+- **`ctx.fail(status, code, message)`** throws an `AppError` and halts execution — no need for `return` or `else` blocks after it.
+- **`ctx.log`** provides structured logging with automatic `traceId` and `route` enrichment.
+- **`body` is pre-validated** — if `title` is missing or `content` exceeds 10,000 characters, the handler never runs.
+
+---
+
+## Step 5 — Add Auth Middleware
+
+TypoKit middleware uses `defineMiddleware<TAdded>()` where `TAdded` describes the properties added to the request context. Handlers downstream see those properties with full TypeScript support.
+
+Create `packages/server/src/middleware/require-auth.ts`:
+
+```typescript
+import { defineMiddleware } from "@typokit/core";
+
+export interface AuthContext {
+  [key: string]: unknown;
+  userId: string;
+  userRole: "user" | "admin";
+}
+
+export const requireAuth = defineMiddleware<AuthContext>(
+  async ({ headers, ctx }) => {
+    const authHeader = headers["authorization"];
+
+    if (!authHeader || typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
+      ctx.fail(401, "UNAUTHORIZED", "Missing or invalid Authorization header");
+    }
+
+    const token = (authHeader as string).slice(7);
+
+    // In production, validate a JWT here.
+    // For this tutorial, we use a simple "userId:role" format.
+    const [userId, role] = token.split(":");
+
+    if (!userId) {
+      ctx.fail(401, "INVALID_TOKEN", "Token does not contain a valid user ID");
+    }
+
+    return {
+      userId: userId as string,
+      userRole: (role === "admin" ? "admin" : "user") as "user" | "admin",
+    };
+  },
+);
+```
+
+<Aside type="note">
+  The `[key: string]: unknown` index signature is required for context spreading compatibility. Without it, TypeScript won't allow the middleware's return type to merge into the context object.
+</Aside>
+
+Now update the handler to use `ctx.userId` instead of `body.authorId`. Replace the `POST /notes` handler body assignment:
+
+```typescript
+// In handlers.ts — updated POST handler
+"POST /notes": async ({ body, ctx }) => {
+  const [created] = await db
+    .insert(notes)
+    .values({
+      title: body.title,
+      content: body.content,
+      authorId: ctx.userId,    // Set from auth middleware
+      archived: body.archived ?? false,
+    })
+    .returning();
+
+  ctx.log.info("Note created", { noteId: created.id });
+  return created;
+},
+```
+
+<Aside type="tip">
+  With middleware active, `ctx.userId` is fully typed — TypeScript knows it's a `string`, not `string | undefined`. This type narrowing is one of TypoKit's most powerful features.
+</Aside>
+
+---
+
+## Step 6 — Register Routes
+
+Wire everything together in `app.ts`. TypoKit uses explicit registration — there's no hidden file-based routing.
+
+Create `packages/server/src/app.ts`:
+
+```typescript
+import { createApp } from "@typokit/core";
+import { nativeServer } from "@typokit/server-native";
+import { requireAuth } from "./middleware/require-auth.ts";
+import noteHandlers from "./routes/notes/handlers.ts";
+
+const app = createApp({
+  server: nativeServer(),
+  middleware: [],
+  routes: [
+    {
+      prefix: "/notes",
+      handlers: noteHandlers,
+      middleware: [
+        { name: "auth", middleware: requireAuth, priority: 10 },
+      ],
+    },
+  ],
+});
+
+app.listen({ port: 3000 }).then(() => {
+  console.log("🚀 Notes API running at http://localhost:3000");
+});
+```
+
+The `middleware` array on each route group runs **before** handlers in that group. The `priority` value controls ordering — lower numbers run first.
+
+---
+
+## Step 7 — Generate Database Schema
+
+Run the TypoKit build to generate validators, Drizzle schema files, and other artifacts from your entity types:
+
+```bash
+typokit build
+```
+
+This reads your `Note` interface, processes the JSDoc tags, and generates:
+
+| Output | Location |
+|---|---|
+| Typia validators | `.typokit/validators/note.ts` |
+| Drizzle schema | `.typokit/schemas/notes.ts` |
+| OpenAPI spec fragment | `.typokit/schemas/note.openapi.json` |
+| Route table | `.typokit/routes/index.ts` |
+
+The generated Drizzle schema looks like this:
+
+```typescript
+// .typokit/schemas/notes.ts (auto-generated — do not edit)
+import { pgTable, uuid, varchar, boolean, timestamp } from "drizzle-orm/pg-core";
+
+export const notes = pgTable("notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  content: varchar("content", { length: 10000 }).notNull(),
+  authorId: varchar("author_id", { length: 100 }).notNull(),
+  archived: boolean("archived").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+```
+
+<Aside type="caution">
+  Never edit files inside `.typokit/` — they're regenerated on every build. If you need to customize the schema, adjust the JSDoc tags on your entity type instead.
+</Aside>
+
+Now generate a migration:
+
+```bash
+typokit migrate:generate --name create-notes-table
+```
+
+Review the generated migration in `packages/db/migrations/`, then apply it:
+
+```bash
+typokit migrate:apply
+```
+
+---
+
+## Step 8 — Start the Dev Server and Test
+
+Start the development server:
+
+```bash
+typokit dev
+```
+
+Expected output:
+
+```
+✔ Build complete — 5 validators, 1 schema, 5 routes
+✔ Migration status: up to date
+🚀 Notes API running at http://localhost:3000
+👀 Watching for changes...
+```
+
+Now test each endpoint with `curl`:
+
+### Create a note
+
+```bash
+curl -s -X POST http://localhost:3000/notes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer user123:user" \
+  -d '{"title": "My First Note", "content": "Hello from TypoKit!"}' | jq
+```
+
+Expected response:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "title": "My First Note",
+  "content": "Hello from TypoKit!",
+  "authorId": "user123",
+  "archived": false,
+  "createdAt": "2026-03-02T12:00:00.000Z",
+  "updatedAt": "2026-03-02T12:00:00.000Z"
+}
+```
+
+### List notes
+
+```bash
+curl -s "http://localhost:3000/notes?page=1&pageSize=10" \
+  -H "Authorization: Bearer user123:user" | jq
+```
+
+Expected response:
+
+```json
+{
+  "data": [
+    {
+      "id": "a1b2c3d4-...",
+      "title": "My First Note",
+      "archived": false,
+      "createdAt": "2026-03-02T12:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 1
+  }
+}
+```
+
+### Get a single note
+
+```bash
+curl -s http://localhost:3000/notes/a1b2c3d4-... \
+  -H "Authorization: Bearer user123:user" | jq
+```
+
+### Update a note
+
+```bash
+curl -s -X PUT http://localhost:3000/notes/a1b2c3d4-... \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer user123:user" \
+  -d '{"title": "Updated Title", "archived": true}' | jq
+```
+
+### Delete a note
+
+```bash
+curl -s -X DELETE http://localhost:3000/notes/a1b2c3d4-... \
+  -H "Authorization: Bearer user123:user"
+```
+
+### Test validation
+
+Try creating a note without a title to see automatic validation in action:
+
+```bash
+curl -s -X POST http://localhost:3000/notes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer user123:user" \
+  -d '{"content": "Missing title"}' | jq
+```
+
+Expected response (`400 Bad Request`):
+
+```json
+{
+  "status": 400,
+  "code": "VALIDATION_ERROR",
+  "message": "Request body validation failed",
+  "details": [
+    {
+      "path": "title",
+      "expected": "string (minLength: 1, maxLength: 200)",
+      "received": "undefined"
+    }
+  ]
+}
+```
+
+### Test auth rejection
+
+Try accessing without the `Authorization` header:
+
+```bash
+curl -s http://localhost:3000/notes | jq
+```
+
+Expected response (`401 Unauthorized`):
+
+```json
+{
+  "status": 401,
+  "code": "UNAUTHORIZED",
+  "message": "Missing or invalid Authorization header"
+}
+```
+
+---
+
+## Step 9 — Run Contract Tests
+
+TypoKit auto-generates contract tests from your route contracts. Generate and run them:
+
+```bash
+typokit generate:tests
+typokit test
+```
+
+The generated tests verify three coverage levels for each endpoint:
+
+1. **Valid input** — a request matching the contract returns a success status
+2. **Missing required fields** — omitting each required field returns `400`
+3. **Invalid formats** — sending wrong types or constraint violations returns `400`
+
+You can inspect the generated test file:
+
+```bash
+cat __generated__/notes.contract.test.ts
+```
+
+```typescript
+// Auto-generated contract tests — do not edit
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createTestClient } from "@typokit/testing";
+import { app } from "../src/app.ts";
+
+describe("Notes API", () => {
+  let client;
+
+  beforeAll(async () => {
+    client = await createTestClient(app);
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  describe("POST /notes", () => {
+    it("accepts valid input", async () => {
+      const res = await client.post("/notes", {
+        headers: { authorization: "Bearer testuser:user" },
+        body: {
+          title: "Test Note",
+          content: "Test content",
+        },
+      });
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBeDefined();
+      expect(res.body.title).toBe("Test Note");
+    });
+
+    it("rejects missing required field: title", async () => {
+      const res = await client.post("/notes", {
+        headers: { authorization: "Bearer testuser:user" },
+        body: { content: "No title" },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects title exceeding maxLength", async () => {
+      const res = await client.post("/notes", {
+        headers: { authorization: "Bearer testuser:user" },
+        body: {
+          title: "x".repeat(201),
+          content: "Too long title",
+        },
+      });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("GET /notes/:id", () => {
+    it("returns 404 for non-existent note", async () => {
+      const res = await client.get(
+        "/notes/00000000-0000-0000-0000-000000000000",
+        { headers: { authorization: "Bearer testuser:user" } },
+      );
+      expect(res.status).toBe(404);
+    });
+  });
+});
+```
+
+<Aside type="tip">
+  Contract tests are regenerated on every `typokit generate:tests` run. If you need custom tests, write them in a separate file — the auto-generated tests cover the contract, you cover the business logic.
+</Aside>
+
+---
+
+## Step 10 — Write an Integration Test
+
+For business logic that goes beyond contract shape, write integration tests using `createIntegrationSuite`:
+
+Create `packages/server/tests/integration/notes.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createIntegrationSuite, createFactory } from "@typokit/testing";
+import { app } from "../../src/app.ts";
+
+describe("Notes — business logic", () => {
+  let suite;
+  const authHeaders = { authorization: "Bearer testuser:user" };
+
+  beforeAll(async () => {
+    suite = await createIntegrationSuite(app, {
+      database: true,
+      seed: "empty",
+    });
+  });
+
+  afterAll(async () => {
+    await suite.client.close();
+  });
+
+  it("sets authorId from the auth token, not the request body", async () => {
+    const res = await suite.client.post("/notes", {
+      headers: authHeaders,
+      body: {
+        title: "Auth Test",
+        content: "Check authorId",
+        authorId: "someone-else",  // This should be ignored
+      },
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.authorId).toBe("testuser");
+  });
+
+  it("paginates results correctly", async () => {
+    // Create 3 notes
+    for (let i = 0; i < 3; i++) {
+      await suite.client.post("/notes", {
+        headers: authHeaders,
+        body: { title: `Note ${i}`, content: `Content ${i}` },
+      });
+    }
+
+    const page1 = await suite.client.get("/notes?page=1&pageSize=2", {
+      headers: authHeaders,
+    });
+
+    expect(page1.body.data).toHaveLength(2);
+    expect(page1.body.pagination.total).toBeGreaterThanOrEqual(3);
+    expect(page1.body.pagination.totalPages).toBeGreaterThanOrEqual(2);
+  });
+
+  it("returns 404 when updating a non-existent note", async () => {
+    const res = await suite.client.put(
+      "/notes/00000000-0000-0000-0000-000000000000",
+      {
+        headers: authHeaders,
+        body: { title: "Ghost Note" },
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+```
+
+Run the integration tests:
+
+```bash
+typokit test
+```
+
+---
+
+## Recap
+
+Here's what you built and how each piece connects:
+
+```
+Note interface (JSDoc tags)
+    │
+    ├─▶ Typia validators      (auto-generated, validate requests)
+    ├─▶ Drizzle schema         (auto-generated, database tables)
+    ├─▶ OpenAPI spec           (auto-generated, API documentation)
+    └─▶ Contract tests         (auto-generated, endpoint verification)
+
+NotesRoutes contracts ──▶ Handler type safety
+                          (params, query, body, response all typed)
+
+requireAuth middleware ──▶ Context type narrowing
+                          (ctx.userId available in handlers)
+
+createApp({ routes }) ──▶ Explicit route registration
+                          (visible, auditable, AI-friendly)
+```
+
+**One type definition** produced validators, database schema, API docs, and tests — with zero boilerplate.
+
+## Next Steps
+
+- Add more entity types and routes following the same pattern
+- Explore [Middleware and Context](/typokit/core-concepts/middleware-and-context/) for more advanced middleware patterns
+- Read [Error Handling](/typokit/core-concepts/error-handling/) to learn about structured error responses
+- Try [Server Adapters](/typokit/core-concepts/server-adapters/) to switch from the native server to Fastify or Hono
+- Set up [Observability](/typokit/core-concepts/observability/) for production logging and tracing

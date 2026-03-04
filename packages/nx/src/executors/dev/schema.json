@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "type": "object",
+  "properties": {
+    "rootDir": {
+      "type": "string",
+      "description": "Project root directory (defaults to project root)"
+    },
+    "verbose": {
+      "type": "boolean",
+      "description": "Enable verbose output",
+      "default": false
+    },
+    "debugPort": {
+      "type": "number",
+      "description": "Debug sidecar port",
+      "default": 9800
+    }
+  },
+  "additionalProperties": false
+}

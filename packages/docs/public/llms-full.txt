@@ -1,0 +1,166 @@
+# TypoKit
+
+> A schema-first, type-safe API framework for TypeScript that generates validators, database schemas, OpenAPI specs, and client SDKs from your TypeScript types — with zero runtime reflection.
+
+TypoKit follows five core tenets:
+
+1. **Schema-first** — TypeScript types are the single source of truth. Define your entities and route contracts as types; everything else is generated.
+2. **Zero-cost validation** — Validators are compiled at build time via Typia. No runtime reflection, no schema DSL.
+3. **Adapter pattern** — Server (Express, Fastify, Hono, native), database (Drizzle, Kysely, Prisma, raw SQL), and platform (Node, Bun, Deno) adapters are swappable without changing application code.
+4. **Deterministic builds** — The same TypeScript types always produce the same generated output. A Rust-based build pipeline ensures fast, reproducible builds.
+5. **AI-inspectable at every layer** — Every component exposes structured JSON introspection APIs. Every error carries machine-readable context with path, expected, received, and suggestion fields.
+
+## How It Works
+
+TypoKit uses a three-tier architecture:
+
+**Schema Tier** — You write TypeScript types for entities and route contracts in `src/types/`. Each route contract specifies the HTTP method, path, request/response schemas, middleware, and error types.
+
+**Build Tier** — `typokit build` runs a Rust-based transform pipeline (via napi-rs) that:
+- Parses TypeScript AST to extract type information
+- Compiles a radix-tree route table for O(k) path matching
+- Generates Typia validators (zero-cost, compile-time)
+- Generates database schemas for your chosen ORM
+- Produces an OpenAPI 3.1 specification
+- Generates contract test stubs
+- Outputs everything to `.typokit/` directory
+
+**Runtime Tier** — `createApp()` loads the compiled artifacts, wires up your chosen server adapter, and starts handling requests. The middleware pipeline is fully typed — each middleware can narrow the context type for downstream handlers.
+
+## Docs
+
+### Getting Started
+
+- [Quickstart](https://kylebastien.github.io/typokit/getting-started/quickstart/): Install TypoKit, scaffold a project with `typokit init`, define your first route contract, run `typokit build` and `typokit dev` to see it working. Covers: installation, project scaffolding, defining a route contract, building, and running the dev server.
+
+- [Project Structure](https://kylebastien.github.io/typokit/getting-started/project-structure/): File layout and conventions. Key directories: `src/types/` (entities and route contracts), `src/handlers/` (route handler implementations), `src/middleware/` (typed middleware), `src/services/` (business logic), `.typokit/` (generated artifacts — gitignored).
+
+### Core Concepts
+
+- [Schema-First Types](https://kylebastien.github.io/typokit/core-concepts/schema-first-types/): TypeScript types drive the entire framework. Entity types define your domain model. Route contracts (`RouteContract<TMethod, TPath, TRequest, TResponse, TMiddleware, TErrors>`) define the API surface. Typia compiles validators from types at build time — no `z.object()`, no decorators, just TypeScript interfaces with JSDoc annotations for constraints (`@minimum`, `@format email`, `@pattern`).
+
+- [Routing and Handlers](https://kylebastien.github.io/typokit/core-concepts/routing-and-handlers/): Routes are defined via contracts, not imperative registration. The build pipeline compiles a radix tree for O(k) route matching. Handlers receive a fully typed `ctx` object with parsed params, validated body, and middleware-injected services. Handler return types are checked against the route contract at build time.
+
+- [Middleware and Context](https://kylebastien.github.io/typokit/core-concepts/middleware-and-context/): Middleware uses `defineMiddleware<TInput, TOutput>()` with typed context narrowing. Each middleware can inject services into `ctx` (e.g., `ctx.user` after auth middleware). The middleware pipeline is ordered by priority (lower numbers run first). Use `getNativeServer()` for framework-native middleware (CORS, helmet, compression).
+
+- [Error Handling](https://kylebastien.github.io/typokit/core-concepts/error-handling/): All errors are structured with machine-readable context. Validation errors include `failures[]` array with `path`, `expected`, `received`, and `suggestion` fields. Handler errors include `sourceFile` and `line`. The error boundary catches unhandled errors and wraps them in the standard format. Error types are declared in route contracts for type-safe error handling.
+
+- [Server Adapters](https://kylebastien.github.io/typokit/core-concepts/server-adapters/): Four adapters: `@typokit/server-native` (Node.js HTTP), `@typokit/server-express`, `@typokit/server-fastify`, `@typokit/server-hono`. All implement the `ServerAdapter` interface: `normalizeRequest()`, `writeResponse()`, `registerRoutes()`, `listen()`, `close()`. Swap adapters by changing one import — handler code stays identical.
+
+- [Database Adapters](https://kylebastien.github.io/typokit/core-concepts/database-adapters/): Four adapters: `@typokit/db-drizzle`, `@typokit/db-kysely`, `@typokit/db-prisma`, `@typokit/db-raw`. The build pipeline generates ORM-specific schemas from your TypeScript entity types. Run `typokit generate:db` to produce schema files and `typokit migrate:generate` for migration files.
+
+- [Plugins](https://kylebastien.github.io/typokit/core-concepts/plugins/): Plugins hook into both build-time and runtime phases via the tapable `AsyncSeriesHook` system. Build hooks: `beforeBuild`, `afterTypeParse`, `afterRouteTable`, `afterValidators`, `afterEmit`, `afterBuild`. Runtime hooks: `onStart`, `onReady`, `onError`, `onStop`. Plugins register services via `app.services` (dependency injection pattern). Built-in plugins: `plugin-debug` (introspection sidecar), `plugin-ws` (WebSocket support).
+
+- [Testing](https://kylebastien.github.io/typokit/core-concepts/testing/): `typokit generate:tests` auto-generates contract tests from route contracts — verifying request validation, response shapes, and error cases. `typokit test` auto-detects your test runner (Jest > Vitest > Rstest > fallback Vitest). `typokit test:contracts` runs only generated tests. `typokit test:integration` runs your custom integration tests.
+
+- [Observability](https://kylebastien.github.io/typokit/core-concepts/observability/): Structured logging via `ctx.log` with automatic `traceId`, `route`, and `phase` enrichment. Three log sinks: Stdout, OTel, DebugSidecar. OpenTelemetry integration (`@typokit/otel`) with auto-instrumented spans. Debug sidecar (`@typokit/plugin-debug`) exposes 8 HTTP endpoints on port 9800 for runtime introspection.
+
+### Guides
+
+- [Building Your First API](https://kylebastien.github.io/typokit/guides/building-first-api/): Step-by-step tutorial building a Notes CRUD API with 5 endpoints (POST, GET, GET/:id, PUT/:id, DELETE/:id). Covers: scaffolding, entity types, route contracts, handlers, auth middleware, route registration, database schema generation, dev server, curl testing, contract tests, integration tests.
+
+- [Custom Server Adapter](https://kylebastien.github.io/typokit/guides/custom-server-adapter/): Build a custom server adapter implementing the `ServerAdapter` interface. Covers: `collectRoutes()` tree walker, `normalizeRequest()` (framework HTTP → `TypoKitRequest`), `writeResponse()` (`TypoKitResponse` → framework HTTP), `registerRoutes()` with middleware chain, graceful shutdown.
+
+- [Custom Plugin](https://kylebastien.github.io/typokit/guides/custom-plugin/): Build a request-timing plugin. Covers: plugin factory function, build-time hooks (`afterRouteTable`), runtime services (`app.services` DI), `onReady` warmup, `onError` tracking, graceful shutdown, CLI commands, introspection endpoints, `defineMiddleware()` with priority ordering.
+
+- [Migration from Express/Fastify](https://kylebastien.github.io/typokit/guides/migration/): Incremental adoption for existing projects. Express: pass existing app via `expressServer({ app })`. Fastify: use `getNativeServer()` for legacy plugins/routes. Framework-native middleware runs before TypoKit normalization; TypoKit middleware runs after — only for TypoKit routes. Legacy routes and TypoKit routes coexist on the same framework instance.
+
+### CLI Reference
+
+- [Scaffolding & Dev](https://kylebastien.github.io/typokit/cli-reference/scaffolding-dev/): `typokit init [name]` — scaffold a new project. `typokit add route [name]` — add a route contract + handler. `typokit add service [name]` — add a service module. `typokit build` — run the full build pipeline. `typokit dev` — start dev server with incremental rebuilds and optional debug sidecar. Global flags: `--root`, `--verbose`.
+
+- [Generate, Migrate & Test](https://kylebastien.github.io/typokit/cli-reference/generate-migrate-test/): `typokit generate:db` — generate database schemas. `typokit generate:client` — generate type-safe HTTP client. `typokit generate:openapi` — generate OpenAPI 3.1 spec. `typokit generate:tests` — generate contract tests. `typokit migrate:generate` — create migration files. `typokit migrate:diff` — show pending changes. `typokit migrate:apply` — apply migrations. `typokit test` / `test:contracts` / `test:integration` — run tests.
+
+- [Inspect](https://kylebastien.github.io/typokit/cli-reference/inspect/): All commands support `--json` for structured output. Build-time (reads `.typokit/`): `inspect routes`, `inspect route [path]`, `inspect schema`, `inspect middleware`, `inspect dependencies`, `inspect build-pipeline`. Runtime (queries debug sidecar on port 9800): `inspect errors`, `inspect performance`, `inspect server`.
+
+### Architecture
+
+- [Architecture Overview](https://kylebastien.github.io/typokit/architecture/overview/): Three-tier architecture (schema → build → runtime). 30 packages across 10 categories: core, transform, server adapters, platform adapters, database adapters, testing, observability, plugins, client generation, build tooling. Key design decisions: TypeScript types as schema (not DSL), Rust build pipeline (not JS), radix tree router (not regex), adapter pattern (not framework lock-in).
+
+- [Build Pipeline](https://kylebastien.github.io/typokit/architecture/build-pipeline/): Rust transform pipeline via napi-rs with 8 stages: parse → extract → route table → OpenAPI → test stubs → schema diff → Typia callback → write. Uses `AsyncSeriesHook` (tapable) for plugin hooks at 6 phases. Content-hash caching for incremental rebuilds. All output written to `.typokit/` directory.
+
+- [Compiled Router](https://kylebastien.github.io/typokit/architecture/compiled-router/): Radix tree constructed at build time in Rust, consumed at runtime in TypeScript. O(k) path matching where k is the number of path segments. Static children checked before parameterized child before wildcard child. Performance targets: static lookup < 100ns, parameterized lookup < 200ns, route table load < 1ms.
+
+### AI Agents
+
+- [AI Agent Integration](https://kylebastien.github.io/typokit/ai-agents/integration/): Five-phase agent workflow: modify types → generate (build) → test → inspect errors → self-correct. `typokit inspect` CLI with `--json` for structured output. Debug sidecar HTTP endpoints for runtime introspection. Structured error context with `path`, `expected`, `received`, `suggestion` fields. File-per-concern layout for minimal diffs.
+
+- [Machine-Readable Docs](https://kylebastien.github.io/typokit/ai-agents/machine-readable/): llms.txt and llms-full.txt files, `--json` flag on all inspect commands, OpenAPI spec generation, debug sidecar JSON endpoints, generated file artifacts in `.typokit/`.
+
+## Packages
+
+### Core
+
+- **@typokit/core** — App creation (`createApp()`), routing, middleware pipeline, plugin system, and the `AppInstance` type. The central package that orchestrates all other packages.
+- **@typokit/types** — Shared TypeScript type definitions: `RouteContract`, `TypoKitRequest`, `TypoKitResponse`, `ServerAdapter`, `DatabaseAdapter`, `Plugin`, `Middleware`, and all configuration interfaces.
+- **@typokit/errors** — Structured error types (`TypoKitError`, `ValidationError`, `NotFoundError`, `UnauthorizedError`) with machine-readable context including `failures[]` array with `path`, `expected`, `received`, `suggestion`.
+- **@typokit/cli** — Command-line interface implementing all `typokit` commands: init, build, dev, add, generate, migrate, inspect, test.
+
+### Server Adapters
+
+- **@typokit/server-native** — Node.js native `http.createServer()` adapter. Zero dependencies. Best for serverless and lightweight deployments.
+- **@typokit/server-express** — Express adapter. Supports passing an existing Express app for incremental migration.
+- **@typokit/server-fastify** — Fastify adapter. Supports `getNativeServer()` for accessing the Fastify instance for plugins and legacy routes.
+- **@typokit/server-hono** — Hono adapter. Runs on Node.js, Bun, Deno, and Cloudflare Workers.
+
+### Database Adapters
+
+- **@typokit/db-drizzle** — Drizzle ORM adapter. Generated schemas use Drizzle's `pgTable`/`mysqlTable`/`sqliteTable`.
+- **@typokit/db-kysely** — Kysely adapter. Generated schemas use Kysely's type-safe query builder interfaces.
+- **@typokit/db-prisma** — Prisma adapter. Generated schemas produce Prisma schema files.
+- **@typokit/db-raw** — Raw SQL adapter for direct database access without an ORM.
+
+### Platform Adapters
+
+- **@typokit/platform-node** — Node.js platform adapter (default).
+- **@typokit/platform-bun** — Bun platform adapter with Bun-native APIs.
+- **@typokit/platform-deno** — Deno platform adapter with Deno-native APIs.
+
+### Client Generation
+
+- **@typokit/client** — Type-safe HTTP client generated from route contracts. Provides `createClient<TRoutes>()` with full type inference for params, body, and response.
+- **@typokit/client-react-query** — React Query (TanStack Query) hooks generated from route contracts.
+- **@typokit/client-swr** — SWR hooks generated from route contracts.
+
+### Build & Transform
+
+- **@typokit/transform-native** — Rust-based native transform pipeline via napi-rs. Handles AST parsing, route table compilation, schema extraction, and code generation.
+- **@typokit/transform-typia** — Typia integration for generating zero-cost validators from TypeScript types at build time.
+- **@typokit/nx** — Nx plugin for monorepo orchestration with TypoKit-aware build targets.
+- **@typokit/turbo** — Turborepo plugin for monorepo orchestration.
+
+### Testing & Observability
+
+- **@typokit/testing** — Test utilities: `createTestClient()` for integration tests, contract test generation, and test runner auto-detection.
+- **@typokit/otel** — OpenTelemetry integration: auto-instrumented spans for request lifecycle, structured log sink, trace/log/metric exporters.
+
+### Plugins
+
+- **@typokit/plugin-debug** — Debug sidecar plugin. Runs an HTTP server on port 9800 with 8 introspection endpoints (`/_debug/routes`, `/_debug/middleware`, `/_debug/errors`, `/_debug/performance`, `/_debug/health`, `/_debug/dependencies`, `/_debug/traces`, `/_debug/logs`). Dev mode (no auth) and production mode (bearer token required).
+- **@typokit/plugin-ws** — WebSocket plugin with type-safe events. Hooks into build-time for WebSocket contract code generation and runtime for connection management.
+
+## Key CLI Commands
+
+```
+typokit init [name]              # Scaffold a new project
+typokit build                    # Run the full build pipeline
+typokit dev                      # Start dev server with hot reload
+typokit add route [name]         # Add a route contract + handler
+typokit add service [name]       # Add a service module
+typokit generate:db              # Generate database schemas
+typokit generate:client          # Generate type-safe HTTP client
+typokit generate:openapi         # Generate OpenAPI 3.1 spec
+typokit generate:tests           # Generate contract tests
+typokit migrate:generate         # Create migration files
+typokit migrate:apply            # Apply pending migrations
+typokit test                     # Run all tests
+typokit test:contracts           # Run generated contract tests only
+typokit test:integration         # Run integration tests only
+typokit inspect routes --json    # List all routes (structured JSON)
+typokit inspect schema --json    # List all type schemas
+typokit inspect errors --json    # List recent errors with context
+typokit inspect middleware --json # List middleware stack
+typokit inspect dependencies --json # List package dependency graph
+```
+
+All `typokit inspect` commands support `--json` for machine-readable output.

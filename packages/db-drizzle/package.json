@@ -1,0 +1,28 @@
+{
+  "scripts": {
+    "test": "rstest run --passWithNoTests",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "name": "@typokit/db-drizzle",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/types": "workspace:*",
+    "@typokit/core": "workspace:*"
+  }
+}

@@ -1,0 +1,673 @@
+---
+title: AI Agent Integration
+description: How AI coding agents integrate with TypoKit's introspection CLI, debug sidecar, and structured error context to autonomously modify types, generate code, test, and self-correct.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+TypoKit is **AI-native by design** — tenet #5 of the architecture is "AI-inspectable at every layer." Every component exposes structured introspection APIs, every error carries machine-readable context, and every change flows through a deterministic build pipeline. This guide explains how AI agents leverage these capabilities.
+
+<Aside type="tip">
+  All `typokit inspect` commands support `--json` for structured output that agents can parse directly. Pair this with the debug sidecar's HTTP endpoints for runtime observability.
+</Aside>
+
+---
+
+## The Agent Workflow Pattern
+
+AI agents working with TypoKit follow a consistent five-phase loop:
+
+<Steps>
+
+1. **Modify types** — The agent edits TypeScript type definitions (entities, route contracts, DTOs) in `src/types/`.
+
+2. **Generate** — The agent runs `typokit build` to trigger the full pipeline: parse types → extract schemas → compile route table → generate validators → emit database schemas → produce OpenAPI spec.
+
+3. **Test** — The agent runs `typokit test` to execute auto-generated contract tests and any integration tests.
+
+4. **Inspect errors** — If tests fail, the agent runs `typokit inspect errors --json` (runtime) or reads structured build output to get machine-readable failure context.
+
+5. **Self-correct** — The agent parses the structured error response — which includes the failing schema path, expected vs received values, and a suggestion — and applies a targeted fix. Then the loop restarts at step 2.
+
+</Steps>
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│ 1. Modify    │────▶│ 2. Generate  │────▶│ 3. Test      │
+│    types     │     │    (build)   │     │              │
+└──────────────┘     └──────────────┘     └──────┬───────┘
+       ▲                                         │
+       │         ┌──────────────┐     ┌──────────▼───────┐
+       └─────────│ 5. Self-     │◀────│ 4. Inspect       │
+                 │    correct   │     │    errors        │
+                 └──────────────┘     └──────────────────┘
+```
+
+This loop is fully deterministic: the same input types always produce the same generated output, so agents can reason about cause and effect.
+
+---
+
+## Inspect Commands for Agents
+
+The `typokit inspect` CLI is the primary interface for AI agent introspection. Commands split into two categories: **build-time** (read generated files on disk) and **runtime** (query the debug sidecar).
+
+### Build-Time Commands
+
+These read from `.typokit/` and do not require a running server.
+
+#### Discover the API surface
+
+```bash
+typokit inspect routes --json
+```
+
+```json
+[
+  {
+    "method": "POST",
+    "path": "/users",
+    "params": {},
+    "query": {},
+    "body": "CreateUserRequest",
+    "response": "User"
+  },
+  {
+    "method": "GET",
+    "path": "/users/:id",
+    "params": { "id": "string" },
+    "query": {},
+    "body": null,
+    "response": "User"
+  }
+]
+```
+
+#### Inspect a single route in detail
+
+```bash
+typokit inspect route "GET /users/:id" --json
+```
+
+```json
+{
+  "method": "GET",
+  "path": "/users/:id",
+  "params": { "id": "string" },
+  "query": {},
+  "body": null,
+  "response": "User",
+  "middleware": ["authMiddleware", "rateLimitMiddleware"],
+  "handler": {
+    "file": "src/handlers/users.ts",
+    "export": "getUser"
+  },
+  "schemas": {
+    "params": "GetUserParams",
+    "response": "User"
+  }
+}
+```
+
+#### Inspect a schema and where it's used
+
+```bash
+typokit inspect schema CreateUserRequest --json
+```
+
+```json
+{
+  "name": "CreateUserRequest",
+  "sourceFile": "src/types/user.ts",
+  "properties": {
+    "email": { "type": "string", "format": "email", "required": true },
+    "name": { "type": "string", "maxLength": 100, "required": true },
+    "role": { "type": "string", "enum": ["admin", "user"], "default": "user" }
+  },
+  "usedBy": [
+    { "route": "POST /users", "as": "body" },
+    { "route": "PUT /users/:id", "as": "body" }
+  ]
+}
+```
+
+#### View the middleware chain
+
+```bash
+typokit inspect middleware --json
+```
+
+```json
+[
+  { "name": "errorMiddleware", "priority": -100, "type": "global" },
+  { "name": "corsMiddleware", "priority": -50, "type": "global" },
+  { "name": "authMiddleware", "priority": 0, "type": "route", "routes": ["/users/*", "/admin/*"] },
+  { "name": "rateLimitMiddleware", "priority": 10, "type": "global" }
+]
+```
+
+#### Inspect the dependency graph
+
+```bash
+typokit inspect dependencies --json
+```
+
+```json
+{
+  "@typokit/core": ["@typokit/transform"],
+  "@typokit/server-native": ["@typokit/core"],
+  "@typokit/db-drizzle": ["@typokit/core", "drizzle-orm"],
+  "my-app": ["@typokit/core", "@typokit/server-native", "@typokit/db-drizzle"]
+}
+```
+
+#### Inspect the build pipeline
+
+```bash
+typokit inspect build-pipeline --json
+```
+
+```json
+{
+  "hooks": [
+    { "phase": "beforeTransform", "taps": ["plugin-debug"] },
+    { "phase": "afterTypeParse", "taps": ["plugin-ws", "plugin-debug"] },
+    { "phase": "afterValidators", "taps": [] },
+    { "phase": "afterRouteTable", "taps": ["plugin-timing"] },
+    { "phase": "emit", "taps": ["plugin-ws"] },
+    { "phase": "done", "taps": ["plugin-debug"] }
+  ]
+}
+```
+
+### Runtime Commands
+
+These query the debug sidecar and require a running server with `@typokit/plugin-debug` enabled.
+
+#### Get recent errors
+
+```bash
+typokit inspect errors --last 5 --json
+```
+
+```json
+{
+  "errors": [
+    {
+      "timestamp": "2026-03-02T14:23:01.442Z",
+      "traceId": "abc123def456",
+      "code": "VALIDATION_ERROR",
+      "status": 400,
+      "message": "Request body validation failed",
+      "route": "POST /users",
+      "phase": "validation",
+      "details": {
+        "failures": [
+          {
+            "path": "$.email",
+            "expected": "string (format: email)",
+            "received": "number (42)",
+            "suggestion": "Provide a valid email address as a string"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+#### Check route performance
+
+```bash
+typokit inspect performance --route "/users" --json
+```
+
+```json
+{
+  "route": "GET /users",
+  "window": "5m",
+  "count": 1247,
+  "p50": 12,
+  "p95": 45,
+  "p99": 120,
+  "min": 3,
+  "max": 342
+}
+```
+
+#### Query server status
+
+```bash
+typokit inspect server --json
+```
+
+```json
+{
+  "adapter": "native",
+  "platform": "node",
+  "address": "127.0.0.1:3000",
+  "uptime": 3600,
+  "memory": {
+    "heapUsed": 45000000,
+    "heapTotal": 67000000,
+    "rss": 89000000
+  }
+}
+```
+
+---
+
+## Debug Sidecar HTTP Endpoints
+
+The debug sidecar (`@typokit/plugin-debug`) exposes HTTP endpoints on a separate port (default: `9800`) that agents can query directly for live runtime data.
+
+### Enabling the sidecar
+
+```typescript
+// app.ts
+import { createApp } from "@typokit/core";
+import { debugPlugin } from "@typokit/plugin-debug";
+
+const app = createApp({
+  plugins: [
+    debugPlugin({
+      port: 9800,          // sidecar port (default: 9800)
+      mode: "dev",         // "dev" binds 0.0.0.0; "production" binds 127.0.0.1
+    }),
+  ],
+});
+```
+
+### Endpoint Reference
+
+| Endpoint | Method | Query Params | Description |
+|----------|--------|-------------|-------------|
+| `/_debug/routes` | GET | — | Compiled route table |
+| `/_debug/middleware` | GET | — | Registered middleware names |
+| `/_debug/errors` | GET | `since=5m` | Recent errors with full context |
+| `/_debug/performance` | GET | `window=5m` | Latency percentiles and histogram |
+| `/_debug/health` | GET | — | Server health, uptime, memory |
+| `/_debug/dependencies` | GET | — | Service dependency graph |
+| `/_debug/traces` | GET | — | OpenTelemetry span batches (last 100) |
+| `/_debug/logs` | GET | `since=5m` | Application logs with optional redaction |
+
+### Example: Querying errors from an agent
+
+```bash
+curl -s http://localhost:9800/_debug/errors?since=5m | jq '.errors[0]'
+```
+
+```json
+{
+  "timestamp": "2026-03-02T14:23:01.442Z",
+  "traceId": "abc123def456",
+  "code": "VALIDATION_ERROR",
+  "status": 400,
+  "message": "Request body validation failed",
+  "route": "POST /users",
+  "phase": "validation",
+  "details": {
+    "failures": [
+      {
+        "path": "$.email",
+        "expected": "string (format: email)",
+        "received": "number (42)",
+        "suggestion": "Provide a valid email address as a string"
+      }
+    ]
+  }
+}
+```
+
+### Example: Checking server health
+
+```bash
+curl -s http://localhost:9800/_debug/health | jq
+```
+
+```json
+{
+  "status": "healthy",
+  "uptime": 3600,
+  "memory": {
+    "heapUsed": 45000000,
+    "heapTotal": 67000000,
+    "rss": 89000000
+  }
+}
+```
+
+### Example: Fetching traces for root cause analysis
+
+```bash
+curl -s http://localhost:9800/_debug/traces | jq '.traces[0]'
+```
+
+```json
+[
+  {
+    "traceId": "abc123def456",
+    "spanId": "span001",
+    "name": "POST /users",
+    "startTime": "2026-03-02T14:23:01.440Z",
+    "endTime": "2026-03-02T14:23:01.442Z",
+    "status": "ERROR",
+    "attributes": {
+      "http.method": "POST",
+      "http.route": "/users",
+      "http.status_code": 400
+    },
+    "children": [
+      {
+        "spanId": "span002",
+        "name": "validation",
+        "startTime": "2026-03-02T14:23:01.440Z",
+        "endTime": "2026-03-02T14:23:01.441Z",
+        "status": "ERROR",
+        "attributes": {
+          "validation.schema": "CreateUserRequest",
+          "validation.errors": 1
+        }
+      }
+    ]
+  }
+]
+```
+
+### Production Security
+
+In production mode, the sidecar supports:
+
+| Feature | Configuration |
+|---------|--------------|
+| API key authentication | `X-Debug-Key` header validated against configured key |
+| IP allowlist | CIDR ranges (e.g., `["10.0.0.0/8", "172.16.0.0/12"]`) |
+| Field redaction | Patterns like `["*.password", "authorization", "*.secret"]` |
+| Rate limiting | Per-IP request limits |
+| Bind address | `127.0.0.1` in production (vs `0.0.0.0` in dev) |
+
+```typescript
+debugPlugin({
+  port: 9800,
+  mode: "production",
+  apiKey: process.env.DEBUG_API_KEY,
+  allowedIPs: ["10.0.0.0/8"],
+  redactFields: ["*.password", "authorization", "*.token"],
+  rateLimit: { windowMs: 60000, max: 100 },
+});
+```
+
+---
+
+## Structured Error Context
+
+TypoKit's error handling is designed so that **agents never need to parse human-readable error messages**. Every error carries structured metadata that tells the agent exactly what went wrong and how to fix it.
+
+### Error Shape
+
+Every error response includes these fields:
+
+```typescript
+interface StructuredError {
+  code: string;          // Machine-readable code: "VALIDATION_ERROR", "NOT_FOUND", "AUTH_REQUIRED"
+  status: number;        // HTTP status: 400, 401, 404, 500
+  message: string;       // Human-readable description
+  traceId: string;       // Correlation ID for logs, spans, and traces
+  route: string;         // Which route failed: "POST /users"
+  phase: string;         // Pipeline phase: "validation" | "middleware" | "handler" | "serialization"
+  details: ErrorDetails; // Structured failure context (see below)
+}
+```
+
+### Validation Failures
+
+When request validation fails, the `details.failures` array contains one entry per field:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "status": 400,
+  "message": "Request body validation failed",
+  "traceId": "abc123",
+  "route": "POST /users",
+  "phase": "validation",
+  "details": {
+    "schemaName": "CreateUserRequest",
+    "sourceFile": "src/types/user.ts",
+    "failures": [
+      {
+        "path": "$.email",
+        "expected": "string (format: email)",
+        "received": "undefined",
+        "suggestion": "Add a required 'email' field with a valid email address"
+      },
+      {
+        "path": "$.role",
+        "expected": "\"admin\" | \"user\"",
+        "received": "\"superadmin\"",
+        "suggestion": "Use one of the allowed enum values: admin, user"
+      }
+    ]
+  }
+}
+```
+
+Each failure entry gives the agent:
+
+- **`path`** — JSON pointer to the failing field (e.g., `$.items[0].quantity`)
+- **`expected`** — What the schema requires
+- **`received`** — What was actually sent
+- **`suggestion`** — A repair hint the agent can act on directly
+
+<Aside type="note">
+  The `sourceFile` field tells the agent which file defines the schema, so it can navigate directly to the type definition that needs changing.
+</Aside>
+
+### Handler Errors
+
+When a handler throws, the error context includes the handler's source location:
+
+```json
+{
+  "code": "INTERNAL_ERROR",
+  "status": 500,
+  "message": "Cannot read property 'id' of undefined",
+  "traceId": "def456",
+  "route": "GET /users/:id",
+  "phase": "handler",
+  "details": {
+    "handler": {
+      "file": "src/handlers/users.ts",
+      "export": "getUser",
+      "line": 42
+    },
+    "relatedTests": [
+      "tests/contracts/GET_users_id.test.ts",
+      "tests/integration/users.test.ts"
+    ]
+  }
+}
+```
+
+### Build Errors
+
+When `typokit build` fails, the exit output includes structured diagnostics:
+
+```json
+{
+  "code": "BUILD_ERROR",
+  "phase": "afterTypeParse",
+  "failures": [
+    {
+      "path": "src/types/user.ts",
+      "line": 15,
+      "message": "Property 'email' has @format tag 'emails' which is not a recognized format",
+      "suggestion": "Use a standard format: email, uri, uuid, date, date-time, ipv4, ipv6"
+    }
+  ]
+}
+```
+
+### How Agents Parse Errors for Self-Correction
+
+An agent receiving a structured error can apply a deterministic fix:
+
+```
+1. Read error.code to classify the problem
+2. Read error.phase to know where in the pipeline it failed
+3. Read error.details.failures[].path to locate the exact field
+4. Read error.details.failures[].suggestion to know what to do
+5. Read error.details.sourceFile to open the correct file
+6. Apply the fix and re-run the build/test loop
+```
+
+<Aside type="tip">
+  The `traceId` can be used to correlate errors with debug sidecar traces via `curl http://localhost:9800/_debug/traces | jq '.traces[] | select(.[0].traceId == "abc123")'` for full root-cause analysis.
+</Aside>
+
+---
+
+## Diff Minimization Strategy
+
+TypoKit's architecture encourages a **file-per-concern** pattern that minimizes the blast radius of any change, making it ideal for AI agent modifications.
+
+### File-Per-Concern Layout
+
+```
+src/
+├── types/
+│   ├── user.ts          # Entity type + JSDoc annotations
+│   ├── post.ts          # Each entity in its own file
+│   └── comment.ts
+├── contracts/
+│   ├── users.ts         # Route contracts for /users
+│   ├── posts.ts         # Route contracts for /posts
+│   └── comments.ts
+├── handlers/
+│   ├── users.ts         # Handlers for /users routes
+│   ├── posts.ts         # Handlers for /posts routes
+│   └── comments.ts
+├── middleware/
+│   ├── auth.ts          # Each middleware in its own file
+│   └── rateLimit.ts
+└── app.ts               # Route registration (imports only)
+```
+
+### Why This Matters for Agents
+
+1. **Atomic changes** — Adding a new field to `User` requires editing only `src/types/user.ts`. The build pipeline regenerates validators, database schemas, and OpenAPI specs automatically.
+
+2. **Predictable file locations** — An agent can infer that `POST /users` is handled by `src/handlers/users.ts` and its contract is in `src/contracts/users.ts`.
+
+3. **Small diffs** — Because each concern lives in its own file, a change to one entity type doesn't create a diff in unrelated files. This keeps pull requests reviewable and reduces merge conflicts.
+
+4. **No generated files in source** — All generated code goes to `.typokit/` (gitignored). Agents only edit source files; the build pipeline handles the rest.
+
+### Agent Best Practices
+
+| Practice | Why |
+|----------|-----|
+| Edit one type file at a time | Keeps diffs atomic and easy to review |
+| Run `typokit build` after each type change | Catches errors early before they cascade |
+| Use `typokit inspect schema <Type> --json` before editing | Understand current shape and usage |
+| Check `typokit inspect errors --json` after test failures | Get structured fix suggestions |
+| Never edit files in `.typokit/` | They're regenerated on every build |
+
+<Aside type="caution">
+  Agents should never modify generated files in the `.typokit/` directory. These are overwritten on every build. All changes should target source files in `src/`.
+</Aside>
+
+---
+
+## End-to-End Agent Example
+
+Here's a complete example of an AI agent adding a `phone` field to the `User` entity:
+
+<Steps>
+
+1. **Discover current schema**
+
+    ```bash
+    typokit inspect schema User --json
+    ```
+
+    The agent learns `User` has `email`, `name`, and `role` fields, defined in `src/types/user.ts`, used by `POST /users` and `GET /users/:id`.
+
+2. **Modify the type**
+
+    The agent edits `src/types/user.ts`:
+
+    ```typescript
+    /**
+     * @table users
+     */
+    export interface User {
+      /** @id @generated */
+      id: string;
+      /** @format email */
+      email: string;
+      /** @maxLength 100 */
+      name: string;
+      /** @format phone */
+      phone?: string;        // ← new field
+      /** @default "user" */
+      role: "admin" | "user";
+    }
+    ```
+
+3. **Rebuild**
+
+    ```bash
+    typokit build
+    ```
+
+    The pipeline regenerates validators, database schemas (with a new migration draft), and OpenAPI spec.
+
+4. **Run tests**
+
+    ```bash
+    typokit test
+    ```
+
+    Contract tests may fail because `CreateUserRequest` doesn't include `phone` yet.
+
+5. **Inspect errors**
+
+    ```bash
+    typokit inspect errors --last 5 --json
+    ```
+
+    The agent sees a validation error: `path: "$.phone"`, `expected: "string (format: phone)"`, `received: "undefined"` — but since `phone` is optional (`?`), the tests actually pass. The agent checks the migration:
+
+    ```bash
+    typokit inspect schema User --json
+    ```
+
+    Confirms the field was added correctly.
+
+6. **Review migration**
+
+    ```bash
+    cat .typokit/migrations/20260302_add_phone_to_users.sql
+    ```
+
+    ```sql
+    ALTER TABLE users ADD COLUMN phone TEXT;
+    ```
+
+    The migration is non-destructive (`destructive: false`), so it can be applied safely.
+
+7. **Commit**
+
+    The agent commits the single changed file (`src/types/user.ts`) with a descriptive message. The generated migration and updated OpenAPI spec will be regenerated by CI.
+
+</Steps>
+
+---
+
+## Further Reading
+
+- [Inspect Commands Reference](/typokit/cli-reference/inspect/) — Complete reference for all `typokit inspect` subcommands
+- [Observability and Debugging](/typokit/core-concepts/observability/) — Structured logging, OTel integration, and debug sidecar details
+- [Error Handling](/typokit/core-concepts/error-handling/) — Error middleware, error codes, and response shapes
+- [Plugins](/typokit/core-concepts/plugins/) — How `@typokit/plugin-debug` integrates into the plugin lifecycle
+- [Machine-Readable Docs](/typokit/ai-agents/machine-readable/) — `llms.txt` and structured documentation for LLM consumption

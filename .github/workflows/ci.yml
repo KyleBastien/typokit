@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: nrwl/nx-set-shas@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        if: github.event_name == 'push'
+        run: pnpm nx run-many -t build
+
+      - name: Build affected packages
+        if: github.event_name == 'pull_request'
+        run: pnpm nx affected -t build
+
+      - name: Typecheck affected
+        run: pnpm nx affected -t typecheck
+
+      - name: Lint affected
+        run: pnpm nx affected -t lint
+
+      - name: Test affected
+        run: pnpm nx affected -t test
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: typokit
+          POSTGRES_PASSWORD: typokit
+          POSTGRES_DB: typokit_e2e
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: nrwl/nx-set-shas@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        if: github.event_name == 'push'
+        run: pnpm nx run-many -t build
+
+      - name: Build affected packages
+        if: github.event_name == 'pull_request'
+        run: pnpm nx affected -t build
+
+      - name: Run E2E tests
+        env:
+          DATABASE_URL: postgresql://typokit:typokit@localhost:5432/typokit_e2e
+        run: pnpm nx affected -t test:e2e

@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Project name to initialize TypoKit in",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      }
+    },
+    "server": {
+      "type": "string",
+      "description": "Server adapter to use",
+      "default": "native",
+      "enum": ["native", "fastify", "hono", "express"]
+    },
+    "db": {
+      "type": "string",
+      "description": "Database adapter to use",
+      "default": "drizzle",
+      "enum": ["drizzle", "kysely", "prisma", "raw", "none"]
+    }
+  },
+  "required": ["project"],
+  "additionalProperties": false
+}

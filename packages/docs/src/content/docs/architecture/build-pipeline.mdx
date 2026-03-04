@@ -1,0 +1,328 @@
+---
+title: Build Pipeline
+description: Deep dive into the TypoKit Rust build pipeline — transform stages, napi-rs boundary, Typia integration, .typokit/ output structure, tapable hooks, caching, and performance targets.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+TypoKit's build pipeline is a **Rust-native transform** that converts plain TypeScript types into optimized runtime artifacts. It's the core of the framework's "write the type once, generate everything" philosophy.
+
+<Aside type="note">
+For a high-level overview of where the build pipeline fits in the overall architecture, see the [Architecture Overview](/typokit/architecture/overview/).
+</Aside>
+
+## The Rust/TypeScript Split
+
+TypoKit draws a hard line between **build time** and **runtime**:
+
+| Phase | Language | Rationale |
+|-------|----------|-----------|
+| **Build time** — AST parsing, type extraction, codegen, route compilation, OpenAPI generation, schema diffing | **Rust** (via napi-rs) | CPU-intensive computation that benefits from native performance |
+| **Runtime** — server adapters, middleware, handlers, error handling, logging, debug sidecar | **TypeScript** | AI agents must be able to read, trace, and modify runtime behavior |
+
+This follows the pattern established by SWC, Turbopack, Biome, and oxc — Rust for heavy computation, TypeScript for developer interaction. No native code runs in production unless you explicitly opt into a Rust-based server adapter.
+
+## Why Not a TS Compiler Plugin?
+
+Custom TypeScript transforms are notorious for:
+
+- Breaking with TypeScript version upgrades
+- Not integrating with bundlers (Webpack, Rspack, Vite, esbuild)
+- Causing problems in monorepo tools (Nx, Turborepo)
+- Confusing AI agents that don't understand the transform step
+
+TS compiler plugins (`ttypescript`, `ts-patch`) require patching the TypeScript installation. Instead, TypoKit owns the build step entirely — the transform is a **pre-compilation code generation step** that reads TypeScript source, generates plain TypeScript files, and lets standard tools compile them normally.
+
+```bash
+# TypoKit IS the build tool for the server package
+typokit build              # Production build
+typokit dev                # Dev mode with watch + debug sidecar
+```
+
+## Transform Pipeline Stages
+
+The Rust transform executes eight stages in sequence:
+
+<Steps>
+1. **Parse** — SWC's `swc_ecma_parser` parses TypeScript source files into ASTs. This is the same parser used by SWC/Turbopack, proven to be 20–70× faster than TypeScript's own parser.
+
+2. **Extract** — Type metadata extraction walks the ASTs, pulling out interfaces, JSDoc tags (`@table`, `@format`, `@minLength`, etc.), generic parameters, union types, and route contracts.
+
+3. **Route Table** — A compiled radix tree is constructed from the extracted route contracts. The tree structure is serialized to a portable TypeScript module.
+
+4. **OpenAPI** — An OpenAPI 3.1 specification is generated from the type metadata, including request/response schemas, parameter definitions, and endpoint documentation.
+
+5. **Test Stubs** — Contract test scaffolding is generated for each route, including valid and invalid fixture data derived from the type constraints.
+
+6. **Schema Diff** — The current type metadata is compared against the previous build's snapshot to produce a structured changeset for migration generation.
+
+7. **Typia Callback** — For each type needing runtime validation, the Rust transform calls back into Typia's JavaScript API via napi-rs to generate optimized validator functions (see [Typia Integration](#typia-integration-via-napi-rs) below).
+
+8. **Write** — All generated artifacts are collected and written to the `.typokit/` output directory.
+</Steps>
+
+```
+src/types.ts (pure TS)
+       │
+       ▼
+┌─────────────────────────────────┐
+│  TypoKit Native Transform       │  ← Rust via napi-rs
+│  1. Parse TS ASTs               │
+│  2. Extract type metadata       │
+│  3. Generate route table        │
+│  4. Generate OpenAPI spec       │
+│  5. Generate test stubs         │
+│  6. Schema diff (migrations)    │
+│  7. Validator codegen           │
+│     (Typia callback to JS)      │
+│  8. Write to .typokit/          │
+└─────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────┐
+│  Standard TS Compile            │  ← user's existing toolchain
+│  (tsc / tsup / SWC)            │
+│  Output: dist/                  │
+└─────────────────────────────────┘
+```
+
+## Typia Integration via napi-rs
+
+Typia is a TypeScript transformer that handles hundreds of edge cases in validation — union discrimination, template literals, mapped types, conditional types, recursive types. Rather than rewriting Typia's logic in Rust, TypoKit uses a **callback pattern** across the napi-rs boundary:
+
+```
+Rust Transform                           JavaScript (Typia)
+─────────────                           ──────────────────
+1. Parse TS ASTs               ← Rust
+2. Extract type metadata       ← Rust
+3. Generate route table        ← Rust
+4. Generate OpenAPI spec       ← Rust
+5. Generate test stubs         ← Rust
+6. Schema diff                 ← Rust
+7. For each type needing validation:
+   ├── Pass type metadata ──────────→  Receive metadata
+   │                                   Call Typia's API
+   └── Receive validator code ←──────  Return generated code
+8. Write all outputs           ← Rust
+```
+
+Steps 1–6 and 8 are where the heavy computation lives (AST parsing and traversal), running at native speed. Step 7 crosses the JS boundary only for validation codegen — a fraction of the total work.
+
+<Aside type="tip">
+The Typia integration is isolated in `@typokit/transform-typia`. If Typia's maintenance changes, only this thin wrapper package needs replacement — the Rust transform and all other packages are unaffected.
+</Aside>
+
+### The napi-rs Boundary
+
+The native transform is published as prebuilt binaries via napi-rs:
+
+```
+@typokit/transform-native
+  ├── src/                         # Rust source
+  │   ├── parser.rs                # TS AST parsing (swc_ecma_parser)
+  │   ├── type_extractor.rs        # JSDoc + type metadata extraction
+  │   ├── route_compiler.rs        # Radix tree construction + serialization
+  │   ├── openapi_generator.rs     # OpenAPI 3.1 spec generation
+  │   ├── schema_differ.rs         # Type diff for migration generation
+  │   ├── test_stub_generator.rs   # Contract test scaffolding
+  │   └── typia_bridge.rs          # napi-rs callback to Typia JS API
+  │
+  ├── npm/                         # Prebuilt platform packages
+  │   ├── darwin-arm64/            # macOS Apple Silicon
+  │   ├── darwin-x64/              # macOS Intel
+  │   ├── linux-arm64-gnu/         # Linux ARM64
+  │   ├── linux-x64-gnu/           # Linux x64
+  │   ├── linux-x64-musl/          # Alpine / Docker
+  │   └── win32-x64-msvc/         # Windows x64
+  │
+  └── index.js                     # Loads correct platform binary
+```
+
+`npm install` automatically selects the right binary for the current platform. The `linux-x64-musl` target ensures compatibility with Alpine-based Docker images common in CI.
+
+## The `.typokit/` Output Directory
+
+All generated artifacts land in `.typokit/`:
+
+```
+.typokit/
+  validators/
+    User.validator.ts              # Generated validation function (via Typia)
+    CreateUserInput.validator.ts
+  routes/
+    route-table.ts                 # Compiled route registry
+    compiled-router.ts             # Compiled radix tree
+  schemas/
+    openapi.json                   # Generated OpenAPI spec
+  tests/
+    users.contract.test.ts         # Generated contract tests
+  client/
+    index.ts                       # Generated type-safe client
+```
+
+This directory is:
+
+- **Gitignored** — generated on build, never committed
+- **Inspectable** — AI agents can read all outputs (everything is TypeScript/JSON, not Rust artifacts)
+- **Cacheable** — only regenerated when source types change (content-hash based)
+
+<Aside type="note">
+The Rust transform generates **plain TypeScript files**. Standard TS compilers (tsc, tsup, SWC) then compile them to `dist/`. This avoids TS compiler plugin fragility and keeps all generated code human-readable and AI-inspectable.
+</Aside>
+
+## Tapable Hook System
+
+The build pipeline is structured as a **tapable hook pipeline** inspired by Rspack/Webpack's plugin architecture. Hooks are exposed as a TypeScript API — plugin authors write hooks in TypeScript, and the Rust transform calls them at the appropriate points via napi-rs.
+
+### Build Phase Hooks
+
+```typescript
+// @typokit/core/src/build/pipeline.ts
+
+export interface BuildPipeline {
+  hooks: {
+    /** Runs before any transforms — register additional type sources */
+    beforeTransform: AsyncSeriesHook<[BuildContext]>;
+
+    /** Runs after types are parsed — inspect/modify the type map */
+    afterTypeParse: AsyncSeriesHook<[SchemaTypeMap, BuildContext]>;
+
+    /** Runs after validators are generated — add custom validators */
+    afterValidators: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
+
+    /** Runs after the route table is compiled */
+    afterRouteTable: AsyncSeriesHook<[CompiledRouteTable, BuildContext]>;
+
+    /** Runs after all generation — plugins emit their own artifacts */
+    emit: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
+
+    /** Runs after build completes — cleanup, reporting */
+    done: AsyncSeriesHook<[BuildResult]>;
+  };
+}
+```
+
+The six phases execute in order:
+
+1. **`beforeTransform`** — Pre-processing, setup, register additional type sources
+2. **`afterTypeParse`** — Type metadata extracted and available for inspection or modification
+3. **`afterValidators`** — Compiled validators generated, plugins can add custom validators
+4. **`afterRouteTable`** — Radix tree route table compiled
+5. **`emit`** — All artifacts ready, plugins emit their own files to `.typokit/`
+6. **`done`** — Build complete, cleanup and reporting
+
+### Plugin Hook Example
+
+Here's how `@typokit/plugin-ws` uses hooks to generate WebSocket artifacts:
+
+```typescript
+// @typokit/plugin-ws/src/build.ts
+
+import type { TypoKitPlugin } from "@typokit/core";
+
+export const wsPlugin: TypoKitPlugin = {
+  name: "@typokit/plugin-ws",
+
+  onBuild(pipeline) {
+    // After types are parsed, extract WebSocket channel contracts
+    pipeline.hooks.afterTypeParse.tap("ws-plugin", (typeMap, ctx) => {
+      const wsChannels = extractWsChannels(typeMap);
+      ctx.set("wsChannels", wsChannels);
+    });
+
+    // At emit phase, generate WS handler types and validators
+    pipeline.hooks.emit.tap("ws-plugin", (outputs, ctx) => {
+      const wsChannels = ctx.get("wsChannels");
+      if (wsChannels.length > 0) {
+        outputs.push(
+          generateWsValidators(wsChannels),
+          generateWsRouteTable(wsChannels),
+        );
+      }
+    });
+  },
+};
+```
+
+<Aside type="tip">
+Plugin authors write TypeScript, not Rust. The Rust transform drives overall pipeline execution and calls plugin hooks via napi-rs at each phase. The native boundary is invisible to plugin code.
+</Aside>
+
+### Why Tapable Hooks?
+
+- **Precise ordering** — plugins run at exact points in the pipeline, no ambiguity
+- **Typed context** — each hook receives typed data, so AI agents can reason about what's available at each phase
+- **Deterministic execution** — hooks are async-series by default, no race conditions
+- **Inspectable** — `typokit inspect build-pipeline --json` shows all registered hooks and their order
+
+## Content-Hash Caching
+
+TypoKit uses **content-hash caching** for incremental rebuilds. Each source file's content is hashed, and the transform only regenerates artifacts when the hash changes.
+
+In `typokit dev` mode, the native transform runs incrementally:
+
+- File watcher detects changes to `types.ts` types
+- Rust transform re-parses only changed files (AST cache held in memory)
+- Only affected validators and routes are regenerated (dependency graph tracked in Rust)
+- Hot reload applies changes without full restart
+- Debug sidecar stays running across reloads
+
+## Build Performance Targets
+
+| Metric | Target | Comparison (pure TS approach) |
+|--------|--------|-------------------------------|
+| Cold build (50 types, 20 routes) | < 500ms | ~2–4s with ts-morph |
+| Cold build (200 types, 100 routes) | < 2s | ~10–15s with ts-morph |
+| Incremental rebuild (1 type changed) | < 50ms | ~500ms–1s with ts-morph |
+| Hot reload (dev mode, 1 file) | < 50ms | ~200ms with ts-morph |
+| Memory usage (200 types) | < 100MB | ~300–500MB with ts-morph |
+
+These targets are achievable because the Rust transform uses SWC's parser (proven 20–70× faster than TypeScript's own parser) and performs all AST traversal, metadata extraction, and code generation in native memory without JS garbage collection pressure.
+
+## Integration with Build Tools
+
+TypoKit integrates as a build command, not a plugin:
+
+<Tabs>
+<TabItem label="Standalone">
+```json
+{
+  "scripts": {
+    "build": "typokit build",
+    "dev": "typokit dev"
+  }
+}
+```
+</TabItem>
+<TabItem label="Nx">
+```json
+{
+  "targets": {
+    "build": {
+      "executor": "@typokit/nx:build"
+    }
+  }
+}
+```
+</TabItem>
+<TabItem label="Turborepo">
+```json
+{
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"]
+    }
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+The Nx executor and Turborepo integration are thin wrappers that call `typokit build` with the correct working directory. No custom Webpack/Rspack loaders. No plugin configuration. One command that works everywhere.
+
+## Further Reading
+
+- [Architecture Overview](/typokit/architecture/overview/) — High-level system architecture
+- [Compiled Router](/typokit/architecture/compiled-router/) — Radix tree route matching internals
+- [Plugins](/typokit/core-concepts/plugins/) — How to write plugins that tap into the build pipeline
+- [Custom Plugin Development](/typokit/guides/custom-plugin/) — Step-by-step plugin creation guide

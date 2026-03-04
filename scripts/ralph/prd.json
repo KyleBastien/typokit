@@ -1,0 +1,598 @@
+{
+  "project": "TypoKit",
+  "branchName": "ralph/docs-site",
+  "description": "TypoKit Documentation Site - Comprehensive Starlight (Astro) docs site with auto-generated API reference via TypeDoc, deployed to GitHub Pages. Covers getting started, core concepts, guides, CLI reference, architecture, AI agent docs, contributing guide, and blog.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize Starlight docs package in monorepo",
+      "description": "As a framework developer, I need a Starlight (Astro) documentation site initialized at packages/docs/ so that docs live alongside code and can be built with Nx.",
+      "acceptanceCriteria": [
+        "Create packages/docs/ directory with package.json (name: @typokit/docs) and scripts: dev, build, preview",
+        "Initialize Starlight with Astro (@astrojs/starlight) via npm create astro or manual setup",
+        "Create astro.config.mjs with site title 'TypoKit', social links (GitHub repo)",
+        "Create a default landing page at src/content/docs/index.mdx with a hero section containing tagline and description",
+        "Dark mode enabled (Starlight default)",
+        "Full-text search enabled (Starlight built-in Pagefind)",
+        "Site builds successfully with npm run build inside packages/docs/",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Configure Nx build target for docs package",
+      "description": "As a framework developer, I need nx build docs and nx serve docs to work so the docs site integrates into the monorepo build pipeline.",
+      "acceptanceCriteria": [
+        "project.json (or package.json nx config) created for packages/docs with build and serve targets",
+        "nx build docs runs the Astro build and produces output in packages/docs/dist/",
+        "nx serve docs starts the Starlight dev server on localhost:4321",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Configure sidebar navigation structure",
+      "description": "As a documentation reader, I need a well-organized sidebar with sections for Getting Started, Core Concepts, Guides, CLI Reference, API Reference, Architecture, Contributing, AI Agents, and Blog.",
+      "acceptanceCriteria": [
+        "Sidebar configured in astro.config.mjs with top-level sections: Getting Started, Core Concepts, Guides, CLI Reference, API Reference, Architecture, Contributing, AI Agents, Blog",
+        "Sidebar sections are collapsible",
+        "Create placeholder .mdx stub files for each section so the sidebar renders without broken links",
+        "Active page is highlighted in sidebar",
+        "Sidebar renders correctly on mobile (hamburger menu)",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Configure GitHub Pages deployment workflow",
+      "description": "As a framework developer, I need the docs site to auto-deploy to GitHub Pages on pushes to main so documentation is always current.",
+      "acceptanceCriteria": [
+        "GitHub Actions workflow created at .github/workflows/docs.yml",
+        "Workflow triggers on push to main with paths filter: packages/docs/**, packages/*/src/**, typokit-arch.md",
+        "Workflow supports manual trigger (workflow_dispatch)",
+        "Workflow installs dependencies with pnpm, builds with nx build docs",
+        "Deploys packages/docs/dist/ to GitHub Pages using actions/upload-pages-artifact and actions/deploy-pages",
+        "Base URL configured correctly in astro.config.mjs for GitHub Pages",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Set up TypeDoc API reference generation",
+      "description": "As a framework developer, I need API reference auto-generated from TSDoc/JSDoc comments in source code so API docs stay in sync with code.",
+      "acceptanceCriteria": [
+        "Install starlight-typedoc plugin and typedoc as dependencies in packages/docs",
+        "Configure starlight-typedoc in astro.config.mjs with entryPoints pointing to all publishable @typokit/* package entry files",
+        "Generated API reference pages include exported interfaces, types, classes, functions with their JSDoc descriptions",
+        "Each package gets its own section in the API reference sidebar (e.g. API Reference > @typokit/core)",
+        "API reference regenerates on every build (no stale docs)",
+        "Links between types work correctly (e.g. ServerAdapter links to its full definition)",
+        "Site builds successfully with the TypeDoc integration",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Write Getting Started - Quickstart guide",
+      "description": "As a new TypoKit user, I need a quickstart guide that takes me from zero to a running TypoKit app in under 5 minutes.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/getting-started/quickstart.mdx",
+        "Prerequisites listed: Node.js 24+, pnpm (recommended), npm/yarn supported",
+        "Step-by-step walkthrough: typokit init, project structure, define a type, create a route, run typokit dev, see it work",
+        "Includes terminal command blocks with expected output at each step",
+        "Links to deeper Core Concepts pages for further reading",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Write Getting Started - Project Structure guide",
+      "description": "As a new TypoKit user, I need a guide explaining the project structure generated by typokit init so I understand where to put my code.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/getting-started/project-structure.mdx",
+        "Explains @app/schema, @app/server, @app/db, @app/client package structure",
+        "Explains the .typokit/ generated directory and what each subdirectory contains (validators, routes, schemas, tests, client)",
+        "Explains typokit.config.ts configuration options",
+        "File tree diagram showing a typical project layout",
+        "Notes which files are auto-generated (never edit) vs user-maintained",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Write Core Concept - Schema-First Types",
+      "description": "As a TypoKit user, I need documentation explaining the schema-first type system so I understand how to define types that drive the entire stack.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/schema-first-types.mdx",
+        "Explains the philosophy: Write the type once - single TypeScript interface drives validation, DB schema, API docs, client types, test factories",
+        "Shows a complete entity type example with all supported JSDoc tags (@table, @id, @generated, @format, @unique, @minLength, @maxLength, @default, @onUpdate)",
+        "Explains derived types (Omit, Partial, Pick) for input/output contracts",
+        "Explains what the build step produces from a type (validators, JSON Schema, DDL, client types, test factories, diff report)",
+        "Includes a What NOT to do section (dont use Zod, decorators, or runtime schema libraries)",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Write Core Concept - Routing and Handlers",
+      "description": "As a TypoKit user, I need documentation explaining how to define route contracts and implement handlers so I can build API endpoints.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/routing.mdx",
+        "Explains RouteContract<TParams, TQuery, TBody, TResponse> with a full example",
+        "Explains defineHandlers<TRoutes>() with typed handler implementation example",
+        "Explains the file convention: contracts.ts, handlers.ts, middleware.ts per route module",
+        "Explains explicit route registration in app.ts (no magic file-based routing)",
+        "Shows how route params, query, and body are automatically typed and validated",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Write Core Concept - Middleware and Context",
+      "description": "As a TypoKit user, I need documentation explaining middleware and context type narrowing so I can add authentication, logging, and other cross-cutting concerns.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/middleware.mdx",
+        "Explains defineMiddleware<TContext>() and how middleware transforms the context type",
+        "Shows the authentication middleware example with context type narrowing",
+        "Explains middleware priority ordering and short-circuiting (throwing errors to stop the chain)",
+        "Explains ctx.fail(), ctx.log, and ctx.services",
+        "Distinguishes TypoKit typed middleware from framework-native middleware (CORS, compression)",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Write Core Concept - Error Handling",
+      "description": "As a TypoKit user, I need documentation explaining the error handling system so I know how to throw and handle errors correctly.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/error-handling.mdx",
+        "Explains the philosophy: thrown errors over Result types with rationale",
+        "Documents the AppError class hierarchy (NotFoundError, ValidationError, UnauthorizedError, ForbiddenError, ConflictError)",
+        "Shows ctx.fail() usage as syntactic sugar",
+        "Explains the built-in error middleware (auto-serialization to ErrorResponse)",
+        "Explains dev mode vs production mode error detail behavior",
+        "Shows the structured error JSON format with traceId, route, phase, failures, sourceFile, schemaFile, relatedTests",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Write Core Concept - Server Adapters",
+      "description": "As a TypoKit user, I need documentation explaining the server adapter system so I can choose and configure the right HTTP layer.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/server-adapters.mdx",
+        "Explains the philosophy: TypoKit is not an HTTP server",
+        "Documents the ownership boundary table (what TypoKit owns vs what the adapter owns)",
+        "Explains request processing order with a diagram or step-by-step flow",
+        "Shows usage examples for: native server, Fastify, Hono, Express",
+        "Explains when to use native vs bring-your-own",
+        "Explains platform adapters (Node.js, Bun, Deno) as orthogonal to server adapters with compatibility matrix",
+        "Links to the Building a Custom Server Adapter guide",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Write Core Concept - Database Adapters",
+      "description": "As a TypoKit user, I need documentation explaining the database adapter system so I can connect my TypoKit types to my preferred database tool.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/database-adapters.mdx",
+        "Explains the philosophy: Generate types, not queries - TypoKit is not an ORM",
+        "Documents all four adapters: Drizzle, Kysely, Prisma, raw SQL with a comparison table",
+        "Shows the DatabaseAdapter interface",
+        "Shows example output for each adapter (Drizzle table definition, Kysely types, Prisma schema, raw SQL DDL)",
+        "Explains migration philosophy: generated as drafts, never auto-applied",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Write Core Concept - Plugins",
+      "description": "As a TypoKit user, I need documentation explaining the plugin system so I can extend TypoKit with WebSocket support, debug tooling, or custom extensions.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/plugins.mdx",
+        "Explains the TypoKitPlugin interface and all lifecycle hooks (onBuild, onStart, onReady, onError, onStop, onSchemaChange)",
+        "Explains build-time hooks (tapable pipeline) vs runtime hooks",
+        "Shows plugin registration in createApp()",
+        "Documents the official plugins: @typokit/plugin-debug and @typokit/plugin-ws",
+        "Explains why there are no onRequest/onResponse hooks (plugins register middleware instead)",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Write Core Concept - Testing",
+      "description": "As a TypoKit user, I need documentation explaining the testing architecture so I understand contract tests, integration tests, and test factories.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/testing.mdx",
+        "Explains the philosophy: If the schema defines the contract, TypoKit can test the contract",
+        "Documents auto-generated contract tests with an example showing generated test code",
+        "Documents the test client (createTestClient, createIntegrationSuite) with examples",
+        "Documents test factories (createFactory) with valid and invalid variant generation",
+        "Explains CI consistency guarantees (idempotent tests, isolated schemas, flaky test detection)",
+        "Shows typokit test, typokit test:contracts, typokit test:integration commands",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Write Core Concept - Observability and Debugging",
+      "description": "As a TypoKit user, I need documentation explaining the observability and AI debugging systems so I can trace requests, inspect framework state, and debug issues.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/core-concepts/observability.mdx",
+        "Documents structured logging via ctx.log with automatic traceId correlation",
+        "Documents OpenTelemetry integration (@typokit/otel) with auto-instrumented spans and log-to-span bridging",
+        "Documents the request lifecycle trace format (JSON example with traceId, route, lifecycle phases, totalMs)",
+        "Documents the debug sidecar (@typokit/plugin-debug) with endpoints, dev mode vs secured production mode",
+        "Documents typokit inspect commands for AI introspection",
+        "Shows the structured error context format and how AI agents use it",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Write Guide - Building Your First API",
+      "description": "As a new TypoKit user, I need a step-by-step tutorial building a complete CRUD API so I can learn the framework by doing.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/guides/first-api.mdx",
+        "Tutorial builds a simple tasks or notes API (not the todo reference app)",
+        "Steps: define entity type, define route contracts, implement handlers, add validation, add middleware (auth), test with contract tests, run the API",
+        "Each step shows the file to create/modify, the code to write, and the expected result",
+        "Uses the native server and Drizzle adapter (most common path)",
+        "Includes curl/httpie commands to test each endpoint",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Write Guide - Custom Server Adapter",
+      "description": "As an advanced TypoKit user, I need a guide showing how to build a custom server adapter so I can integrate TypoKit with any HTTP framework.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/guides/custom-server-adapter.mdx",
+        "Documents the ServerAdapter interface methods with explanations",
+        "Walks through building a minimal custom adapter (skeleton code from arch doc Section 6.8)",
+        "Explains registerRoutes(), normalizeRequest(), writeResponse(), listen(), getNativeServer()",
+        "Shows how to consume the compiled route table",
+        "Includes testing guidance for custom adapters",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Write Guide - Custom Plugin Development",
+      "description": "As an advanced TypoKit user, I need a guide showing how to build a custom plugin so I can extend TypoKit with new capabilities.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/guides/custom-plugin.mdx",
+        "Walks through building a simple plugin (e.g. request timing, custom header injection)",
+        "Shows build-time hooks (tapping into the build pipeline)",
+        "Shows runtime hooks (registering middleware during onStart)",
+        "Shows exposing CLI commands and introspection endpoints",
+        "Shows registering framework-native middleware via getNativeServer()",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Write Guide - Migration from Express/Fastify",
+      "description": "As a developer with an existing Express or Fastify project, I need a migration guide so I can adopt TypoKit incrementally without rewriting my app.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/guides/migration.mdx",
+        "Explains the incremental adoption path: add TypoKit on top of your existing server",
+        "Shows migrating from Express: install @typokit/server-express, wrap existing app",
+        "Shows migrating from Fastify: install @typokit/server-fastify, use alongside existing routes",
+        "Explains how existing middleware (CORS, helmet, compression) coexists with TypoKit middleware",
+        "Notes what changes (validation, error handling, type safety) and what stays the same (existing routes, middleware)",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Write CLI Reference - Scaffolding and Development commands",
+      "description": "As a TypoKit user, I need CLI reference documentation for scaffolding and development commands so I can look up syntax, flags, and expected behavior.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/cli/index.mdx as CLI reference overview",
+        "Page created at src/content/docs/cli/scaffolding.mdx covering: typokit init, typokit add route <name>, typokit add service <name>",
+        "Page created at src/content/docs/cli/development.mdx covering: typokit build, typokit dev (with --debug-port flag)",
+        "Each command shows: syntax, description, flags/options, example usage, expected output",
+        "--verbose flag documented where applicable",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Write CLI Reference - Generate, Migrate, and Test commands",
+      "description": "As a TypoKit user, I need CLI reference documentation for code generation, migration, and test commands.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/cli/generate.mdx covering: typokit generate:db, generate:client, generate:openapi, generate:tests",
+        "Page created at src/content/docs/cli/migrate.mdx covering: typokit migrate:generate, migrate:diff, migrate:apply",
+        "Page created at src/content/docs/cli/test.mdx covering: typokit test, test:contracts, test:integration (with --runner flag)",
+        "Each command shows: syntax, description, flags/options, example usage, expected output",
+        "--json flag documented where applicable",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Write CLI Reference - Inspect commands",
+      "description": "As a TypoKit user, I need CLI reference documentation for all typokit inspect subcommands used for AI introspection.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/cli/inspect.mdx covering all inspect commands: routes, route, middleware, dependencies, schema, errors, performance, server, build-pipeline",
+        "Each command shows: syntax, description, flags/options, example JSON output",
+        "--json and --format json flags documented",
+        "Includes example structured JSON output for each command",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Write Architecture Overview page",
+      "description": "As a contributor or advanced user, I need an architecture overview on the docs site so I can understand TypoKit's design without reading the full arch doc.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/architecture/overview.mdx",
+        "High-level architecture diagram using Mermaid or an embedded image",
+        "Package responsibilities table (core, cli, testing, client, transform-native, transform-typia, server adapters, platform adapters, db adapters, plugins, otel)",
+        "Build pipeline flow diagram showing: schema types -> Rust transform -> .typokit/ outputs -> TS compile -> dist/",
+        "Request processing order diagram (HTTP -> server adapter -> TypoKit core pipeline -> response)",
+        "Links to deep-dive pages for each subsystem",
+        "Notes that the full architectural document is at typokit-arch.md in the repo root",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Write Architecture - Build Pipeline deep dive",
+      "description": "As a contributor, I need documentation explaining the Rust build pipeline architecture so I can understand how types are transformed into runtime artifacts.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/architecture/build-pipeline.mdx",
+        "Explains the Rust transform pipeline stages: parse, extract, route table, OpenAPI, test stubs, schema diff, Typia callback, write",
+        "Explains the napi-rs boundary and Typia integration (hybrid Rust/JS approach)",
+        "Documents the .typokit/ output directory structure (validators/, routes/, schemas/, tests/, client/)",
+        "Explains the tapable hook system with AsyncSeriesHook and build phase hooks",
+        "Documents build performance targets (cold build, incremental, memory)",
+        "Explains content-hash caching for incremental rebuilds",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Write Architecture - Compiled Router deep dive",
+      "description": "As a contributor, I need documentation explaining the compiled radix tree router so I can understand how routing works at build time and runtime.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/architecture/router.mdx",
+        "Explains radix tree construction at build time (Rust) and runtime consumption (TypeScript)",
+        "Shows the compiled router output format with a code example of the generated route tree",
+        "Explains static vs parameterized route lookup with O(k) complexity",
+        "Documents edge cases: param vs static priority, wildcard/catch-all, trailing slashes, 405 handling",
+        "Includes performance targets table (static lookup < 100ns, param lookup < 200ns, load time < 1ms)",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Write AI Agent Integration guide",
+      "description": "As an AI agent developer, I need documentation explaining how to integrate AI agents with TypoKit's introspection and debugging APIs.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/ai-agents/integration.mdx",
+        "Documents the AI agent workflow pattern: modify types, generate, test, inspect errors, self-correct",
+        "Documents all typokit inspect commands with example JSON output",
+        "Documents the debug sidecar HTTP endpoints with request/response examples",
+        "Explains structured error context and how agents parse it to self-correct",
+        "Explains diff minimization strategy: file-per-concern, atomic changes",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Write AI Agent Machine-Readable Docs and create llms.txt",
+      "description": "As an AI agent, I need machine-readable documentation formats so I can programmatically discover TypoKit's API surface without parsing HTML.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/ai-agents/machine-readable.mdx",
+        "Documents the --json flag available on all typokit inspect commands",
+        "Documents how to access the generated OpenAPI spec (typokit generate:openapi) as machine-readable API description",
+        "Create llms.txt file at packages/docs/public/llms.txt with structured summary of TypoKit capabilities, package list, and links to key docs pages (following llmstxt.org convention)",
+        "Create llms-full.txt file at packages/docs/public/llms-full.txt with expanded content suitable for LLM context windows",
+        "Documents which introspection endpoints return structured JSON",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Write Contributing guide",
+      "description": "As a potential TypoKit contributor, I need a guide explaining how to set up the development environment, run tests, and submit changes.",
+      "acceptanceCriteria": [
+        "Page created at src/content/docs/contributing/index.mdx",
+        "Prerequisites listed: Node.js 24+, pnpm, Rust toolchain (for transform-native development only)",
+        "Steps: clone repo, pnpm install, nx build, nx test",
+        "Explains the monorepo structure and package map (all @typokit/* packages and their purposes)",
+        "Explains the Nx workspace targets: build, test, lint",
+        "Explains how to work on the Rust transform (packages/transform-native/)",
+        "Links to the architecture docs for deeper understanding",
+        "Explains the PR process and CI checks",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Configure Starlight blog with initial post",
+      "description": "As a framework maintainer, I need a blog section in the docs site so I can publish release notes, announcements, and technical deep dives.",
+      "acceptanceCriteria": [
+        "Install and configure starlight-blog plugin in astro.config.mjs",
+        "Blog accessible at /blog in the docs site",
+        "Blog appears in the top navigation bar",
+        "Create initial blog post: Introducing TypoKit (placeholder content referencing the vision: AI-native TypeScript framework, schema-first types, Rust build pipeline)",
+        "Blog posts support MDX, code blocks, and images",
+        "Blog has an RSS feed",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Design landing page with feature highlights",
+      "description": "As a potential TypoKit adopter, I need an attractive landing page that clearly communicates what TypoKit is, why it exists, and how to get started.",
+      "acceptanceCriteria": [
+        "Update landing page at src/content/docs/index.mdx (Starlight hero component)",
+        "Hero section: tagline (Write the type once), one-paragraph description, Get Started and GitHub CTA buttons",
+        "Feature highlights section: 4-6 cards for key features (schema-first types, Rust build pipeline, pluggable server, auto-generated tests, AI debugging, type-safe client)",
+        "Code example showcase: side-by-side showing a type definition and the outputs it generates",
+        "Who is this for section: framework users, AI agent developers",
+        "Links to quickstart, core concepts, and API reference",
+        "Responsive design (mobile, tablet, desktop)",
+        "Page renders correctly in Starlight",
+        "Verify in browser if browser testing tools are available",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Add OpenGraph and SEO metadata",
+      "description": "As a framework maintainer, I need proper SEO and social sharing metadata so the docs site is discoverable and looks good when shared.",
+      "acceptanceCriteria": [
+        "Title tags set correctly for each page (e.g. Routing - TypoKit Docs)",
+        "OpenGraph meta tags (og:title, og:description, og:image, og:url) configured in Starlight config",
+        "Social card image (1200x630) created at packages/docs/public/ for link previews",
+        "robots.txt and sitemap.xml generated by Astro (enabled in astro.config.mjs)",
+        "Canonical URLs set correctly",
+        "Page renders correctly in Starlight",
+        "Typecheck passes"
+      ],
+      "priority": 32,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Cross-link validation and final QA",
+      "description": "As a documentation reader, I need all internal links to work and all code examples to be accurate so I don't hit dead ends.",
+      "acceptanceCriteria": [
+        "All internal links between docs pages are valid (no 404s) - run a link checker and fix any broken links",
+        "All code examples use correct TypoKit API signatures (cross-referenced with source)",
+        "Sidebar navigation matches the actual page structure",
+        "Full-text search returns relevant results for key terms (RouteContract, defineHandlers, ctx.fail, ServerAdapter)",
+        "Site builds with zero warnings",
+        "Add a build-and-link-check step to the docs.yml CI workflow that fails on broken links",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}
