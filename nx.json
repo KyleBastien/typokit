@@ -4,39 +4,19 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"],
-      "outputs": ["{projectRoot}/dist"],
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "tsc -p tsconfig.json",
-        "cwd": "{projectRoot}"
-      }
+      "outputs": ["{projectRoot}/dist"]
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["production", "^production"],
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "tsc --noEmit -p tsconfig.json",
-        "cwd": "{projectRoot}"
-      }
+      "inputs": ["production", "^production"]
     },
     "test": {
       "dependsOn": ["build"],
-      "inputs": ["default", "^production"],
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "rstest run --passWithNoTests",
-        "cwd": "{projectRoot}"
-      }
+      "inputs": ["default", "^production"]
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["default", "^production"],
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "eslint src/",
-        "cwd": "{projectRoot}"
-      }
+      "inputs": ["default", "^production"]
     }
   },
   "namedInputs": {
