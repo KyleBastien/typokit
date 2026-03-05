@@ -17,7 +17,6 @@
     "executors.json",
     "generators.json"
   ],
-  "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "executors": "./executors.json",
