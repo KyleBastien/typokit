@@ -133,19 +133,9 @@ export interface UsersRoutes {
     PaginatedResponse<PublicUser>
   >;
 
-  "POST /users": RouteContract<
-    void,
-    void,
-    CreateUserInput,
-    PublicUser
-  >;
+  "POST /users": RouteContract<void, void, CreateUserInput, PublicUser>;
 
-  "GET /users/:id": RouteContract<
-    { id: string },
-    void,
-    void,
-    PublicUser
-  >;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, PublicUser>;
 
   "PUT /users/:id": RouteContract<
     { id: string },
@@ -154,12 +144,7 @@ export interface UsersRoutes {
     PublicUser
   >;
 
-  "DELETE /users/:id": RouteContract<
-    { id: string },
-    void,
-    void,
-    void
-  >;
+  "DELETE /users/:id": RouteContract<{ id: string }, void, void, void>;
 }
 
 /** Todos CRUD route contracts */
@@ -171,19 +156,9 @@ export interface TodosRoutes {
     PaginatedResponse<PublicTodo>
   >;
 
-  "POST /todos": RouteContract<
-    void,
-    void,
-    CreateTodoInput,
-    PublicTodo
-  >;
+  "POST /todos": RouteContract<void, void, CreateTodoInput, PublicTodo>;
 
-  "GET /todos/:id": RouteContract<
-    { id: string },
-    void,
-    void,
-    PublicTodo
-  >;
+  "GET /todos/:id": RouteContract<{ id: string }, void, void, PublicTodo>;
 
   "PUT /todos/:id": RouteContract<
     { id: string },
@@ -192,10 +167,5 @@ export interface TodosRoutes {
     PublicTodo
   >;
 
-  "DELETE /todos/:id": RouteContract<
-    { id: string },
-    void,
-    void,
-    void
-  >;
+  "DELETE /todos/:id": RouteContract<{ id: string }, void, void, void>;
 }

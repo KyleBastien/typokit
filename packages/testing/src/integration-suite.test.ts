@@ -11,10 +11,7 @@ import type {
 } from "@typokit/types";
 import { createApp } from "@typokit/core";
 import { nativeServer } from "@typokit/server-native";
-import {
-  createIntegrationSuite,
-  registerSeed,
-} from "./integration-suite.js";
+import { createIntegrationSuite, registerSeed } from "./integration-suite.js";
 import type { InMemoryDatabase } from "./integration-suite.js";
 
 // ─── Test Helpers ────────────────────────────────────────────
@@ -45,16 +42,12 @@ function makeHandlerMap(): HandlerMap {
       headers: { "content-type": "application/json" },
       body: { message: "Integration Suite Test" },
     }),
-    "items#list": async (
-      _req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => ({
+    "items#list": async (_req: TypoKitRequest): Promise<TypoKitResponse> => ({
       status: 200,
       headers: { "content-type": "application/json" },
       body: { items: [] },
     }),
-    "items#create": async (
-      req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => ({
+    "items#create": async (req: TypoKitRequest): Promise<TypoKitResponse> => ({
       status: 201,
       headers: { "content-type": "application/json" },
       body: req.body,

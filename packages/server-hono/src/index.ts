@@ -22,10 +22,7 @@ import type {
   ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import {
-  createRequestContext,
-  executeMiddlewareChain,
-} from "@typokit/core";
+import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
 
 // ─── Route Traversal ─────────────────────────────────────────
 
@@ -103,7 +100,9 @@ function validationErrorResponse(
 }
 
 function runValidators(
-  routeHandler: { validators?: { params?: string; query?: string; body?: string } },
+  routeHandler: {
+    validators?: { params?: string; query?: string; body?: string };
+  },
   validatorMap: ValidatorMap | null,
   params: Record<string, string>,
   query: Record<string, string | string[] | undefined>,
@@ -121,7 +120,11 @@ function runValidators(
       const result = validator(params);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `params.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `params.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -133,7 +136,11 @@ function runValidators(
       const result = validator(query);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `query.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `query.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -145,7 +152,11 @@ function runValidators(
       const result = validator(body);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `body.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `body.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -274,11 +285,12 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
   }
 
   function buildHonoResponse(response: TypoKitResponse): Response {
-    const responseBody = response.body === null || response.body === undefined
-      ? ""
-      : typeof response.body === "string"
-        ? response.body
-        : JSON.stringify(response.body);
+    const responseBody =
+      response.body === null || response.body === undefined
+        ? ""
+        : typeof response.body === "string"
+          ? response.body
+          : JSON.stringify(response.body);
 
     const headers = new Headers();
     for (const [key, value] of Object.entries(response.headers)) {
@@ -326,7 +338,11 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
         app.on(method, route.path, async (c: HonoContext) => {
           // Parse body for methods that have one
           let body: unknown = undefined;
-          if (route.method === "POST" || route.method === "PUT" || route.method === "PATCH") {
+          if (
+            route.method === "POST" ||
+            route.method === "PUT" ||
+            route.method === "PATCH"
+          ) {
             try {
               body = await c.req.json();
             } catch {
@@ -356,7 +372,10 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
             const errorResp: TypoKitResponse = {
               status: 500,
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ error: "Internal Server Error", message: `Handler not found: ${route.handlerRef}` }),
+              body: JSON.stringify({
+                error: "Internal Server Error",
+                message: `Handler not found: ${route.handlerRef}`,
+              }),
             };
             return buildHonoResponse(errorResp);
           }
@@ -364,26 +383,34 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
           // Create request context and execute middleware chain
           let ctx = createRequestContext();
 
-          if (state.middlewareChain && state.middlewareChain.entries.length > 0) {
-            const entries: MiddlewareEntry[] = state.middlewareChain.entries.map((e) => ({
-              name: e.name,
-              middleware: {
-                handler: async (input) => {
-                  const mwReq: TypoKitRequest = {
-                    method: typoReq.method,
-                    path: typoReq.path,
-                    headers: input.headers,
-                    body: input.body,
-                    query: input.query,
-                    params: input.params,
-                  };
-                  const response = await e.handler(mwReq, input.ctx, async () => {
-                    return { status: 200, headers: {}, body: null };
-                  });
-                  return response as unknown as Record<string, unknown>;
+          if (
+            state.middlewareChain &&
+            state.middlewareChain.entries.length > 0
+          ) {
+            const entries: MiddlewareEntry[] =
+              state.middlewareChain.entries.map((e) => ({
+                name: e.name,
+                middleware: {
+                  handler: async (input) => {
+                    const mwReq: TypoKitRequest = {
+                      method: typoReq.method,
+                      path: typoReq.path,
+                      headers: input.headers,
+                      body: input.body,
+                      query: input.query,
+                      params: input.params,
+                    };
+                    const response = await e.handler(
+                      mwReq,
+                      input.ctx,
+                      async () => {
+                        return { status: 200, headers: {}, body: null };
+                      },
+                    );
+                    return response as unknown as Record<string, unknown>;
+                  },
                 },
-              },
-            }));
+              }));
 
             ctx = await executeMiddlewareChain(typoReq, ctx, entries);
           }
@@ -392,7 +419,11 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
           const response = await handlerFn(typoReq, ctx);
 
           // Response serialization pipeline
-          const serialized = serializeResponse(response, route.serializer, state.serializerMap);
+          const serialized = serializeResponse(
+            response,
+            route.serializer,
+            state.serializerMap,
+          );
 
           return buildHonoResponse(serialized);
         });
@@ -441,4 +472,3 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
 // Re-export for convenience
 export { serializeResponse, runValidators, validationErrorResponse };
 export { type ServerAdapter } from "@typokit/core";
-

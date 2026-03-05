@@ -35,7 +35,11 @@ export class OtelLogSink implements LogSink {
   }
 
   write(entry: LogEntry): void {
-    const fetchFn = (globalThis as unknown as { fetch?: (url: string, init: unknown) => Promise<unknown> }).fetch;
+    const fetchFn = (
+      globalThis as unknown as {
+        fetch?: (url: string, init: unknown) => Promise<unknown>;
+      }
+    ).fetch;
     if (!fetchFn) return;
 
     const timeUnixNano = new Date(entry.timestamp).getTime() * 1_000_000;
@@ -58,17 +62,21 @@ export class OtelLogSink implements LogSink {
     }
 
     const payload = {
-      resourceLogs: [{
-        resource: {
-          attributes: [
-            { key: "service.name", value: { stringValue: this.serviceName } },
+      resourceLogs: [
+        {
+          resource: {
+            attributes: [
+              { key: "service.name", value: { stringValue: this.serviceName } },
+            ],
+          },
+          scopeLogs: [
+            {
+              scope: { name: "@typokit/otel" },
+              logRecords: [logRecord],
+            },
           ],
         },
-        scopeLogs: [{
-          scope: { name: "@typokit/otel" },
-          logRecords: [logRecord],
-        }],
-      }],
+      ],
     };
 
     // Fire-and-forget POST to OTLP endpoint
@@ -81,7 +89,9 @@ export class OtelLogSink implements LogSink {
     });
   }
 
-  private buildAttributes(entry: LogEntry): Array<{ key: string; value: { stringValue: string } }> {
+  private buildAttributes(
+    entry: LogEntry,
+  ): Array<{ key: string; value: { stringValue: string } }> {
     const attrs: Array<{ key: string; value: { stringValue: string } }> = [];
 
     if (entry.route) {
@@ -94,7 +104,10 @@ export class OtelLogSink implements LogSink {
       attrs.push({ key: "requestId", value: { stringValue: entry.requestId } });
     }
     if (entry.serverAdapter) {
-      attrs.push({ key: "serverAdapter", value: { stringValue: entry.serverAdapter } });
+      attrs.push({
+        key: "serverAdapter",
+        value: { stringValue: entry.serverAdapter },
+      });
     }
 
     // Include any extra data fields as attributes
@@ -102,7 +115,10 @@ export class OtelLogSink implements LogSink {
       for (const [key, val] of Object.entries(entry.data)) {
         if (key === "spanId") continue; // Already used as top-level field
         if (val !== undefined && val !== null) {
-          attrs.push({ key: `data.${key}`, value: { stringValue: String(val) } });
+          attrs.push({
+            key: `data.${key}`,
+            value: { stringValue: String(val) },
+          });
         }
       }
     }
@@ -115,7 +131,9 @@ export class OtelLogSink implements LogSink {
  * Creates an OtelLogSink if tracing is configured and enabled.
  * Returns undefined if tracing is not configured (opt-in behavior).
  */
-export function createOtelLogSink(telemetry?: TelemetryConfig): OtelLogSink | undefined {
+export function createOtelLogSink(
+  telemetry?: TelemetryConfig,
+): OtelLogSink | undefined {
   if (!telemetry) return undefined;
 
   const tracingConfig = resolveTracingConfig(telemetry);

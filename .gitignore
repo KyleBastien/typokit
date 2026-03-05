@@ -26,7 +26,6 @@ packages/docs/src/content/docs/api-reference/generated/
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 
@@ -39,3 +38,5 @@ scripts/ralph/prd.json
 scripts/ralph/progress.txt
 scripts/ralph/.last-branch
 scripts/ralph/archive/
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md

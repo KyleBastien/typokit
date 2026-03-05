@@ -128,27 +128,21 @@ describe("generateContractTests", () => {
   });
 
   it("uses vitest imports for vitest runner", () => {
-    const outputs = generateContractTests(
-      makeOptions({ runner: "vitest" }),
-    );
+    const outputs = generateContractTests(makeOptions({ runner: "vitest" }));
     for (const output of outputs) {
       expect(output.content).toContain('from "vitest"');
     }
   });
 
   it("uses jest imports for jest runner", () => {
-    const outputs = generateContractTests(
-      makeOptions({ runner: "jest" }),
-    );
+    const outputs = generateContractTests(makeOptions({ runner: "jest" }));
     for (const output of outputs) {
       expect(output.content).toContain('from "@jest/globals"');
     }
   });
 
   it("uses rstest imports for rstest runner", () => {
-    const outputs = generateContractTests(
-      makeOptions({ runner: "rstest" }),
-    );
+    const outputs = generateContractTests(makeOptions({ runner: "rstest" }));
     for (const output of outputs) {
       expect(output.content).toContain('from "@rstest/core"');
     }
@@ -170,22 +164,16 @@ describe("generateContractTests", () => {
     );
 
     for (const output of outputs) {
-      expect(output.content).toContain(
-        'import { app } from "../../app/index"',
-      );
+      expect(output.content).toContain('import { app } from "../../app/index"');
     }
   });
 
   it("generates valid input test for POST route with body schema", () => {
     const outputs = generateContractTests(makeOptions());
-    const usersFile = outputs.find((o) =>
-      o.filePath.includes("users"),
-    )!;
+    const usersFile = outputs.find((o) => o.filePath.includes("users"))!;
 
     expect(usersFile.content).toContain('describe("POST /users"');
-    expect(usersFile.content).toContain(
-      'it("accepts valid CreateUserInput"',
-    );
+    expect(usersFile.content).toContain('it("accepts valid CreateUserInput"');
     expect(usersFile.content).toContain("client.post");
     expect(usersFile.content).toContain("email:");
     expect(usersFile.content).toContain("test@example.com");
@@ -194,41 +182,29 @@ describe("generateContractTests", () => {
 
   it("generates toMatchSchema assertion when responseSchema is set", () => {
     const outputs = generateContractTests(makeOptions());
-    const usersFile = outputs.find((o) =>
-      o.filePath.includes("users"),
-    )!;
+    const usersFile = outputs.find((o) => o.filePath.includes("users"))!;
 
     expect(usersFile.content).toContain(
       'import { toMatchSchema } from "@typokit/testing"',
     );
-    expect(usersFile.content).toContain(
-      'toMatchSchema("PublicUser")',
-    );
+    expect(usersFile.content).toContain('toMatchSchema("PublicUser")');
   });
 
   it("generates missing required fields tests", () => {
     const outputs = generateContractTests(makeOptions());
-    const usersFile = outputs.find((o) =>
-      o.filePath.includes("users"),
-    )!;
+    const usersFile = outputs.find((o) => o.filePath.includes("users"))!;
 
-    expect(usersFile.content).toContain(
-      'it("rejects missing required fields"',
-    );
+    expect(usersFile.content).toContain('it("rejects missing required fields"');
     expect(usersFile.content).toContain("body: {}");
     expect(usersFile.content).toContain("expect(res.status).toBe(400)");
   });
 
   it("generates per-field missing tests for required fields", () => {
     const outputs = generateContractTests(makeOptions());
-    const usersFile = outputs.find((o) =>
-      o.filePath.includes("users"),
-    )!;
+    const usersFile = outputs.find((o) => o.filePath.includes("users"))!;
 
     // CreateUserInput has required: email, displayName
-    expect(usersFile.content).toContain(
-      "it(\"rejects missing 'email' field\"",
-    );
+    expect(usersFile.content).toContain("it(\"rejects missing 'email' field\"");
     expect(usersFile.content).toContain(
       "it(\"rejects missing 'displayName' field\"",
     );
@@ -236,43 +212,31 @@ describe("generateContractTests", () => {
 
   it("generates invalid format tests for fields with format constraints", () => {
     const outputs = generateContractTests(makeOptions());
-    const usersFile = outputs.find((o) =>
-      o.filePath.includes("users"),
-    )!;
+    const usersFile = outputs.find((o) => o.filePath.includes("users"))!;
 
-    expect(usersFile.content).toContain(
-      'it("rejects invalid email format"',
-    );
+    expect(usersFile.content).toContain('it("rejects invalid email format"');
     expect(usersFile.content).toContain("not-an-email");
   });
 
   it("generates simple response test for GET routes without body", () => {
     const outputs = generateContractTests(makeOptions());
-    const usersFile = outputs.find((o) =>
-      o.filePath.includes("users"),
-    )!;
+    const usersFile = outputs.find((o) => o.filePath.includes("users"))!;
 
     expect(usersFile.content).toContain('describe("GET /users"');
-    expect(usersFile.content).toContain(
-      'it("responds with 200"',
-    );
+    expect(usersFile.content).toContain('it("responds with 200"');
     expect(usersFile.content).toContain("client.get");
   });
 
   it("respects custom expectedStatus", () => {
     const outputs = generateContractTests(makeOptions());
-    const postsFile = outputs.find((o) =>
-      o.filePath.includes("posts"),
-    )!;
+    const postsFile = outputs.find((o) => o.filePath.includes("posts"))!;
 
     expect(postsFile.content).toContain("expect(res.status).toBe(201)");
   });
 
   it("generates invalid type tests for number and boolean fields", () => {
     const outputs = generateContractTests(makeOptions());
-    const postsFile = outputs.find((o) =>
-      o.filePath.includes("posts"),
-    )!;
+    const postsFile = outputs.find((o) => o.filePath.includes("posts"))!;
 
     // CreatePostInput has published: boolean
     expect(postsFile.content).toContain(
@@ -285,9 +249,7 @@ describe("generateContractTests", () => {
 
     for (const output of outputs) {
       expect(output.content).toContain("beforeAll(async () => {");
-      expect(output.content).toContain(
-        "client = await createTestClient(app);",
-      );
+      expect(output.content).toContain("client = await createTestClient(app);");
       expect(output.content).toContain("afterAll(async () => {");
       expect(output.content).toContain("await client.close();");
     }
@@ -314,14 +276,10 @@ describe("generateContractTests", () => {
       },
     ];
 
-    const outputs = generateContractTests(
-      makeOptions({ routes }),
-    );
+    const outputs = generateContractTests(makeOptions({ routes }));
 
     expect(outputs.length).toBe(1);
-    expect(outputs[0].filePath).toBe(
-      "__generated__/health.contract.test.ts",
-    );
+    expect(outputs[0].filePath).toBe("__generated__/health.contract.test.ts");
     expect(outputs[0].content).toContain('describe("GET /health"');
     expect(outputs[0].content).toContain('it("responds with 200"');
     // No missing fields or invalid format tests
@@ -330,9 +288,7 @@ describe("generateContractTests", () => {
   });
 
   it("returns empty array for empty routes", () => {
-    const outputs = generateContractTests(
-      makeOptions({ routes: [] }),
-    );
+    const outputs = generateContractTests(makeOptions({ routes: [] }));
     expect(outputs.length).toBe(0);
   });
 
@@ -345,9 +301,7 @@ describe("generateContractTests", () => {
       },
     ];
 
-    const outputs = generateContractTests(
-      makeOptions({ routes }),
-    );
+    const outputs = generateContractTests(makeOptions({ routes }));
 
     expect(outputs[0].content).not.toContain("toMatchSchema");
   });
@@ -355,21 +309,21 @@ describe("generateContractTests", () => {
 
 describe("detectTestRunner", () => {
   it("detects rstest from devDependencies", () => {
-    expect(
-      detectTestRunner({ devDependencies: { rstest: "^0.0.1" } }),
-    ).toBe("rstest");
+    expect(detectTestRunner({ devDependencies: { rstest: "^0.0.1" } })).toBe(
+      "rstest",
+    );
   });
 
   it("detects vitest from devDependencies", () => {
-    expect(
-      detectTestRunner({ devDependencies: { vitest: "^1.0.0" } }),
-    ).toBe("vitest");
+    expect(detectTestRunner({ devDependencies: { vitest: "^1.0.0" } })).toBe(
+      "vitest",
+    );
   });
 
   it("detects jest from devDependencies", () => {
-    expect(
-      detectTestRunner({ devDependencies: { jest: "^29.0.0" } }),
-    ).toBe("jest");
+    expect(detectTestRunner({ devDependencies: { jest: "^29.0.0" } })).toBe(
+      "jest",
+    );
   });
 
   it("detects jest from @jest/globals", () => {

@@ -8,7 +8,11 @@ import {
   BUILD_HOOK_PHASES,
 } from "./hooks.js";
 
-import type { BuildContext, BuildResult, GeneratedOutput } from "@typokit/types";
+import type {
+  BuildContext,
+  BuildResult,
+  GeneratedOutput,
+} from "@typokit/types";
 import type { TypoKitPlugin } from "./plugin.js";
 
 // ─── AsyncSeriesHookImpl Tests ──────────────────────────────
@@ -18,9 +22,15 @@ describe("AsyncSeriesHookImpl", () => {
     const hook = new AsyncSeriesHookImpl<[string]>();
     const order: string[] = [];
 
-    hook.tap("first", () => { order.push("first"); });
-    hook.tap("second", () => { order.push("second"); });
-    hook.tap("third", () => { order.push("third"); });
+    hook.tap("first", () => {
+      order.push("first");
+    });
+    hook.tap("second", () => {
+      order.push("second");
+    });
+    hook.tap("third", () => {
+      order.push("third");
+    });
 
     await hook.call("test");
 
@@ -31,27 +41,40 @@ describe("AsyncSeriesHookImpl", () => {
     const hook = new AsyncSeriesHookImpl<[number, string]>();
     const received: Array<[number, string]> = [];
 
-    hook.tap("a", (n, s) => { received.push([n, s]); });
-    hook.tap("b", (n, s) => { received.push([n, s]); });
+    hook.tap("a", (n, s) => {
+      received.push([n, s]);
+    });
+    hook.tap("b", (n, s) => {
+      received.push([n, s]);
+    });
 
     await hook.call(42, "hello");
 
-    expect(received).toEqual([[42, "hello"], [42, "hello"]]);
+    expect(received).toEqual([
+      [42, "hello"],
+      [42, "hello"],
+    ]);
   });
 
   it("should handle async taps", async () => {
     const hook = new AsyncSeriesHookImpl<[string]>();
     const order: string[] = [];
 
-    hook.tap("sync", () => { order.push("sync"); });
+    hook.tap("sync", () => {
+      order.push("sync");
+    });
     hook.tap("async", async () => {
       await new Promise<void>((resolve) => {
-        const g = globalThis as unknown as { setTimeout: (fn: () => void, ms: number) => unknown };
+        const g = globalThis as unknown as {
+          setTimeout: (fn: () => void, ms: number) => unknown;
+        };
         g.setTimeout(resolve, 10);
       });
       order.push("async");
     });
-    hook.tap("after", () => { order.push("after"); });
+    hook.tap("after", () => {
+      order.push("after");
+    });
 
     await hook.call("test");
 
@@ -78,8 +101,12 @@ describe("AsyncSeriesHookImpl", () => {
     const hook = new AsyncSeriesHookImpl<[string]>();
     const calls: number[] = [];
 
-    hook.tap("plugin", () => { calls.push(1); });
-    hook.tap("plugin", () => { calls.push(2); });
+    hook.tap("plugin", () => {
+      calls.push(1);
+    });
+    hook.tap("plugin", () => {
+      calls.push(2);
+    });
 
     await hook.call("test");
 
@@ -90,7 +117,9 @@ describe("AsyncSeriesHookImpl", () => {
     const hook = new AsyncSeriesHookImpl<[string]>();
 
     hook.tap("good", () => {});
-    hook.tap("bad", () => { throw new Error("tap failed"); });
+    hook.tap("bad", () => {
+      throw new Error("tap failed");
+    });
     hook.tap("unreached", () => {});
 
     let caught: Error | null = null;
@@ -107,8 +136,12 @@ describe("AsyncSeriesHookImpl", () => {
   it("should allow taps to mutate shared context objects", async () => {
     const hook = new AsyncSeriesHookImpl<[{ items: string[] }]>();
 
-    hook.tap("first", (ctx) => { ctx.items.push("a"); });
-    hook.tap("second", (ctx) => { ctx.items.push("b"); });
+    hook.tap("first", (ctx) => {
+      ctx.items.push("a");
+    });
+    hook.tap("second", (ctx) => {
+      ctx.items.push("b");
+    });
 
     const context = { items: [] as string[] };
     await hook.call(context);
@@ -191,11 +224,14 @@ describe("createBuildPipeline", () => {
     await pipeline.hooks.beforeTransform.call(buildCtx);
     await pipeline.hooks.afterTypeParse.call({}, buildCtx);
     await pipeline.hooks.afterValidators.call([], buildCtx);
-    await pipeline.hooks.afterRouteTable.call({
-      segment: "",
-      children: {},
-      handlers: {},
-    }, buildCtx);
+    await pipeline.hooks.afterRouteTable.call(
+      {
+        segment: "",
+        children: {},
+        handlers: {},
+      },
+      buildCtx,
+    );
     await pipeline.hooks.emit.call([], buildCtx);
     await pipeline.hooks.done.call(buildResult);
 

@@ -1,6 +1,10 @@
 // @typokit/example-todo-server — App Factory
 
-import type { ServerAdapter, CreateAppOptions, TypoKitApp } from "@typokit/core";
+import type {
+  ServerAdapter,
+  CreateAppOptions,
+  TypoKitApp,
+} from "@typokit/core";
 import { createApp } from "@typokit/core";
 import { requireAuth } from "./middleware/require-auth.js";
 import userHandlers from "./handlers/users.js";

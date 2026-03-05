@@ -14,7 +14,9 @@ function fetchJson(url: string): Promise<{ status: number; body: unknown }> {
     const req = http.get(url, (res) => {
       let data = "";
       res.setEncoding("utf-8");
-      res.on("data", (chunk: string) => { data += chunk; });
+      res.on("data", (chunk: string) => {
+        data += chunk;
+      });
       res.on("end", () => {
         try {
           resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
@@ -36,17 +38,19 @@ describe("Debug Sidecar Demo", () => {
 
     try {
       // Give the sidecar a moment to start
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Test /_debug/routes
       const routesRes = await fetchJson("http://localhost:9801/_debug/routes");
       expect(routesRes.status).toBe(200);
-      const routesBody = routesRes.body as { routes: Array<{ method: string; path: string; ref: string }> };
+      const routesBody = routesRes.body as {
+        routes: Array<{ method: string; path: string; ref: string }>;
+      };
       expect(routesBody.routes).toBeDefined();
       expect(Array.isArray(routesBody.routes)).toBe(true);
 
       // Verify known routes are present
-      const routePaths = routesBody.routes.map(r => `${r.method} ${r.path}`);
+      const routePaths = routesBody.routes.map((r) => `${r.method} ${r.path}`);
       expect(routePaths).toContain("GET /users");
       expect(routePaths).toContain("POST /users");
       expect(routePaths).toContain("GET /users/:id");
@@ -56,12 +60,18 @@ describe("Debug Sidecar Demo", () => {
       // Test /_debug/health
       const healthRes = await fetchJson("http://localhost:9801/_debug/health");
       expect(healthRes.status).toBe(200);
-      const healthBody = healthRes.body as { status: string; uptime: number; memory: unknown };
+      const healthBody = healthRes.body as {
+        status: string;
+        uptime: number;
+        memory: unknown;
+      };
       expect(healthBody.status).toBe("ok");
       expect(typeof healthBody.uptime).toBe("number");
 
       // Test /_debug/errors?since=1h
-      const errorsRes = await fetchJson("http://localhost:9801/_debug/errors?since=1h");
+      const errorsRes = await fetchJson(
+        "http://localhost:9801/_debug/errors?since=1h",
+      );
       expect(errorsRes.status).toBe(200);
       const errorsBody = errorsRes.body as { errors: unknown[] };
       expect(errorsBody.errors).toBeDefined();

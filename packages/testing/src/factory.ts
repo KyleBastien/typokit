@@ -200,10 +200,7 @@ export function createFactory<T>(
 ): Factory<T> {
   const seed = options.seed ?? 12345;
 
-  function buildOne(
-    rand: () => number,
-    overrides?: Partial<T>,
-  ): T {
+  function buildOne(rand: () => number, overrides?: Partial<T>): T {
     const result: Record<string, unknown> = {};
 
     for (const [key, prop] of Object.entries(metadata.properties)) {

@@ -2,6 +2,6 @@
 declare module "child_process" {
   export function execSync(
     command: string,
-    options?: Record<string, unknown>
+    options?: Record<string, unknown>,
   ): unknown;
 }

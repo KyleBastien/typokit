@@ -32,14 +32,16 @@ export function buildQueryKey(
 /** Extract GET route paths from a RouteMap */
 type GetPaths<TRoutes extends RouteMap> = {
   [P in keyof TRoutes]: "GET" extends keyof TRoutes[P] ? P : never;
-}[keyof TRoutes] & string;
+}[keyof TRoutes] &
+  string;
 
 type MutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** Extract paths that have a given mutation method */
 type MutationPaths<TRoutes extends RouteMap, M extends MutationMethod> = {
   [P in keyof TRoutes]: M extends keyof TRoutes[P] ? P : never;
-}[keyof TRoutes] & string;
+}[keyof TRoutes] &
+  string;
 
 /** Resolve the RouteContract for a given path and method */
 type ContractFor<
@@ -48,7 +50,9 @@ type ContractFor<
   M extends string,
 > = P extends keyof TRoutes
   ? M extends keyof TRoutes[P]
-    ? TRoutes[P][M] extends RouteContract ? TRoutes[P][M] : RouteContract
+    ? TRoutes[P][M] extends RouteContract
+      ? TRoutes[P][M]
+      : RouteContract
     : RouteContract
   : RouteContract;
 
@@ -56,7 +60,9 @@ type ContractFor<
 
 /** Options for useGet: route-specific params/query + React Query config */
 export interface UseGetOptions<C extends RouteContract> {
-  params?: C["params"] extends void ? undefined : C["params"] & Record<string, string>;
+  params?: C["params"] extends void
+    ? undefined
+    : C["params"] & Record<string, string>;
   query?: C["query"] extends void ? undefined : C["query"];
   enabled?: boolean;
   staleTime?: number;
@@ -65,7 +71,9 @@ export interface UseGetOptions<C extends RouteContract> {
 
 /** Variables passed to mutation hooks */
 export interface MutationVariables<C extends RouteContract> {
-  params?: C["params"] extends void ? undefined : C["params"] & Record<string, string>;
+  params?: C["params"] extends void
+    ? undefined
+    : C["params"] & Record<string, string>;
   body?: C["body"] extends void ? undefined : C["body"];
 }
 
@@ -169,12 +177,19 @@ export function createQueryHooks<TRoutes extends RouteMap>(
 
   function makeGetHook(
     path: string,
-    options?: { params?: Record<string, string>; query?: Record<string, unknown>; enabled?: boolean; staleTime?: number; refetchInterval?: number | false },
+    options?: {
+      params?: Record<string, string>;
+      query?: Record<string, unknown>;
+      enabled?: boolean;
+      staleTime?: number;
+      refetchInterval?: number | false;
+    },
   ): UseQueryResult<unknown, Error> {
     const queryKey = buildQueryKey(path, options?.params, options?.query);
     return useQuery({
       queryKey,
-      queryFn: () => c.get(path, { params: options?.params, query: options?.query }),
+      queryFn: () =>
+        c.get(path, { params: options?.params, query: options?.query }),
       enabled: options?.enabled,
       staleTime: options?.staleTime,
     });
@@ -184,11 +199,17 @@ export function createQueryHooks<TRoutes extends RouteMap>(
     method: "post" | "put" | "patch" | "delete",
     path: string,
     options?: Record<string, unknown>,
-  ): UseMutationResult<unknown, Error, { params?: Record<string, string>; body?: unknown }> {
+  ): UseMutationResult<
+    unknown,
+    Error,
+    { params?: Record<string, string>; body?: unknown }
+  > {
     const { onSuccess, onError, onSettled, onMutate, ...rest } = options ?? {};
     return useMutation({
-      mutationFn: (variables: { params?: Record<string, string>; body?: unknown }) =>
-        c[method](path, { params: variables.params, body: variables.body }),
+      mutationFn: (variables: {
+        params?: Record<string, string>;
+        body?: unknown;
+      }) => c[method](path, { params: variables.params, body: variables.body }),
       onSuccess: onSuccess as undefined,
       onError: onError as undefined,
       onSettled: onSettled as undefined,
@@ -210,4 +231,3 @@ export function createQueryHooks<TRoutes extends RouteMap>(
       makeMutationHook("delete", path, options),
   } as QueryHooks<TRoutes>;
 }
-

@@ -26,7 +26,8 @@ function toSnakeCase(str: string): string {
 
 function pluralize(str: string): string {
   if (str.endsWith("s")) return str;
-  if (str.endsWith("y") && !/[aeiou]y$/i.test(str)) return str.slice(0, -1) + "ies";
+  if (str.endsWith("y") && !/[aeiou]y$/i.test(str))
+    return str.slice(0, -1) + "ies";
   return str + "s";
 }
 
@@ -87,7 +88,10 @@ function mapPrismaField(
     const enumName = toEnumName(typeName, propName);
     enumDef = { name: enumName, values: unionValues };
     prismaType = enumName;
-  } else if (prop.type === "string" && (jsdoc.id !== undefined || jsdoc.generated === "uuid")) {
+  } else if (
+    prop.type === "string" &&
+    (jsdoc.id !== undefined || jsdoc.generated === "uuid")
+  ) {
     prismaType = "String";
   } else if (prop.type === "string") {
     prismaType = "String";
@@ -226,7 +230,10 @@ function generatePrismaSchema(
 
 // ─── Diff Logic ─────────────────────────────────────────────
 
-function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaChange[] {
+function diffTypes(
+  types: SchemaTypeMap,
+  currentState: DatabaseState,
+): SchemaChange[] {
   const changes: SchemaChange[] = [];
 
   for (const [typeName, meta] of Object.entries(types)) {
@@ -243,7 +250,12 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
       const existingCol = existing.columns[colName];
 
       if (!existingCol) {
-        changes.push({ type: "add", entity: tableName, field: colName, details: { tsType: prop.type } });
+        changes.push({
+          type: "add",
+          entity: tableName,
+          field: colName,
+          details: { tsType: prop.type },
+        });
       } else {
         const nullable = prop.optional;
         if (existingCol.nullable !== nullable) {
@@ -251,7 +263,10 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
             type: "modify",
             entity: tableName,
             field: colName,
-            details: { nullableFrom: existingCol.nullable, nullableTo: nullable },
+            details: {
+              nullableFrom: existingCol.nullable,
+              nullableTo: nullable,
+            },
           });
         }
       }
@@ -259,7 +274,9 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
 
     // Detect removed columns
     for (const colName of Object.keys(existing.columns)) {
-      const hasProp = Object.keys(meta.properties).some((p) => toColumnName(p) === colName);
+      const hasProp = Object.keys(meta.properties).some(
+        (p) => toColumnName(p) === colName,
+      );
       if (!hasProp) {
         changes.push({ type: "remove", entity: tableName, field: colName });
       }
@@ -279,7 +296,10 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
   return changes;
 }
 
-function generateMigrationSql(changes: SchemaChange[], provider: PrismaProvider): string {
+function generateMigrationSql(
+  changes: SchemaChange[],
+  provider: PrismaProvider,
+): string {
   const lines: string[] = [];
 
   for (const change of changes) {
@@ -297,7 +317,9 @@ function generateMigrationSql(changes: SchemaChange[], provider: PrismaProvider)
           `ALTER TABLE "${change.entity}" DROP COLUMN "${change.field}";`,
         );
       } else {
-        lines.push(`-- SQLite: cannot DROP COLUMN "${change.field}" from "${change.entity}" — recreate table`);
+        lines.push(
+          `-- SQLite: cannot DROP COLUMN "${change.field}" from "${change.entity}" — recreate table`,
+        );
       }
     } else if (change.type === "modify") {
       lines.push(
@@ -330,7 +352,10 @@ export class PrismaDatabaseAdapter implements DatabaseAdapter {
     const changes = diffTypes(types, currentState);
     const destructive = changes.some((c) => c.type === "remove");
     const sql = generateMigrationSql(changes, this.provider);
-    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T]/g, "")
+      .slice(0, 14);
 
     return {
       name: `${timestamp}_schema_update`,
@@ -340,4 +365,3 @@ export class PrismaDatabaseAdapter implements DatabaseAdapter {
     };
   }
 }
-

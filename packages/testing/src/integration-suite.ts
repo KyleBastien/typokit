@@ -43,10 +43,7 @@ function createInMemoryDatabase(): InMemoryDatabase {
       return (store.get(table) ?? []).map((r) => ({ ...r }));
     },
 
-    findById(
-      table: string,
-      id: string,
-    ): Record<string, unknown> | undefined {
+    findById(table: string, id: string): Record<string, unknown> | undefined {
       const records = store.get(table);
       if (!records) return undefined;
       const found = records.find((r) => r["id"] === id);

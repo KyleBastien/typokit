@@ -3,15 +3,8 @@
 import { describe, it, expect } from "@rstest/core";
 import { debugPlugin } from "./index.js";
 import type { TypoKitPlugin, AppInstance } from "@typokit/core";
-import type {
-  CompiledRouteTable,
-  SchemaChange,
-} from "@typokit/types";
-import type {
-  HistogramDataPoint,
-  LogEntry,
-  SpanData,
-} from "@typokit/otel";
+import type { CompiledRouteTable, SchemaChange } from "@typokit/types";
+import type { HistogramDataPoint, LogEntry, SpanData } from "@typokit/otel";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -36,7 +29,11 @@ const sampleRouteTable: CompiledRouteTable = {
         segment: ":id",
         paramName: "id",
         handlers: {
-          GET: { ref: "users#get", middleware: ["auth"], validators: { params: "userId" } },
+          GET: {
+            ref: "users#get",
+            middleware: ["auth"],
+            validators: { params: "userId" },
+          },
         },
       },
     },
@@ -94,7 +91,9 @@ describe("debugPlugin", () => {
 
   it("should clear cached routes on schema change", () => {
     const plugin = debugPlugin();
-    const changes: SchemaChange[] = [{ type: "add", entity: "User", field: "email" }];
+    const changes: SchemaChange[] = [
+      { type: "add", entity: "User", field: "email" },
+    ];
     // Should not throw
     plugin.onSchemaChange!(changes);
   });
@@ -115,7 +114,15 @@ describe("debug endpoints", () => {
     const debug = app.services["_debug"] as {
       setRouteTable: (rt: CompiledRouteTable) => void;
       setMiddleware: (names: string[]) => void;
-      recordError: (error: { code: string; status: number; message: string; details?: Record<string, unknown> }, route?: string) => void;
+      recordError: (
+        error: {
+          code: string;
+          status: number;
+          message: string;
+          details?: Record<string, unknown>;
+        },
+        route?: string,
+      ) => void;
       recordTrace: (spans: SpanData[]) => void;
       recordLog: (entry: LogEntry) => void;
       recordPerformance: (dp: HistogramDataPoint) => void;
@@ -177,7 +184,10 @@ describe("debug endpoints", () => {
   });
 
   it("GET /_debug/performance should return latency percentiles", async () => {
-    const { status, body } = await fetchDebug(port, "/_debug/performance?window=5m");
+    const { status, body } = await fetchDebug(
+      port,
+      "/_debug/performance?window=5m",
+    );
     expect(status).toBe(200);
     expect(typeof body["p50"]).toBe("number");
     expect(typeof body["p95"]).toBe("number");
@@ -225,7 +235,9 @@ describe("debug endpoints", () => {
   });
 
   it("POST should be rejected (read-only)", async () => {
-    const { status } = await fetchDebug(port, "/_debug/routes", { method: "POST" });
+    const { status } = await fetchDebug(port, "/_debug/routes", {
+      method: "POST",
+    });
     expect(status).toBe(405);
   });
 
@@ -252,19 +264,30 @@ describe("production mode security", () => {
     await plugin.onReady!(app);
 
     // Request without key should fail
-    const { status: noKeyStatus } = await fetchDebug(testPort, "/_debug/health");
+    const { status: noKeyStatus } = await fetchDebug(
+      testPort,
+      "/_debug/health",
+    );
     expect(noKeyStatus).toBe(401);
 
     // Request with correct key should succeed
-    const { status: withKeyStatus } = await fetchDebug(testPort, "/_debug/health", {
-      headers: { "x-debug-key": "test-secret-key" },
-    });
+    const { status: withKeyStatus } = await fetchDebug(
+      testPort,
+      "/_debug/health",
+      {
+        headers: { "x-debug-key": "test-secret-key" },
+      },
+    );
     expect(withKeyStatus).toBe(200);
 
     // Request with wrong key should fail
-    const { status: wrongKeyStatus } = await fetchDebug(testPort, "/_debug/health", {
-      headers: { "x-debug-key": "wrong-key" },
-    });
+    const { status: wrongKeyStatus } = await fetchDebug(
+      testPort,
+      "/_debug/health",
+      {
+        headers: { "x-debug-key": "wrong-key" },
+      },
+    );
     expect(wrongKeyStatus).toBe(401);
 
     await plugin.onStop!(app);
@@ -282,23 +305,34 @@ describe("redaction", () => {
     await plugin.onStart!(app);
 
     const debug = app.services["_debug"] as {
-      recordError: (error: { code: string; status: number; message: string; details?: Record<string, unknown> }, route?: string) => void;
+      recordError: (
+        error: {
+          code: string;
+          status: number;
+          message: string;
+          details?: Record<string, unknown>;
+        },
+        route?: string,
+      ) => void;
     };
 
-    debug.recordError(
-      {
-        code: "AUTH_FAILED",
-        status: 401,
-        message: "Auth failed",
-        details: { password: "hunter2", username: "admin" },
-      },
-    );
+    debug.recordError({
+      code: "AUTH_FAILED",
+      status: 401,
+      message: "Auth failed",
+      details: { password: "hunter2", username: "admin" },
+    });
 
     await plugin.onReady!(app);
 
-    const { status, body } = await fetchDebug(testPort, "/_debug/errors?since=5m");
+    const { status, body } = await fetchDebug(
+      testPort,
+      "/_debug/errors?since=5m",
+    );
     expect(status).toBe(200);
-    const errors = body["errors"] as Array<{ details?: Record<string, unknown> }>;
+    const errors = body["errors"] as Array<{
+      details?: Record<string, unknown>;
+    }>;
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].details?.["password"]).toBe("[REDACTED]");
     expect(errors[0].details?.["username"]).toBe("admin");

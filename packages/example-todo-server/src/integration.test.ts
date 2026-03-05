@@ -14,14 +14,22 @@ const createUserMetadata: TypeMetadata = {
   name: "CreateUserInput",
   properties: {
     email: { type: "string", optional: false, jsdoc: { format: "email" } },
-    displayName: { type: "string", optional: false, jsdoc: { minLength: "2", maxLength: "100" } },
+    displayName: {
+      type: "string",
+      optional: false,
+      jsdoc: { minLength: "2", maxLength: "100" },
+    },
   },
 };
 
 const createTodoMetadata: TypeMetadata = {
   name: "CreateTodoInput",
   properties: {
-    title: { type: "string", optional: false, jsdoc: { minLength: "1", maxLength: "255" } },
+    title: {
+      type: "string",
+      optional: false,
+      jsdoc: { minLength: "1", maxLength: "255" },
+    },
     userId: { type: "string", optional: false },
   },
 };

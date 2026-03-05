@@ -7,7 +7,9 @@ import type { TurboConfig } from "./pipeline.js";
  * Returns a turbo.json template string ready to write to disk.
  * Generates a complete turbo.json with TypoKit-optimized pipeline tasks.
  */
-export function getTurboJsonTemplate(overrides?: Parameters<typeof createTurboConfig>[0]): string {
+export function getTurboJsonTemplate(
+  overrides?: Parameters<typeof createTurboConfig>[0],
+): string {
   const config: TurboConfig = createTurboConfig(overrides);
   return JSON.stringify(config, null, 2) + "\n";
 }

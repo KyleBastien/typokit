@@ -63,7 +63,10 @@ describe("generateOpenApiSpec", () => {
   });
 
   it("should include error responses on routes", () => {
-    const paths = spec["paths"] as Record<string, Record<string, Record<string, Record<string, unknown>>>>;
+    const paths = spec["paths"] as Record<
+      string,
+      Record<string, Record<string, Record<string, unknown>>>
+    >;
     const getUser = paths["/users/{id}"]["get"];
     const responses = getUser["responses"] as Record<string, unknown>;
 
@@ -74,15 +77,24 @@ describe("generateOpenApiSpec", () => {
   });
 
   it("should use $ref for schema references", () => {
-    const paths = spec["paths"] as Record<string, Record<string, Record<string, Record<string, unknown>>>>;
+    const paths = spec["paths"] as Record<
+      string,
+      Record<string, Record<string, Record<string, unknown>>>
+    >;
     const postUser = paths["/users"]["post"];
-    const body = postUser["requestBody"] as Record<string, Record<string, Record<string, Record<string, string>>>>;
+    const body = postUser["requestBody"] as Record<
+      string,
+      Record<string, Record<string, Record<string, string>>>
+    >;
     const schema = body["content"]["application/json"]["schema"];
     expect(schema["$ref"]).toBe("#/components/schemas/CreateUserInput");
   });
 
   it("should include path parameters for parameterized routes", () => {
-    const paths = spec["paths"] as Record<string, Record<string, Record<string, unknown>>>;
+    const paths = spec["paths"] as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
     const getUserById = paths["/users/{id}"]["get"];
     const params = getUserById["parameters"] as Array<Record<string, unknown>>;
 
@@ -93,7 +105,10 @@ describe("generateOpenApiSpec", () => {
   });
 
   it("should include query parameters for list routes", () => {
-    const paths = spec["paths"] as Record<string, Record<string, Record<string, unknown>>>;
+    const paths = spec["paths"] as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
     const listTodos = paths["/todos"]["get"];
     const params = listTodos["parameters"] as Array<Record<string, unknown>>;
 
@@ -120,7 +135,10 @@ describe("generateOpenApiSpec", () => {
   });
 
   it("should have security scheme defined", () => {
-    const components = spec["components"] as Record<string, Record<string, Record<string, string>>>;
+    const components = spec["components"] as Record<
+      string,
+      Record<string, Record<string, string>>
+    >;
     const schemes = components["securitySchemes"];
     expect(schemes["bearerAuth"]).toBeDefined();
     expect(schemes["bearerAuth"]["type"]).toBe("http");
@@ -128,17 +146,32 @@ describe("generateOpenApiSpec", () => {
   });
 
   it("should have paginated response schemas with $ref to items", () => {
-    const components = spec["components"] as Record<string, Record<string, Record<string, unknown>>>;
+    const components = spec["components"] as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
     const schemas = components["schemas"];
-    const paginatedUsers = schemas["PaginatedPublicUserResponse"] as Record<string, unknown>;
-    const props = paginatedUsers["properties"] as Record<string, Record<string, unknown>>;
+    const paginatedUsers = schemas["PaginatedPublicUserResponse"] as Record<
+      string,
+      unknown
+    >;
+    const props = paginatedUsers["properties"] as Record<
+      string,
+      Record<string, unknown>
+    >;
     const dataItems = props["data"]["items"] as Record<string, string>;
     expect(dataItems["$ref"]).toBe("#/components/schemas/PublicUser");
   });
 
   it("should have required fields on PublicUser schema", () => {
-    const components = spec["components"] as Record<string, Record<string, unknown>>;
-    const schemas = components["schemas"] as Record<string, Record<string, unknown>>;
+    const components = spec["components"] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const schemas = components["schemas"] as Record<
+      string,
+      Record<string, unknown>
+    >;
     const user = schemas["PublicUser"];
     const required = user["required"] as string[];
     expect(required).toContain("id");
@@ -148,8 +181,14 @@ describe("generateOpenApiSpec", () => {
   });
 
   it("should have format constraints on schema properties", () => {
-    const components = spec["components"] as Record<string, Record<string, unknown>>;
-    const schemas = components["schemas"] as Record<string, Record<string, Record<string, Record<string, string>>>>;
+    const components = spec["components"] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const schemas = components["schemas"] as Record<
+      string,
+      Record<string, Record<string, Record<string, string>>>
+    >;
     const createUser = schemas["CreateUserInput"];
     expect(createUser["properties"]["email"]["format"]).toBe("email");
   });

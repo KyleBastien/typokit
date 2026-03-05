@@ -1,10 +1,20 @@
-import type { SpanData, SpanStatus, SpanExporter, TracingConfig, TelemetryConfig } from "./types.js";
+import type {
+  SpanData,
+  SpanStatus,
+  SpanExporter,
+  TracingConfig,
+  TelemetryConfig,
+} from "./types.js";
 
 // ─── ID Generation ───────────────────────────────────────────
 
 function randomHex(bytes: number): string {
   const arr = new Uint8Array(bytes);
-  const cryptoObj = (globalThis as unknown as { crypto?: { getRandomValues(a: Uint8Array): Uint8Array } }).crypto;
+  const cryptoObj = (
+    globalThis as unknown as {
+      crypto?: { getRandomValues(a: Uint8Array): Uint8Array };
+    }
+  ).crypto;
   if (cryptoObj?.getRandomValues) {
     cryptoObj.getRandomValues(arr);
   } else {
@@ -30,7 +40,11 @@ export function generateSpanId(): string {
 /** Exports spans to stdout as structured JSON (dev mode) */
 export class ConsoleSpanExporter implements SpanExporter {
   export(spans: SpanData[]): void {
-    const proc = (globalThis as unknown as { process?: { stdout?: { write(s: string): void } } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { stdout?: { write(s: string): void } };
+      }
+    ).process;
     for (const span of spans) {
       const output = JSON.stringify({ type: "span", ...span });
       if (proc?.stdout?.write) {
@@ -57,31 +71,49 @@ export class OtlpSpanExporter implements SpanExporter {
 
   export(spans: SpanData[]): void {
     // Best-effort fire-and-forget POST to OTLP endpoint
-    const fetchFn = (globalThis as unknown as { fetch?: (url: string, init: unknown) => Promise<unknown> }).fetch;
+    const fetchFn = (
+      globalThis as unknown as {
+        fetch?: (url: string, init: unknown) => Promise<unknown>;
+      }
+    ).fetch;
     if (fetchFn) {
       const payload = {
-        resourceSpans: [{
-          resource: { attributes: [] },
-          scopeSpans: [{
-            scope: { name: "@typokit/otel" },
-            spans: spans.map((s) => ({
-              traceId: s.traceId,
-              spanId: s.spanId,
-              parentSpanId: s.parentSpanId,
-              name: s.name,
-              kind: s.kind === "server" ? 2 : 1,
-              startTimeUnixNano: new Date(s.startTime).getTime() * 1_000_000,
-              endTimeUnixNano: s.endTime ? new Date(s.endTime).getTime() * 1_000_000 : undefined,
-              status: { code: s.status === "ok" ? 1 : s.status === "error" ? 2 : 0 },
-              attributes: Object.entries(s.attributes).map(([key, value]) => ({
-                key,
-                value: typeof value === "string" ? { stringValue: value }
-                  : typeof value === "number" ? { intValue: value }
-                  : { boolValue: value },
-              })),
-            })),
-          }],
-        }],
+        resourceSpans: [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "@typokit/otel" },
+                spans: spans.map((s) => ({
+                  traceId: s.traceId,
+                  spanId: s.spanId,
+                  parentSpanId: s.parentSpanId,
+                  name: s.name,
+                  kind: s.kind === "server" ? 2 : 1,
+                  startTimeUnixNano:
+                    new Date(s.startTime).getTime() * 1_000_000,
+                  endTimeUnixNano: s.endTime
+                    ? new Date(s.endTime).getTime() * 1_000_000
+                    : undefined,
+                  status: {
+                    code: s.status === "ok" ? 1 : s.status === "error" ? 2 : 0,
+                  },
+                  attributes: Object.entries(s.attributes).map(
+                    ([key, value]) => ({
+                      key,
+                      value:
+                        typeof value === "string"
+                          ? { stringValue: value }
+                          : typeof value === "number"
+                            ? { intValue: value }
+                            : { boolValue: value },
+                    }),
+                  ),
+                })),
+              },
+            ],
+          },
+        ],
       };
 
       fetchFn(this.endpoint, {
@@ -148,7 +180,8 @@ export class Span {
   /** End the span and record its duration */
   end(): void {
     this._endTime = new Date().toISOString();
-    this._durationMs = new Date(this._endTime).getTime() - new Date(this.startTime).getTime();
+    this._durationMs =
+      new Date(this._endTime).getTime() - new Date(this.startTime).getTime();
   }
 
   /** Whether this span has been ended */
@@ -165,12 +198,16 @@ export class Span {
     return {
       traceId: this.traceId,
       spanId: this.spanId,
-      ...(this.parentSpanId !== undefined ? { parentSpanId: this.parentSpanId } : {}),
+      ...(this.parentSpanId !== undefined
+        ? { parentSpanId: this.parentSpanId }
+        : {}),
       name: this.name,
       kind: this.kind,
       startTime: this.startTime,
       ...(this._endTime !== undefined ? { endTime: this._endTime } : {}),
-      ...(this._durationMs !== undefined ? { durationMs: this._durationMs } : {}),
+      ...(this._durationMs !== undefined
+        ? { durationMs: this._durationMs }
+        : {}),
       status: this._status,
       attributes: { ...this.attributes },
     };
@@ -180,7 +217,9 @@ export class Span {
 // ─── Tracer ──────────────────────────────────────────────────
 
 /** Resolves a TelemetryConfig into a normalized TracingConfig */
-export function resolveTracingConfig(telemetry?: TelemetryConfig): TracingConfig {
+export function resolveTracingConfig(
+  telemetry?: TelemetryConfig,
+): TracingConfig {
   if (!telemetry) {
     return { enabled: true, exporter: "console" };
   }
@@ -247,7 +286,10 @@ export class Tracer {
   }
 
   /** Start a root span for the incoming request */
-  startRootSpan(name: string, attributes?: Record<string, string | number | boolean>): Span {
+  startRootSpan(
+    name: string,
+    attributes?: Record<string, string | number | boolean>,
+  ): Span {
     const span = new Span({
       traceId: this.traceId,
       name,
@@ -263,10 +305,13 @@ export class Tracer {
   }
 
   /** Start a child span under the root (or specified parent) */
-  startSpan(name: string, options?: {
-    parentSpanId?: string;
-    attributes?: Record<string, string | number | boolean>;
-  }): Span {
+  startSpan(
+    name: string,
+    options?: {
+      parentSpanId?: string;
+      attributes?: Record<string, string | number | boolean>;
+    },
+  ): Span {
     if (!this.enabled) {
       // Return a no-op span that won't be exported
       return new Span({

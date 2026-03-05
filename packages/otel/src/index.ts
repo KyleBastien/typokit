@@ -43,4 +43,3 @@ export type {
   GaugeDataPoint,
   CounterDataPoint,
 } from "./types.js";
-

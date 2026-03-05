@@ -9,13 +9,21 @@ import { AppError } from "@typokit/errors";
 // ─── Type-level Tests ───────────────────────────────────────
 
 // Verify ExtractParams infers correctly at the type level
-type _AssertSingle = ExtractParams<"/users/:id"> extends { id: string } ? true : never;
+type _AssertSingle =
+  ExtractParams<"/users/:id"> extends { id: string } ? true : never;
 const _testSingle: _AssertSingle = true;
 
-type _AssertMulti = ExtractParams<"/users/:id/posts/:postId"> extends { id: string; postId: string } ? true : never;
+type _AssertMulti =
+  ExtractParams<"/users/:id/posts/:postId"> extends {
+    id: string;
+    postId: string;
+  }
+    ? true
+    : never;
 const _testMulti: _AssertMulti = true;
 
-type _AssertNone = ExtractParams<"/users"> extends Record<string, never> ? true : never;
+type _AssertNone =
+  ExtractParams<"/users"> extends Record<string, never> ? true : never;
 const _testNone: _AssertNone = true;
 
 // Suppress unused variable warnings
@@ -51,16 +59,27 @@ interface FetchCall {
 
 let fetchCalls: FetchCall[] = [];
 
-function mockFetch(response: { status: number; body: unknown; headers?: Record<string, string> }): void {
+function mockFetch(response: {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+}): void {
   fetchCalls = [];
-  const headerEntries = { "content-type": "application/json", ...(response.headers ?? {}) };
-  (globalThis as Record<string, unknown>).fetch = (url: string, init?: RequestInit) => {
+  const headerEntries = {
+    "content-type": "application/json",
+    ...(response.headers ?? {}),
+  };
+  (globalThis as Record<string, unknown>).fetch = (
+    url: string,
+    init?: RequestInit,
+  ) => {
     fetchCalls.push({ url, init: init as FetchCall["init"] });
     return Promise.resolve({
       ok: response.status >= 200 && response.status < 300,
       status: response.status,
       headers: {
-        get: (name: string) => (headerEntries as Record<string, string>)[name.toLowerCase()] ?? null,
+        get: (name: string) =>
+          (headerEntries as Record<string, string>)[name.toLowerCase()] ?? null,
       },
       json: () => Promise.resolve(response.body),
       text: () => Promise.resolve(JSON.stringify(response.body)),
@@ -73,7 +92,9 @@ function mockFetch(response: { status: number; body: unknown; headers?: Record<s
 describe("createClient", () => {
   it("should create a client with all HTTP methods", () => {
     mockFetch({ status: 200, body: [] });
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
 
     expect(typeof client.get).toBe("function");
     expect(typeof client.post).toBe("function");
@@ -86,7 +107,9 @@ describe("createClient", () => {
     const users: User[] = [{ id: "1", name: "Alice" }];
     mockFetch({ status: 200, body: users });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
     const result = await client.get("/users");
 
     expect(result).toEqual(users);
@@ -99,7 +122,9 @@ describe("createClient", () => {
     const user: User = { id: "42", name: "Bob" };
     mockFetch({ status: 200, body: user });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
     const result = await client.get("/users/:id", { params: { id: "42" } });
 
     expect(result).toEqual(user);
@@ -110,7 +135,9 @@ describe("createClient", () => {
   it("should append query parameters", async () => {
     mockFetch({ status: 200, body: [] });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
     await client.get("/users", { query: { page: 2 } });
 
     expect(fetchCalls[0].url).toBe("http://localhost:3000/users?page=2");
@@ -120,21 +147,30 @@ describe("createClient", () => {
     const newUser: User = { id: "3", name: "Charlie" };
     mockFetch({ status: 201, body: newUser });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
     const result = await client.post("/users", { body: { name: "Charlie" } });
 
     expect(result).toEqual(newUser);
     expect(fetchCalls[0].init?.method).toBe("POST");
     expect(fetchCalls[0].init?.body).toBe(JSON.stringify({ name: "Charlie" }));
-    expect(fetchCalls[0].init?.headers?.["content-type"]).toBe("application/json");
+    expect(fetchCalls[0].init?.headers?.["content-type"]).toBe(
+      "application/json",
+    );
   });
 
   it("should send JSON body for PUT requests", async () => {
     const updated: User = { id: "42", name: "Updated" };
     mockFetch({ status: 200, body: updated });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
-    const result = await client.put("/users/:id", { params: { id: "42" }, body: { name: "Updated" } });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
+    const result = await client.put("/users/:id", {
+      params: { id: "42" },
+      body: { name: "Updated" },
+    });
 
     expect(result).toEqual(updated);
     expect(fetchCalls[0].url).toBe("http://localhost:3000/users/42");
@@ -144,7 +180,9 @@ describe("createClient", () => {
   it("should make DELETE requests", async () => {
     mockFetch({ status: 200, body: null });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
     await client.delete("/users/:id", { params: { id: "42" } });
 
     expect(fetchCalls[0].url).toBe("http://localhost:3000/users/42");
@@ -170,7 +208,10 @@ describe("createClient", () => {
       baseUrl: "http://localhost:3000",
       headers: { "x-api-key": "secret123" },
     });
-    await client.get("/users", { headers: { "x-request-id": "req-1" } });
+    await client.get("/users", {
+      query: {},
+      headers: { "x-request-id": "req-1" },
+    });
 
     expect(fetchCalls[0].init?.headers?.["x-api-key"]).toBe("secret123");
     expect(fetchCalls[0].init?.headers?.["x-request-id"]).toBe("req-1");
@@ -184,7 +225,9 @@ describe("error handling", () => {
       body: { error: { code: "NOT_FOUND", message: "User not found" } },
     });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
 
     let caught: unknown;
     try {
@@ -205,7 +248,9 @@ describe("error handling", () => {
       headers: { "content-type": "text/plain" },
     });
 
-    const client = createClient<TestRoutes>({ baseUrl: "http://localhost:3000" });
+    const client = createClient<TestRoutes>({
+      baseUrl: "http://localhost:3000",
+    });
 
     let caught: unknown;
     try {
@@ -250,7 +295,10 @@ describe("interceptors", () => {
       await Promise.resolve();
       return {
         ...req,
-        headers: { ...(req.headers as Record<string, string>), authorization: "Bearer token123" },
+        headers: {
+          ...(req.headers as Record<string, string>),
+          authorization: "Bearer token123",
+        },
       };
     };
 

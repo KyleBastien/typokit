@@ -13,8 +13,12 @@
 import { createTodoClient } from "./index.js";
 import type { PublicUser, PublicTodo } from "./index.js";
 
-const BASE_URL = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
-  .process?.env?.["TODO_API_URL"] ?? "http://localhost:3000";
+const BASE_URL =
+  (
+    globalThis as unknown as {
+      process: { env: Record<string, string | undefined> };
+    }
+  ).process?.env?.["TODO_API_URL"] ?? "http://localhost:3000";
 
 async function main() {
   const client = createTodoClient({ baseUrl: BASE_URL });
@@ -36,7 +40,9 @@ async function main() {
   const usersPage = await client.get("/users", {
     query: { page: 1, pageSize: 5 },
   });
-  console.log(`  Found ${usersPage.pagination.total} user(s), page ${usersPage.pagination.page}/${usersPage.pagination.totalPages}`);
+  console.log(
+    `  Found ${usersPage.pagination.total} user(s), page ${usersPage.pagination.page}/${usersPage.pagination.totalPages}`,
+  );
   for (const u of usersPage.data) {
     console.log(`    - ${u.displayName} (${u.email})`);
   }
@@ -98,7 +104,12 @@ async function main() {
   const fetchedTodo: PublicTodo = await client.get("/todos/:id", {
     params: { id: todo2.id },
   });
-  console.log("  Found:", fetchedTodo.title, "completed:", fetchedTodo.completed);
+  console.log(
+    "  Found:",
+    fetchedTodo.title,
+    "completed:",
+    fetchedTodo.completed,
+  );
 
   // ── Delete todo (typed params: { id: string }) ──────────────
   console.log("\n🗑️  Deleting second todo...");
@@ -114,10 +125,14 @@ async function main() {
   });
   console.log("  Deleted!");
 
-  console.log("\n✅ Demo complete — all operations succeeded with full type safety!");
+  console.log(
+    "\n✅ Demo complete — all operations succeeded with full type safety!",
+  );
 }
 
 main().catch((err: unknown) => {
   console.error("Demo failed:", err);
-  (globalThis as unknown as { process: { exit: (code: number) => void } }).process.exit(1);
+  (
+    globalThis as unknown as { process: { exit: (code: number) => void } }
+  ).process.exit(1);
 });

@@ -1,9 +1,6 @@
 // @typokit/turbo — Unit tests
 import { describe, it, expect } from "@rstest/core";
-import {
-  createTurboConfig,
-  defaultPipeline,
-} from "./pipeline.js";
+import { createTurboConfig, defaultPipeline } from "./pipeline.js";
 import type { TurboConfig, TurboTaskConfig } from "./pipeline.js";
 import { getTurboJsonTemplate, getSetupInstructions } from "./setup.js";
 
@@ -47,7 +44,7 @@ describe("createTurboConfig", () => {
 
   it("merges task overrides", () => {
     const config = createTurboConfig({
-      tasks: { "build": { env: ["DATABASE_URL"] } },
+      tasks: { build: { env: ["DATABASE_URL"] } },
     });
     const build = config.tasks["build"] as TurboTaskConfig;
     expect(build.env).toEqual(["DATABASE_URL"]);
@@ -57,10 +54,13 @@ describe("createTurboConfig", () => {
 
   it("adds new tasks via overrides", () => {
     const config = createTurboConfig({
-      tasks: { "deploy": { dependsOn: ["build", "test"] } },
+      tasks: { deploy: { dependsOn: ["build", "test"] } },
     });
     expect(config.tasks["deploy"]).toBeDefined();
-    expect((config.tasks["deploy"] as TurboTaskConfig).dependsOn).toEqual(["build", "test"]);
+    expect((config.tasks["deploy"] as TurboTaskConfig).dependsOn).toEqual([
+      "build",
+      "test",
+    ]);
   });
 
   it("includes globalDependencies when provided", () => {
@@ -101,7 +101,7 @@ describe("getTurboJsonTemplate", () => {
 
   it("accepts overrides", () => {
     const template = getTurboJsonTemplate({
-      tasks: { "custom": { cache: false } },
+      tasks: { custom: { cache: false } },
     });
     const parsed = JSON.parse(template) as TurboConfig;
     expect(parsed.tasks["custom"]).toBeDefined();

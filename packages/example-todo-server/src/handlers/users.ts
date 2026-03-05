@@ -4,8 +4,9 @@ import type { HandlerInput } from "@typokit/core";
 import type { UsersRoutes } from "@typokit/example-todo-schema";
 import * as userService from "../services/user-service.js";
 
-type H<K extends keyof UsersRoutes> = (input: HandlerInput<UsersRoutes[K]>) =>
-  Promise<UsersRoutes[K]["response"]>;
+type H<K extends keyof UsersRoutes> = (
+  input: HandlerInput<UsersRoutes[K]>,
+) => Promise<UsersRoutes[K]["response"]>;
 
 const handlers: { [K in keyof UsersRoutes]: H<K> } = {
   "GET /users": async ({ query }) => {
@@ -18,7 +19,11 @@ const handlers: { [K in keyof UsersRoutes]: H<K> } = {
     // Check for duplicate email
     const existing = userService.findUserByEmail(body.email);
     if (existing) {
-      ctx.fail(409, "USER_EMAIL_CONFLICT", `User with email ${body.email} already exists`);
+      ctx.fail(
+        409,
+        "USER_EMAIL_CONFLICT",
+        `User with email ${body.email} already exists`,
+      );
     }
     return userService.createUser(body);
   },
@@ -42,7 +47,11 @@ const handlers: { [K in keyof UsersRoutes]: H<K> } = {
     if (body.email !== undefined) {
       const duplicate = userService.findUserByEmail(body.email);
       if (duplicate && duplicate.id !== params.id) {
-        return ctx.fail(409, "USER_EMAIL_CONFLICT", `User with email ${body.email} already exists`);
+        return ctx.fail(
+          409,
+          "USER_EMAIL_CONFLICT",
+          `User with email ${body.email} already exists`,
+        );
       }
     }
 

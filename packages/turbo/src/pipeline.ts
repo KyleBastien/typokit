@@ -25,26 +25,26 @@ export interface TurboConfig {
 
 /** Default pipeline tasks for a TypoKit project */
 export const defaultPipeline: TurboPipeline = {
-  "build": {
+  build: {
     dependsOn: ["^build"],
     outputs: ["dist/**", ".typokit/**"],
     inputs: ["src/**/*.ts", "tsconfig.json"],
   },
-  "dev": {
+  dev: {
     dependsOn: ["^build"],
     cache: false,
     persistent: true,
   },
-  "test": {
+  test: {
     dependsOn: ["build"],
     outputs: [],
     inputs: ["src/**/*.ts", "src/**/*.test.ts"],
   },
-  "typecheck": {
+  typecheck: {
     dependsOn: ["^build"],
     outputs: [],
   },
-  "lint": {
+  lint: {
     outputs: [],
   },
 };

@@ -1,22 +1,22 @@
 {
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ],
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "composite": true,
-    "rootDir": "./src",
-    "outDir": "./dist"
-  },
-  "include": [
-    "src/**/*.ts"
-  ],
+  "files": [],
+  "include": [],
   "references": [
-    { "path": "../types" },
-    { "path": "../core" },
-    { "path": "../transform-native" }
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../transform-native"
+    }
   ]
 }

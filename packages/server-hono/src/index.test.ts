@@ -14,7 +14,9 @@ import type { Server } from "node:http";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function makeRouteTable(overrides?: Partial<CompiledRouteTable>): CompiledRouteTable {
+function makeRouteTable(
+  overrides?: Partial<CompiledRouteTable>,
+): CompiledRouteTable {
   return {
     segment: "",
     children: {
@@ -48,12 +50,18 @@ function makeHandlerMap(): HandlerMap {
     "users#list": async () => ({
       status: 200,
       headers: {},
-      body: [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }],
+      body: [
+        { id: 1, name: "Alice" },
+        { id: 2, name: "Bob" },
+      ],
     }),
     "users#create": async (req: TypoKitRequest) => ({
       status: 201,
       headers: {},
-      body: { id: 3, name: (req.body as Record<string, unknown>)?.name ?? "Unknown" },
+      body: {
+        id: 3,
+        name: (req.body as Record<string, unknown>)?.name ?? "Unknown",
+      },
     }),
     "users#get": async (req: TypoKitRequest) => ({
       status: 200,
@@ -80,7 +88,11 @@ function getPort(handle: { _server: Server }): number {
   throw new Error("Could not get port from server handle");
 }
 
-async function fetchJson(port: number, path: string, options?: RequestInit): Promise<{ status: number; body: unknown }> {
+async function fetchJson(
+  port: number,
+  path: string,
+  options?: RequestInit,
+): Promise<{ status: number; body: unknown }> {
   const res = await fetch(`http://127.0.0.1:${port}${path}`, {
     ...options,
     headers: {
@@ -121,8 +133,15 @@ describe("honoServer", () => {
 
   it("routes GET /health correctly", async () => {
     const adapter = honoServer();
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -136,8 +155,15 @@ describe("honoServer", () => {
 
   it("routes GET /users and returns list", async () => {
     const adapter = honoServer();
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -152,8 +178,15 @@ describe("honoServer", () => {
 
   it("routes POST /users with body", async () => {
     const adapter = honoServer();
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -170,8 +203,15 @@ describe("honoServer", () => {
 
   it("routes GET /users/:id with params", async () => {
     const adapter = honoServer();
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -186,8 +226,15 @@ describe("honoServer", () => {
 
   it("returns 404 for unknown routes", async () => {
     const adapter = honoServer();
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -229,7 +276,9 @@ describe("honoServer", () => {
         if (!data || typeof data.title !== "string") {
           return {
             success: false,
-            errors: [{ path: "title", expected: "string", actual: typeof data?.title }],
+            errors: [
+              { path: "title", expected: "string", actual: typeof data?.title },
+            ],
           };
         }
         return { success: true, data };
@@ -237,8 +286,16 @@ describe("honoServer", () => {
     };
 
     const adapter = honoServer();
-    adapter.registerRoutes(routeTable, handlerMap, emptyMiddlewareChain(), validatorMap);
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      routeTable,
+      handlerMap,
+      emptyMiddlewareChain(),
+      validatorMap,
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -280,13 +337,22 @@ describe("honoServer", () => {
     };
 
     const adapter = honoServer();
-    adapter.registerRoutes(routeTable, handlerMap, emptyMiddlewareChain(), undefined, {
-      "data#get.response": (input: unknown) => {
-        serializerCalls.push(input);
-        return JSON.stringify(input);
+    adapter.registerRoutes(
+      routeTable,
+      handlerMap,
+      emptyMiddlewareChain(),
+      undefined,
+      {
+        "data#get.response": (input: unknown) => {
+          serializerCalls.push(input);
+          return JSON.stringify(input);
+        },
       },
-    });
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -339,7 +405,10 @@ describe("honoServer", () => {
 
     const adapter = honoServer();
     adapter.registerRoutes(routeTable, handlerMap, middlewareChain);
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
 
@@ -354,8 +423,15 @@ describe("honoServer", () => {
 
   it("listen on port 0 assigns auto port", async () => {
     const adapter = honoServer();
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
-    const handle = await adapter.listen(0) as unknown as { close(): Promise<void>; _server: Server };
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
+    const handle = (await adapter.listen(0)) as unknown as {
+      close(): Promise<void>;
+      _server: Server;
+    };
     try {
       const port = getPort(handle);
       expect(port).toBeGreaterThan(0);

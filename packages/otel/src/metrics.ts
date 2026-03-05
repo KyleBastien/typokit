@@ -14,7 +14,11 @@ import type {
 /** Exports metrics to stdout as structured JSON (dev mode) */
 export class ConsoleMetricExporter implements MetricExporter {
   export(metrics: MetricData[]): void {
-    const proc = (globalThis as unknown as { process?: { stdout?: { write(s: string): void } } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { stdout?: { write(s: string): void } };
+      }
+    ).process;
     for (const metric of metrics) {
       const output = JSON.stringify({ ...metric, exportKind: "metric" });
       if (proc?.stdout?.write) {
@@ -40,47 +44,70 @@ export class OtlpMetricExporter implements MetricExporter {
   }
 
   export(metrics: MetricData[]): void {
-    const fetchFn = (globalThis as unknown as { fetch?: (url: string, init: unknown) => Promise<unknown> }).fetch;
+    const fetchFn = (
+      globalThis as unknown as {
+        fetch?: (url: string, init: unknown) => Promise<unknown>;
+      }
+    ).fetch;
     if (fetchFn) {
       const payload = {
-        resourceMetrics: [{
-          resource: { attributes: [] },
-          scopeMetrics: [{
-            scope: { name: "@typokit/otel" },
-            metrics: metrics.map((m) => ({
-              name: m.name,
-              ...(m.type === "histogram" ? {
-                histogram: {
-                  dataPoints: m.dataPoints.map((dp) => ({
-                    attributes: labelsToAttributes(dp.labels as MetricLabels),
-                    startTimeUnixNano: new Date(dp.timestamp).getTime() * 1_000_000,
-                    timeUnixNano: new Date(dp.timestamp).getTime() * 1_000_000,
-                    sum: dp.value,
-                    count: 1,
-                  })),
-                },
-              } : m.type === "gauge" ? {
-                gauge: {
-                  dataPoints: m.dataPoints.map((dp) => ({
-                    attributes: labelsToAttributes(dp.labels as Partial<MetricLabels>),
-                    timeUnixNano: new Date(dp.timestamp).getTime() * 1_000_000,
-                    asInt: dp.value,
-                  })),
-                },
-              } : {
-                sum: {
-                  dataPoints: m.dataPoints.map((dp) => ({
-                    attributes: labelsToAttributes(dp.labels as MetricLabels),
-                    startTimeUnixNano: new Date(dp.timestamp).getTime() * 1_000_000,
-                    timeUnixNano: new Date(dp.timestamp).getTime() * 1_000_000,
-                    asInt: dp.value,
-                  })),
-                  isMonotonic: true,
-                },
-              }),
-            })),
-          }],
-        }],
+        resourceMetrics: [
+          {
+            resource: { attributes: [] },
+            scopeMetrics: [
+              {
+                scope: { name: "@typokit/otel" },
+                metrics: metrics.map((m) => ({
+                  name: m.name,
+                  ...(m.type === "histogram"
+                    ? {
+                        histogram: {
+                          dataPoints: m.dataPoints.map((dp) => ({
+                            attributes: labelsToAttributes(
+                              dp.labels as MetricLabels,
+                            ),
+                            startTimeUnixNano:
+                              new Date(dp.timestamp).getTime() * 1_000_000,
+                            timeUnixNano:
+                              new Date(dp.timestamp).getTime() * 1_000_000,
+                            sum: dp.value,
+                            count: 1,
+                          })),
+                        },
+                      }
+                    : m.type === "gauge"
+                      ? {
+                          gauge: {
+                            dataPoints: m.dataPoints.map((dp) => ({
+                              attributes: labelsToAttributes(
+                                dp.labels as Partial<MetricLabels>,
+                              ),
+                              timeUnixNano:
+                                new Date(dp.timestamp).getTime() * 1_000_000,
+                              asInt: dp.value,
+                            })),
+                          },
+                        }
+                      : {
+                          sum: {
+                            dataPoints: m.dataPoints.map((dp) => ({
+                              attributes: labelsToAttributes(
+                                dp.labels as MetricLabels,
+                              ),
+                              startTimeUnixNano:
+                                new Date(dp.timestamp).getTime() * 1_000_000,
+                              timeUnixNano:
+                                new Date(dp.timestamp).getTime() * 1_000_000,
+                              asInt: dp.value,
+                            })),
+                            isMonotonic: true,
+                          },
+                        }),
+                })),
+              },
+            ],
+          },
+        ],
       };
 
       fetchFn(this.endpoint, {
@@ -94,8 +121,13 @@ export class OtlpMetricExporter implements MetricExporter {
   }
 }
 
-function labelsToAttributes(labels: Partial<MetricLabels>): Array<{ key: string; value: { stringValue?: string; intValue?: number } }> {
-  const attrs: Array<{ key: string; value: { stringValue?: string; intValue?: number } }> = [];
+function labelsToAttributes(
+  labels: Partial<MetricLabels>,
+): Array<{ key: string; value: { stringValue?: string; intValue?: number } }> {
+  const attrs: Array<{
+    key: string;
+    value: { stringValue?: string; intValue?: number };
+  }> = [];
   if (labels.route !== undefined) {
     attrs.push({ key: "http.route", value: { stringValue: labels.route } });
   }
@@ -242,7 +274,9 @@ export class MetricsCollector {
 // ─── Config Resolution ───────────────────────────────────────
 
 /** Resolves a TelemetryConfig into a normalized MetricsConfig */
-export function resolveMetricsConfig(telemetry?: TelemetryConfig): MetricsConfig {
+export function resolveMetricsConfig(
+  telemetry?: TelemetryConfig,
+): MetricsConfig {
   if (!telemetry) {
     return { enabled: true, exporter: "console" };
   }

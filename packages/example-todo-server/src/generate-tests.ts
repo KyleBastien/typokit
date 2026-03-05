@@ -29,7 +29,11 @@ const routes: ContractTestRoute[] = [
     handlerRef: "users#update",
     validators: { body: "UpdateUserInput" },
   },
-  { method: "DELETE" as HttpMethod, path: "/users/:id", handlerRef: "users#delete" },
+  {
+    method: "DELETE" as HttpMethod,
+    path: "/users/:id",
+    handlerRef: "users#delete",
+  },
   // Todos
   { method: "GET" as HttpMethod, path: "/todos", handlerRef: "todos#list" },
   {
@@ -46,7 +50,11 @@ const routes: ContractTestRoute[] = [
     handlerRef: "todos#update",
     validators: { body: "UpdateTodoInput" },
   },
-  { method: "DELETE" as HttpMethod, path: "/todos/:id", handlerRef: "todos#delete" },
+  {
+    method: "DELETE" as HttpMethod,
+    path: "/todos/:id",
+    handlerRef: "todos#delete",
+  },
 ];
 
 // ─── Schema Definitions ──────────────────────────────────────
@@ -56,28 +64,44 @@ const schemas: SchemaTypeMap = {
     name: "CreateUserInput",
     properties: {
       email: { type: "string", optional: false, jsdoc: { format: "email" } },
-      displayName: { type: "string", optional: false, jsdoc: { minLength: "2", maxLength: "100" } },
+      displayName: {
+        type: "string",
+        optional: false,
+        jsdoc: { minLength: "2", maxLength: "100" },
+      },
     },
   },
   UpdateUserInput: {
     name: "UpdateUserInput",
     properties: {
       email: { type: "string", optional: true, jsdoc: { format: "email" } },
-      displayName: { type: "string", optional: true, jsdoc: { minLength: "2", maxLength: "100" } },
+      displayName: {
+        type: "string",
+        optional: true,
+        jsdoc: { minLength: "2", maxLength: "100" },
+      },
       status: { type: '"active" | "suspended" | "deleted"', optional: true },
     },
   },
   CreateTodoInput: {
     name: "CreateTodoInput",
     properties: {
-      title: { type: "string", optional: false, jsdoc: { minLength: "1", maxLength: "255" } },
+      title: {
+        type: "string",
+        optional: false,
+        jsdoc: { minLength: "1", maxLength: "255" },
+      },
       userId: { type: "string", optional: false },
     },
   },
   UpdateTodoInput: {
     name: "UpdateTodoInput",
     properties: {
-      title: { type: "string", optional: true, jsdoc: { minLength: "1", maxLength: "255" } },
+      title: {
+        type: "string",
+        optional: true,
+        jsdoc: { minLength: "1", maxLength: "255" },
+      },
       description: { type: "string", optional: true },
       completed: { type: "boolean", optional: true },
     },

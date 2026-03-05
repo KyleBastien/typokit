@@ -3,7 +3,10 @@
 import type { RouteContract } from "@typokit/types";
 import type { RouteMap, TypeSafeClient } from "@typokit/client";
 import type { SWRConfiguration, SWRResponse } from "swr";
-import type { SWRMutationConfiguration, SWRMutationResponse } from "swr/mutation";
+import type {
+  SWRMutationConfiguration,
+  SWRMutationResponse,
+} from "swr/mutation";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 
@@ -30,14 +33,16 @@ export function buildSWRKey(
 /** Extract GET route paths from a RouteMap */
 type GetPaths<TRoutes extends RouteMap> = {
   [P in keyof TRoutes]: "GET" extends keyof TRoutes[P] ? P : never;
-}[keyof TRoutes] & string;
+}[keyof TRoutes] &
+  string;
 
 type MutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** Extract paths that have a given mutation method */
 type MutationPaths<TRoutes extends RouteMap, M extends MutationMethod> = {
   [P in keyof TRoutes]: M extends keyof TRoutes[P] ? P : never;
-}[keyof TRoutes] & string;
+}[keyof TRoutes] &
+  string;
 
 /** Resolve the RouteContract for a given path and method */
 type ContractFor<
@@ -46,7 +51,9 @@ type ContractFor<
   M extends string,
 > = P extends keyof TRoutes
   ? M extends keyof TRoutes[P]
-    ? TRoutes[P][M] extends RouteContract ? TRoutes[P][M] : RouteContract
+    ? TRoutes[P][M] extends RouteContract
+      ? TRoutes[P][M]
+      : RouteContract
     : RouteContract
   : RouteContract;
 
@@ -54,7 +61,9 @@ type ContractFor<
 
 /** Options for useSWRGet: route-specific params/query + SWR config */
 export interface UseSWRGetOptions<C extends RouteContract> {
-  params?: C["params"] extends void ? undefined : C["params"] & Record<string, string>;
+  params?: C["params"] extends void
+    ? undefined
+    : C["params"] & Record<string, string>;
   query?: C["query"] extends void ? undefined : C["query"];
   revalidateOnFocus?: boolean;
   refreshInterval?: number;
@@ -64,7 +73,9 @@ export interface UseSWRGetOptions<C extends RouteContract> {
 
 /** Variables passed to mutation hooks */
 export interface MutationVariables<C extends RouteContract> {
-  params?: C["params"] extends void ? undefined : C["params"] & Record<string, string>;
+  params?: C["params"] extends void
+    ? undefined
+    : C["params"] & Record<string, string>;
   body?: C["body"] extends void ? undefined : C["body"];
 }
 
@@ -167,9 +178,12 @@ export function createSWRHooks<TRoutes extends RouteMap>(
   ): SWRResponse<unknown, Error> {
     const key = buildSWRKey(path, options?.params, options?.query);
     const config: SWRConfiguration<unknown, Error> = {};
-    if (options?.revalidateOnFocus !== undefined) config.revalidateOnFocus = options.revalidateOnFocus;
-    if (options?.refreshInterval !== undefined) config.refreshInterval = options.refreshInterval;
-    if (options?.dedupingInterval !== undefined) config.dedupingInterval = options.dedupingInterval;
+    if (options?.revalidateOnFocus !== undefined)
+      config.revalidateOnFocus = options.revalidateOnFocus;
+    if (options?.refreshInterval !== undefined)
+      config.refreshInterval = options.refreshInterval;
+    if (options?.dedupingInterval !== undefined)
+      config.dedupingInterval = options.dedupingInterval;
     if (options?.suspense !== undefined) config.suspense = options.suspense;
 
     return useSWR(
@@ -182,17 +196,30 @@ export function createSWRHooks<TRoutes extends RouteMap>(
   function makeMutationHook(
     method: "post" | "put" | "patch" | "delete",
     path: string,
-    options?: { onSuccess?: (data: unknown) => void; onError?: (error: Error) => void },
-  ): SWRMutationResponse<unknown, Error, { params?: Record<string, string>; body?: unknown }> {
+    options?: {
+      onSuccess?: (data: unknown) => void;
+      onError?: (error: Error) => void;
+    },
+  ): SWRMutationResponse<
+    unknown,
+    Error,
+    { params?: Record<string, string>; body?: unknown }
+  > {
     const key = buildSWRKey(path);
-    const config: SWRMutationConfiguration<unknown, Error, { params?: Record<string, string>; body?: unknown }> = {};
+    const config: SWRMutationConfiguration<
+      unknown,
+      Error,
+      { params?: Record<string, string>; body?: unknown }
+    > = {};
     if (options?.onSuccess) config.onSuccess = options.onSuccess;
     if (options?.onError) config.onError = options.onError;
 
     return useSWRMutation(
       key,
-      (_key: string | readonly unknown[], { arg }: { arg: { params?: Record<string, string>; body?: unknown } }) =>
-        c[method](path, { params: arg.params, body: arg.body }),
+      (
+        _key: string | readonly unknown[],
+        { arg }: { arg: { params?: Record<string, string>; body?: unknown } },
+      ) => c[method](path, { params: arg.params, body: arg.body }),
       config,
     );
   }
@@ -210,4 +237,3 @@ export function createSWRHooks<TRoutes extends RouteMap>(
       makeMutationHook("delete", path, options as Record<string, unknown>),
   } as SWRHooks<TRoutes>;
 }
-

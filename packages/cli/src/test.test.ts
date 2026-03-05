@@ -28,14 +28,24 @@ describe("test — buildRunnerCommand", () => {
   });
 
   it("builds jest command for contracts", () => {
-    const { command, args } = buildRunnerCommand("jest", "contracts", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "jest",
+      "contracts",
+      "/root",
+      false,
+    );
     expect(command).toBe("jest");
     expect(args).toContain("--testPathPattern");
     expect(args).toContain("__generated__/.*\\.contract\\.test");
   });
 
   it("builds jest command for integration", () => {
-    const { command, args } = buildRunnerCommand("jest", "integration", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "jest",
+      "integration",
+      "/root",
+      false,
+    );
     expect(command).toBe("jest");
     expect(args).toContain("--testPathPattern");
     expect(args).toContain("integration");
@@ -48,21 +58,36 @@ describe("test — buildRunnerCommand", () => {
   });
 
   it("builds vitest command for all tests", () => {
-    const { command, args } = buildRunnerCommand("vitest", "all", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "vitest",
+      "all",
+      "/root",
+      false,
+    );
     expect(command).toBe("vitest");
     expect(args).toContain("run");
     expect(args).toContain("--passWithNoTests");
   });
 
   it("builds vitest command for contracts", () => {
-    const { command, args } = buildRunnerCommand("vitest", "contracts", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "vitest",
+      "contracts",
+      "/root",
+      false,
+    );
     expect(command).toBe("vitest");
     expect(args).toContain("run");
     expect(args).toContain("__generated__/");
   });
 
   it("builds vitest command for integration", () => {
-    const { command, args } = buildRunnerCommand("vitest", "integration", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "vitest",
+      "integration",
+      "/root",
+      false,
+    );
     expect(command).toBe("vitest");
     expect(args).toContain("--dir");
     expect(args).toContain("tests/integration");
@@ -75,21 +100,36 @@ describe("test — buildRunnerCommand", () => {
   });
 
   it("builds rstest command for all tests", () => {
-    const { command, args } = buildRunnerCommand("rstest", "all", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "rstest",
+      "all",
+      "/root",
+      false,
+    );
     expect(command).toBe("rstest");
     expect(args).toContain("run");
     expect(args).toContain("--passWithNoTests");
   });
 
   it("builds rstest command for contracts", () => {
-    const { command, args } = buildRunnerCommand("rstest", "contracts", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "rstest",
+      "contracts",
+      "/root",
+      false,
+    );
     expect(command).toBe("rstest");
     expect(args).toContain("--testPathPattern");
     expect(args).toContain("__generated__/.*\\.contract\\.test");
   });
 
   it("builds rstest command for integration", () => {
-    const { command, args } = buildRunnerCommand("rstest", "integration", "/root", false);
+    const { command, args } = buildRunnerCommand(
+      "rstest",
+      "integration",
+      "/root",
+      false,
+    );
     expect(command).toBe("rstest");
     expect(args).toContain("--testPathPattern");
     expect(args).toContain("integration");

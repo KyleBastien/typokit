@@ -65,9 +65,7 @@ describe("detectChangedFiles", () => {
     state.trackedFiles.set("/src/a.ts", { path: "/src/a.ts", mtime: 1000 });
     state.trackedFiles.set("/src/b.ts", { path: "/src/b.ts", mtime: 2000 });
 
-    const currentFiles = [
-      { path: "/src/a.ts", mtime: 1000 },
-    ];
+    const currentFiles = [{ path: "/src/a.ts", mtime: 1000 }];
 
     const result = detectChangedFiles(state, currentFiles);
     expect(result.removed.length).toBe(1);
@@ -134,10 +132,7 @@ describe("buildDepGraph", () => {
   });
 
   it("handles both type and route files", () => {
-    const graph = buildDepGraph(
-      ["/src/types.ts"],
-      ["/src/routes.ts"],
-    );
+    const graph = buildDepGraph(["/src/types.ts"], ["/src/routes.ts"]);
     expect(graph.size).toBe(2);
   });
 });
@@ -161,7 +156,10 @@ describe("getAffectedOutputs", () => {
 
   it("merges outputs for multiple changed files", () => {
     const graph = buildDepGraph(["/src/types.ts"], ["/src/routes.ts"]);
-    const affected = getAffectedOutputs(graph, ["/src/types.ts", "/src/routes.ts"]);
+    const affected = getAffectedOutputs(graph, [
+      "/src/types.ts",
+      "/src/routes.ts",
+    ]);
     expect(affected.has("validators")).toBe(true);
     expect(affected.has("routes/compiled-router.ts")).toBe(true);
     expect(affected.has("schemas/openapi.json")).toBe(true);
@@ -224,7 +222,13 @@ describe("parseArgs dev command", () => {
   });
 
   it("parses --debug-port flag", () => {
-    const result = parseArgs(["node", "typokit", "dev", "--debug-port", "9900"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "dev",
+      "--debug-port",
+      "9900",
+    ]);
     expect(result.command).toBe("dev");
     expect(result.flags["debug-port"]).toBe("9900");
   });
@@ -237,10 +241,14 @@ describe("parseArgs dev command", () => {
 
   it("parses dev with multiple flags", () => {
     const result = parseArgs([
-      "node", "typokit", "dev",
+      "node",
+      "typokit",
+      "dev",
       "--verbose",
-      "--debug-port", "8080",
-      "--root", "/my/project",
+      "--debug-port",
+      "8080",
+      "--root",
+      "/my/project",
     ]);
     expect(result.command).toBe("dev");
     expect(result.flags["verbose"]).toBe(true);

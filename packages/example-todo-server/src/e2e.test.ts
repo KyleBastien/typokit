@@ -140,10 +140,9 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
         [user.id, user.email, user.displayName, user.status],
       );
 
-      const pgUser = await pgClient.query(
-        "SELECT * FROM users WHERE id = $1",
-        [user.id],
-      );
+      const pgUser = await pgClient.query("SELECT * FROM users WHERE id = $1", [
+        user.id,
+      ]);
       expect(pgUser.rows.length).toBe(1);
       expect(pgUser.rows[0].email).toBe("e2e-user@test.com");
       expect(pgUser.rows[0].display_name).toBe("E2E Test User");
@@ -190,10 +189,9 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
         [todo.id, todo.title, todo.completed, todo.userId],
       );
 
-      const pgTodo = await pgClient.query(
-        "SELECT * FROM todos WHERE id = $1",
-        [todo.id],
-      );
+      const pgTodo = await pgClient.query("SELECT * FROM todos WHERE id = $1", [
+        todo.id,
+      ]);
       expect(pgTodo.rows.length).toBe(1);
       expect(pgTodo.rows[0].title).toBe("E2E Test Todo");
       expect(pgTodo.rows[0].completed).toBe(false);
@@ -284,10 +282,10 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       // ─── Step 8: Verify enum constraint ────────────────────
       let enumViolated = false;
       try {
-        await pgClient.query(
-          "UPDATE users SET status = $1 WHERE id = $2",
-          ["invalid_status", user.id],
-        );
+        await pgClient.query("UPDATE users SET status = $1 WHERE id = $2", [
+          "invalid_status",
+          user.id,
+        ]);
       } catch (err: unknown) {
         enumViolated = true;
         const pgErr = err as { code: string };
@@ -301,11 +299,7 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(deleteRes.status).toBe(204);
 
       // Verify via API
-      const getDeletedRes = await httpRequest(
-        port,
-        "GET",
-        `/todos/${todo.id}`,
-      );
+      const getDeletedRes = await httpRequest(port, "GET", `/todos/${todo.id}`);
       expect(getDeletedRes.status).toBe(404);
 
       // Mirror delete to PostgreSQL and verify
@@ -399,7 +393,12 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
         await pgClient.query(
           `INSERT INTO users (id, email, display_name, status, created_at, updated_at)
            VALUES ($1, $2, $3, $4::user_status, NOW(), NOW())`,
-          [`enum-user-${i}`, `enum${i}@test.com`, `Enum User ${i}`, statuses[i]],
+          [
+            `enum-user-${i}`,
+            `enum${i}@test.com`,
+            `Enum User ${i}`,
+            statuses[i],
+          ],
         );
       }
 

@@ -4,6 +4,10 @@
 declare module "child_process" {
   export function execSync(
     command: string,
-    options?: { cwd?: string; stdio?: string; env?: Record<string, string | undefined> }
+    options?: {
+      cwd?: string;
+      stdio?: string;
+      env?: Record<string, string | undefined>;
+    },
   ): unknown;
 }

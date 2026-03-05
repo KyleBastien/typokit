@@ -59,8 +59,12 @@ export function createBuildPipeline(): BuildPipelineInstance {
     hooks: {
       beforeTransform: new AsyncSeriesHookImpl<[BuildContext]>(),
       afterTypeParse: new AsyncSeriesHookImpl<[SchemaTypeMap, BuildContext]>(),
-      afterValidators: new AsyncSeriesHookImpl<[GeneratedOutput[], BuildContext]>(),
-      afterRouteTable: new AsyncSeriesHookImpl<[CompiledRouteTable, BuildContext]>(),
+      afterValidators: new AsyncSeriesHookImpl<
+        [GeneratedOutput[], BuildContext]
+      >(),
+      afterRouteTable: new AsyncSeriesHookImpl<
+        [CompiledRouteTable, BuildContext]
+      >(),
       emit: new AsyncSeriesHookImpl<[GeneratedOutput[], BuildContext]>(),
       done: new AsyncSeriesHookImpl<[BuildResult]>(),
     },

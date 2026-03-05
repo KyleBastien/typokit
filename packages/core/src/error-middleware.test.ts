@@ -3,7 +3,11 @@ import { createErrorMiddleware } from "./error-middleware.js";
 import { AppError, ValidationError, NotFoundError } from "@typokit/errors";
 import { createRequestContext } from "./middleware.js";
 
-import type { TypoKitRequest, TypoKitResponse, ErrorResponse } from "@typokit/types";
+import type {
+  TypoKitRequest,
+  TypoKitResponse,
+  ErrorResponse,
+} from "@typokit/types";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -121,7 +125,8 @@ describe("createErrorMiddleware — unknown errors (production)", () => {
   });
 
   it("logs full error details in production", async () => {
-    const logged: Array<{ message: string; data?: Record<string, unknown> }> = [];
+    const logged: Array<{ message: string; data?: Record<string, unknown> }> =
+      [];
     const ctx = createRequestContext({
       requestId: "trace-log-test",
       log: {

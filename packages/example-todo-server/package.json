@@ -19,9 +19,6 @@
     "test": "rstest run --passWithNoTests",
     "test:contracts": "rstest run --passWithNoTests src/__generated__/",
     "test:e2e": "rstest run src/e2e.test.ts",
-    "build": "tsc -p tsconfig.json",
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
     "generate:openapi": "tsx src/generate-openapi.ts --output ./dist/openapi.json"
   },
   "dependencies": {

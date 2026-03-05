@@ -1,6 +1,12 @@
 // @typokit/core — App Factory (createApp)
 
-import type { ServerHandle, Logger, TypoKitRequest, RequestContext, TypoKitResponse } from "@typokit/types";
+import type {
+  ServerHandle,
+  Logger,
+  TypoKitRequest,
+  RequestContext,
+  TypoKitResponse,
+} from "@typokit/types";
 import type { ServerAdapter } from "./adapters/server.js";
 import type { TypoKitPlugin, AppInstance } from "./plugin.js";
 import type { MiddlewareEntry } from "./middleware.js";
@@ -52,10 +58,7 @@ export interface TypoKitApp {
  * routes, and plugins.
  */
 export function createApp(options: CreateAppOptions): TypoKitApp {
-  const {
-    server,
-    plugins = [],
-  } = options;
+  const { server, plugins = [] } = options;
 
   const appInstance: AppInstance = {
     name: server.name,

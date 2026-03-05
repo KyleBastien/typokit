@@ -6,7 +6,7 @@ import { resolveProjectRoot } from "./utils.js";
 // ---------- resolveProjectRoot ----------
 
 describe("resolveProjectRoot", () => {
-  const baseContext: ExecutorContext = {
+  const baseContext = {
     root: "/workspace",
     cwd: "/workspace",
     isVerbose: false,
@@ -20,7 +20,7 @@ describe("resolveProjectRoot", () => {
         },
       },
     },
-  } as ExecutorContext;
+  } as unknown as ExecutorContext;
 
   it("uses explicit rootDir when provided", () => {
     const result = resolveProjectRoot("/custom/path", baseContext);
@@ -53,7 +53,8 @@ describe("buildExecutor", () => {
 
   it("calls runTypokitCommand with build args", async () => {
     // Verify the executor constructs the correct arguments
-    const { default: buildExecutor } = await import("./executors/build/executor.js");
+    const { default: buildExecutor } =
+      await import("./executors/build/executor.js");
     expect(typeof buildExecutor).toBe("function");
   });
 });
@@ -121,13 +122,16 @@ describe("@typokit/nx exports", () => {
 
 describe("routeGenerator output", () => {
   it("generates files for a route", async () => {
-    const { default: routeGenerator } = await import("./generators/route/generator.js");
+    const { default: routeGenerator } =
+      await import("./generators/route/generator.js");
 
     // Mock a minimal Tree
     const files = new Map<string, string>();
     const mockTree = {
       read: (path: string) => files.get(path) ?? null,
-      write: (path: string, content: string) => { files.set(path, content); },
+      write: (path: string, content: string) => {
+        files.set(path, content);
+      },
       exists: (path: string) => files.has(path),
     };
 
@@ -154,10 +158,14 @@ describe("routeGenerator output", () => {
 
 describe("initGenerator output", () => {
   it("adds typokit config and updates package.json", async () => {
-    const { default: initGenerator } = await import("./generators/init/generator.js");
+    const { default: initGenerator } =
+      await import("./generators/init/generator.js");
 
     const files = new Map<string, string>();
-    files.set("apps/my-app/package.json", JSON.stringify({ name: "my-app", dependencies: {} }));
+    files.set(
+      "apps/my-app/package.json",
+      JSON.stringify({ name: "my-app", dependencies: {} }),
+    );
 
     // Track updateProjectConfiguration calls
     // Mock tree — initGenerator uses @nx/devkit's readProjectConfiguration/updateProjectConfiguration

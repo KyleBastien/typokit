@@ -15,12 +15,14 @@ import type { Server } from "node:http";
 
 // ─── Test Helpers ────────────────────────────────────────────
 
-function makeRouteTable(routes: {
-  method: string;
-  path: string;
-  ref: string;
-  validators?: { params?: string; query?: string; body?: string };
-}[]): CompiledRouteTable {
+function makeRouteTable(
+  routes: {
+    method: string;
+    path: string;
+    ref: string;
+    validators?: { params?: string; query?: string; body?: string };
+  }[],
+): CompiledRouteTable {
   const root: CompiledRouteTable = {
     segment: "",
     children: {},
@@ -74,7 +76,11 @@ async function fetchJson(port: number, path: string, options?: RequestInit) {
   } catch {
     body = text;
   }
-  return { status: res.status, body, headers: Object.fromEntries(res.headers.entries()) };
+  return {
+    status: res.status,
+    body,
+    headers: Object.fromEntries(res.headers.entries()),
+  };
 }
 
 // ─── Tests ───────────────────────────────────────────────────
@@ -119,7 +125,10 @@ describe("expressServer integration", () => {
     ]);
 
     const handlerMap: HandlerMap = {
-      getHealth: async (_req: TypoKitRequest, _ctx: RequestContext): Promise<TypoKitResponse> => ({
+      getHealth: async (
+        _req: TypoKitRequest,
+        _ctx: RequestContext,
+      ): Promise<TypoKitResponse> => ({
         status: 200,
         headers: {},
         body: { status: "ok" },
@@ -128,7 +137,7 @@ describe("expressServer integration", () => {
 
     const adapter = expressServer();
     adapter.registerRoutes(routeTable, handlerMap, makeMiddlewareChain());
-    handle = await adapter.listen(0) as ServerHandle & { _server?: Server };
+    handle = (await adapter.listen(0)) as ServerHandle & { _server?: Server };
 
     const addr = handle._server!.address();
     port = typeof addr === "object" && addr !== null ? addr.port : 0;
@@ -146,16 +155,22 @@ describe("expressServer integration", () => {
     ]);
 
     const handlerMap: HandlerMap = {
-      createItem: async (req: TypoKitRequest, _ctx: RequestContext): Promise<TypoKitResponse> => ({
+      createItem: async (
+        req: TypoKitRequest,
+        _ctx: RequestContext,
+      ): Promise<TypoKitResponse> => ({
         status: 201,
         headers: {},
-        body: { created: true, name: (req.body as Record<string, unknown>)?.name },
+        body: {
+          created: true,
+          name: (req.body as Record<string, unknown>)?.name,
+        },
       }),
     };
 
     const adapter = expressServer();
     adapter.registerRoutes(routeTable, handlerMap, makeMiddlewareChain());
-    handle = await adapter.listen(0) as ServerHandle & { _server?: Server };
+    handle = (await adapter.listen(0)) as ServerHandle & { _server?: Server };
 
     const addr = handle._server!.address();
     port = typeof addr === "object" && addr !== null ? addr.port : 0;
@@ -177,7 +192,10 @@ describe("expressServer integration", () => {
     ]);
 
     const handlerMap: HandlerMap = {
-      getItem: async (req: TypoKitRequest, _ctx: RequestContext): Promise<TypoKitResponse> => ({
+      getItem: async (
+        req: TypoKitRequest,
+        _ctx: RequestContext,
+      ): Promise<TypoKitResponse> => ({
         status: 200,
         headers: {},
         body: { id: req.params.id },
@@ -186,7 +204,7 @@ describe("expressServer integration", () => {
 
     const adapter = expressServer();
     adapter.registerRoutes(routeTable, handlerMap, makeMiddlewareChain());
-    handle = await adapter.listen(0) as ServerHandle & { _server?: Server };
+    handle = (await adapter.listen(0)) as ServerHandle & { _server?: Server };
 
     const addr = handle._server!.address();
     port = typeof addr === "object" && addr !== null ? addr.port : 0;
@@ -209,7 +227,10 @@ describe("expressServer integration", () => {
     ]);
 
     const handlerMap: HandlerMap = {
-      validatedHandler: async (_req: TypoKitRequest, _ctx: RequestContext): Promise<TypoKitResponse> => ({
+      validatedHandler: async (
+        _req: TypoKitRequest,
+        _ctx: RequestContext,
+      ): Promise<TypoKitResponse> => ({
         status: 200,
         headers: {},
         body: { ok: true },
@@ -230,8 +251,13 @@ describe("expressServer integration", () => {
     };
 
     const adapter = expressServer();
-    adapter.registerRoutes(routeTable, handlerMap, makeMiddlewareChain(), validatorMap);
-    handle = await adapter.listen(0) as ServerHandle & { _server?: Server };
+    adapter.registerRoutes(
+      routeTable,
+      handlerMap,
+      makeMiddlewareChain(),
+      validatorMap,
+    );
+    handle = (await adapter.listen(0)) as ServerHandle & { _server?: Server };
 
     const addr = handle._server!.address();
     port = typeof addr === "object" && addr !== null ? addr.port : 0;
@@ -258,7 +284,7 @@ describe("expressServer integration", () => {
 
     const adapter = expressServer();
     adapter.registerRoutes(routeTable, handlerMap, makeMiddlewareChain());
-    handle = await adapter.listen(0) as ServerHandle & { _server?: Server };
+    handle = (await adapter.listen(0)) as ServerHandle & { _server?: Server };
 
     const addr = handle._server!.address();
     port = typeof addr === "object" && addr !== null ? addr.port : 0;

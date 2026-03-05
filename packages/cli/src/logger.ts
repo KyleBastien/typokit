@@ -14,7 +14,12 @@ export function createLogger(options: { verbose?: boolean }): CliLogger {
 
   const write = (prefix: string, message: string): void => {
     const g = globalThis as Record<string, unknown>;
-    const proc = g["process"] as { stderr: { write(s: string): void }; stdout: { write(s: string): void } } | undefined;
+    const proc = g["process"] as
+      | {
+          stderr: { write(s: string): void };
+          stdout: { write(s: string): void };
+        }
+      | undefined;
     const out = proc?.stderr ?? { write: () => {} };
     out.write(`${prefix} ${message}\n`);
   };

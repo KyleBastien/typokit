@@ -4,7 +4,7 @@ import type { ExecutorContext } from "@nx/devkit";
 /** Resolve the project root directory from executor options and context */
 export function resolveProjectRoot(
   rootDir: string | undefined,
-  context: ExecutorContext
+  context: ExecutorContext,
 ): string {
   if (rootDir) {
     return rootDir;
@@ -20,9 +20,9 @@ export function resolveProjectRoot(
 /** Run a typokit CLI command as a child process */
 export async function runTypokitCommand(
   args: string[],
-  cwd: string
+  cwd: string,
 ): Promise<{ success: boolean }> {
-  const cp = await import(/* @vite-ignore */ "child_process") as {
+  const cp = (await import(/* @vite-ignore */ "child_process")) as {
     execSync: (cmd: string, opts: Record<string, unknown>) => unknown;
   };
 
@@ -31,7 +31,7 @@ export async function runTypokitCommand(
     cp.execSync(command, {
       cwd,
       stdio: "inherit",
-      env: { ...(getProcessEnv()), FORCE_COLOR: "true" },
+      env: { ...getProcessEnv(), FORCE_COLOR: "true" },
     });
     return { success: true };
   } catch {
@@ -41,15 +41,14 @@ export async function runTypokitCommand(
 
 /** Join path segments (avoids importing path at top level for no-@types/node compat) */
 function joinPaths(...segments: string[]): string {
-  return segments
-    .join("/")
-    .replace(/\/+/g, "/")
-    .replace(/\/$/, "");
+  return segments.join("/").replace(/\/+/g, "/").replace(/\/$/, "");
 }
 
 /** Get process.env safely */
 function getProcessEnv(): Record<string, string | undefined> {
   const g = globalThis as Record<string, unknown>;
-  const proc = g["process"] as { env: Record<string, string | undefined> } | undefined;
+  const proc = g["process"] as
+    | { env: Record<string, string | undefined> }
+    | undefined;
   return proc?.env ?? {};
 }

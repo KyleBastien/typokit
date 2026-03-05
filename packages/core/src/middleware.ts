@@ -13,7 +13,9 @@ export interface MiddlewareInput {
 }
 
 /** A typed middleware created by defineMiddleware */
-export interface Middleware<TAdded extends Record<string, unknown> = Record<string, unknown>> {
+export interface Middleware<
+  TAdded extends Record<string, unknown> = Record<string, unknown>,
+> {
   handler: (input: MiddlewareInput) => Promise<TAdded>;
 }
 
@@ -48,14 +50,22 @@ export function createPlaceholderLogger(): Logger {
 }
 
 /** Create a RequestContext with ctx.fail() and ctx.log placeholder */
-export function createRequestContext(overrides?: Partial<RequestContext>): RequestContext {
+export function createRequestContext(
+  overrides?: Partial<RequestContext>,
+): RequestContext {
   return {
     log: createPlaceholderLogger(),
-    fail(status: number, code: string, message: string, details?: Record<string, unknown>): never {
+    fail(
+      status: number,
+      code: string,
+      message: string,
+      details?: Record<string, unknown>,
+    ): never {
       throw createAppError(status, code, message, details);
     },
     services: {},
-    requestId: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+    requestId:
+      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
     ...overrides,
   };
 }
@@ -70,7 +80,9 @@ export async function executeMiddlewareChain(
   ctx: RequestContext,
   entries: MiddlewareEntry[],
 ): Promise<RequestContext> {
-  const sorted = [...entries].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+  const sorted = [...entries].sort(
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
+  );
 
   let currentCtx = ctx;
   for (const entry of sorted) {

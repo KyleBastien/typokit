@@ -52,7 +52,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateFlexId", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateFlexId", v) as { success: boolean };
 
     expect(check({ id: "abc" }).success).toBe(true);
     expect(check({ id: 42 }).success).toBe(true);
@@ -68,7 +69,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateProfile", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateProfile", v) as { success: boolean };
 
     expect(check({ address: { street: "123 Main" } }).success).toBe(true);
     expect(check({ address: null }).success).toBe(false);
@@ -85,7 +87,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateTagList", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateTagList", v) as { success: boolean };
 
     expect(check({ tags: ["a", "b"], scores: [1, 2] }).success).toBe(true);
     expect(check({ tags: [1, 2], scores: [1, 2] }).success).toBe(false);
@@ -103,9 +106,12 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateUpdateUser", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateUpdateUser", v) as { success: boolean };
 
-    expect(check({ name: "John", age: 30, email: "j@e.com" }).success).toBe(true);
+    expect(check({ name: "John", age: 30, email: "j@e.com" }).success).toBe(
+      true,
+    );
     expect(check({ email: "j@e.com" }).success).toBe(true);
     expect(check({ name: "John" }).success).toBe(false);
     expect(check({ email: "j@e.com", name: 123 }).success).toBe(false);
@@ -118,7 +124,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateEmpty", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateEmpty", v) as { success: boolean };
 
     expect(check({}).success).toBe(true);
     expect(check(null).success).toBe(false);
@@ -131,7 +138,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateTest", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateTest", v) as { success: boolean };
 
     expect(check(null).success).toBe(false);
     expect(check(undefined).success).toBe(false);
@@ -148,7 +156,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateNullable", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateNullable", v) as { success: boolean };
 
     expect(check({ value: "hello" }).success).toBe(true);
     expect(check({ value: null }).success).toBe(true);
@@ -164,7 +173,8 @@ describe("generateValidator", () => {
     };
 
     const code = generateValidator(metadata);
-    const check = (v: unknown) => run(code, "validateEventName", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateEventName", v) as { success: boolean };
 
     expect(check({ event: "on_click" }).success).toBe(true);
     expect(check({ event: "on_" }).success).toBe(true);
@@ -185,7 +195,8 @@ describe("generateValidator", () => {
     expect(code).toContain("function validateTreeNode");
     expect(code).toContain("Array.isArray");
 
-    const check = (v: unknown) => run(code, "validateTreeNode", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(code, "validateTreeNode", v) as { success: boolean };
     expect(check({ value: 1 }).success).toBe(true);
     expect(check({ value: 1, children: [{ value: 2 }] }).success).toBe(true);
     expect(check({ value: "not a number" }).success).toBe(false);
@@ -254,9 +265,12 @@ describe("generateValidatorBatch", () => {
 
     const result = generateValidatorBatch(types);
     const personCode = result.get("Person")!;
-    const check = (v: unknown) => run(personCode, "validatePerson", v) as { success: boolean };
+    const check = (v: unknown) =>
+      run(personCode, "validatePerson", v) as { success: boolean };
 
-    expect(check({ name: "Jane", address: { street: "Elm" } }).success).toBe(true);
+    expect(check({ name: "Jane", address: { street: "Elm" } }).success).toBe(
+      true,
+    );
     expect(check({ name: "Jane", address: null }).success).toBe(false);
   });
 
@@ -266,6 +280,8 @@ describe("generateValidatorBatch", () => {
       { name: "", properties: {} },
     ];
 
-    expect(() => generateValidatorBatch(types)).toThrow(ValidatorGenerationError);
+    expect(() => generateValidatorBatch(types)).toThrow(
+      ValidatorGenerationError,
+    );
   });
 });

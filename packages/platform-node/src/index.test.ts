@@ -25,7 +25,9 @@ describe("getPlatformInfo", () => {
 
 describe("normalizeRequest", () => {
   it("parses method, path, headers, and query from IncomingMessage", async () => {
-    const normalized = await new Promise<Awaited<ReturnType<typeof normalizeRequest>>>((resolve, reject) => {
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
       const server = nodeCreateServer(async (req: IncomingMessage) => {
         try {
           resolve(await normalizeRequest(req));
@@ -38,7 +40,9 @@ describe("normalizeRequest", () => {
         const addr = server.address();
         if (!addr || typeof addr === "string") return;
         const url = `http://127.0.0.1:${addr.port}/hello?foo=bar`;
-        fetch(url, { method: "GET", headers: { "x-test": "yes" } }).catch(() => {});
+        fetch(url, { method: "GET", headers: { "x-test": "yes" } }).catch(
+          () => {},
+        );
       });
     });
 
@@ -50,16 +54,20 @@ describe("normalizeRequest", () => {
   });
 
   it("collects JSON body when content-type is application/json", async () => {
-    const normalized = await new Promise<Awaited<ReturnType<typeof normalizeRequest>>>((resolve, reject) => {
-      const server = nodeCreateServer(async (req: IncomingMessage, res: ServerResponse) => {
-        try {
-          resolve(await normalizeRequest(req));
-        } catch (e) {
-          reject(e);
-        }
-        res.end();
-        server.close();
-      });
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
+      const server = nodeCreateServer(
+        async (req: IncomingMessage, res: ServerResponse) => {
+          try {
+            resolve(await normalizeRequest(req));
+          } catch (e) {
+            reject(e);
+          }
+          res.end();
+          server.close();
+        },
+      );
       server.listen(0, "127.0.0.1", () => {
         const addr = server.address();
         if (!addr || typeof addr === "string") return;
@@ -80,16 +88,22 @@ describe("normalizeRequest", () => {
 
 describe("writeResponse", () => {
   it("writes status, headers, and JSON body to ServerResponse", async () => {
-    const result = await new Promise<{ status: number; body: string; headers: Record<string, string> }>((resolve, reject) => {
-      const server = nodeCreateServer((_req: IncomingMessage, res: ServerResponse) => {
-        const response: TypoKitResponse = {
-          status: 201,
-          headers: { "x-custom": "value" },
-          body: { created: true },
-        };
-        writeResponse(res, response);
-        server.close();
-      });
+    const result = await new Promise<{
+      status: number;
+      body: string;
+      headers: Record<string, string>;
+    }>((resolve, reject) => {
+      const server = nodeCreateServer(
+        (_req: IncomingMessage, res: ServerResponse) => {
+          const response: TypoKitResponse = {
+            status: 201,
+            headers: { "x-custom": "value" },
+            body: { created: true },
+          };
+          writeResponse(res, response);
+          server.close();
+        },
+      );
       server.listen(0, "127.0.0.1", () => {
         const addr = server.address();
         if (!addr || typeof addr === "string") return;
@@ -151,7 +165,7 @@ describe("createServer", () => {
       const resp = await fetch(`http://127.0.0.1:${addr.port}/fail`);
       expect(resp.status).toBe(500);
 
-      const body = await resp.json();
+      const body = (await resp.json()) as { error: string; message: string };
       expect(body.error).toBe("Internal Server Error");
       expect(body.message).toBe("boom");
     } finally {

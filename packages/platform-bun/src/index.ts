@@ -82,9 +82,7 @@ function normalizeHeaders(
 /**
  * Normalize a Web API Request (used by Bun.serve) into a TypoKitRequest.
  */
-export async function normalizeRequest(
-  req: Request,
-): Promise<TypoKitRequest> {
+export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
   const url = new URL(req.url);
 
   let body: unknown = undefined;
@@ -215,7 +213,8 @@ export function createServer(
                 return new Response(
                   JSON.stringify({
                     error: "Internal Server Error",
-                    message: err instanceof Error ? err.message : "Unknown error",
+                    message:
+                      err instanceof Error ? err.message : "Unknown error",
                   }),
                   {
                     status: 500,
@@ -243,4 +242,3 @@ export function createServer(
 
   return instance;
 }
-

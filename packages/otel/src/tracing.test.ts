@@ -255,7 +255,11 @@ describe("Tracer", () => {
 
   it("should include service.name attribute on root span", () => {
     const exporter = new TestSpanExporter();
-    const tracer = new Tracer({ exporter, serviceName: "my-api", enabled: true });
+    const tracer = new Tracer({
+      exporter,
+      serviceName: "my-api",
+      enabled: true,
+    });
 
     tracer.startRootSpan("request");
     tracer.flush();
@@ -283,7 +287,11 @@ describe("resolveTracingConfig", () => {
   });
 
   it("should handle tracing: true in telemetry config", () => {
-    const config = resolveTracingConfig({ tracing: true, exporter: "otlp", endpoint: "http://collector:4318" });
+    const config = resolveTracingConfig({
+      tracing: true,
+      exporter: "otlp",
+      endpoint: "http://collector:4318",
+    });
     expect(config.enabled).toBe(true);
     expect(config.exporter).toBe("otlp");
     expect(config.endpoint).toBe("http://collector:4318");
@@ -296,7 +304,12 @@ describe("resolveTracingConfig", () => {
 
   it("should handle tracing as object config", () => {
     const config = resolveTracingConfig({
-      tracing: { enabled: true, exporter: "otlp", endpoint: "http://custom:4318", serviceName: "my-svc" },
+      tracing: {
+        enabled: true,
+        exporter: "otlp",
+        endpoint: "http://custom:4318",
+        serviceName: "my-svc",
+      },
     });
     expect(config.enabled).toBe(true);
     expect(config.exporter).toBe("otlp");
@@ -329,7 +342,11 @@ describe("createExporter", () => {
   });
 
   it("should create OtlpSpanExporter for otlp exporter", () => {
-    const exp = createExporter({ enabled: true, exporter: "otlp", endpoint: "http://collector:4318" });
+    const exp = createExporter({
+      enabled: true,
+      exporter: "otlp",
+      endpoint: "http://collector:4318",
+    });
     expect(exp).toBeInstanceOf(OtlpSpanExporter);
   });
 });
@@ -342,7 +359,10 @@ describe("createRequestTracer", () => {
   });
 
   it("should create a tracer with telemetry config", () => {
-    const tracer = createRequestTracer({ tracing: true, serviceName: "test-api" });
+    const tracer = createRequestTracer({
+      tracing: true,
+      serviceName: "test-api",
+    });
     expect(tracer.traceId).toBeDefined();
   });
 
@@ -389,15 +409,17 @@ describe("OtlpSpanExporter", () => {
 describe("NoopSpanExporter", () => {
   it("should silently discard spans", () => {
     const exp = new NoopSpanExporter();
-    exp.export([{
-      traceId: "t1",
-      spanId: "s1",
-      name: "test",
-      kind: "server",
-      startTime: new Date().toISOString(),
-      status: "ok",
-      attributes: {},
-    }]);
+    exp.export([
+      {
+        traceId: "t1",
+        spanId: "s1",
+        name: "test",
+        kind: "server",
+        startTime: new Date().toISOString(),
+        status: "ok",
+        attributes: {},
+      },
+    ]);
     // No error thrown
   });
 });

@@ -1,5 +1,15 @@
 import { describe, it, expect } from "@rstest/core";
-import { parseAndExtractTypes, compileRoutes, generateOpenApi, diffSchemas, generateTestStubs, prepareValidatorInputs, collectValidatorOutputs, computeContentHash, buildPipeline } from "./index.js";
+import {
+  parseAndExtractTypes,
+  compileRoutes,
+  generateOpenApi,
+  diffSchemas,
+  generateTestStubs,
+  prepareValidatorInputs,
+  collectValidatorOutputs,
+  computeContentHash,
+  buildPipeline,
+} from "./index.js";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
@@ -11,15 +21,20 @@ const triples: Record<string, Record<string, string>> = {
   linux: { x64: "linux-x64-gnu", arm64: "linux-arm64-gnu" },
 };
 const triple = triples[process.platform]?.[process.arch];
-const hasNativeBinary = !!triple && fs.existsSync(
-  path.resolve(import.meta.dirname, "..", `index.${triple}.node`)
-);
+const hasNativeBinary =
+  !!triple &&
+  fs.existsSync(
+    path.resolve(import.meta.dirname, "..", `index.${triple}.node`),
+  );
 const describeNative = describe.skipIf(!hasNativeBinary);
 
 // Helper to create a temporary TypeScript file
 function createTempTsFile(content: string): string {
   const tmpDir = os.tmpdir();
-  const filePath = path.join(tmpDir, `typokit-test-${Date.now()}-${Math.random().toString(36).slice(2)}.ts`);
+  const filePath = path.join(
+    tmpDir,
+    `typokit-test-${Date.now()}-${Math.random().toString(36).slice(2)}.ts`,
+  );
   fs.writeFileSync(filePath, content, "utf-8");
   return filePath;
 }
@@ -125,7 +140,7 @@ interface Product {
       expect(result["Product"]).toBeDefined();
       const props = result["Product"].properties;
       expect(props["tags"].type).toBe("string[]");
-      expect(props["status"].type).toBe("\"active\" | \"inactive\" | \"draft\"");
+      expect(props["status"].type).toBe('"active" | "inactive" | "draft"');
       expect(props["metadata"].type).toBe("Record<string, unknown>");
       expect(props["metadata"].optional).toBe(true);
     } finally {
@@ -219,7 +234,7 @@ interface Task {
 
   it("should throw for nonexistent files", async () => {
     await expect(
-      parseAndExtractTypes(["/nonexistent/path/test.ts"])
+      parseAndExtractTypes(["/nonexistent/path/test.ts"]),
     ).rejects.toThrow();
   });
 });
@@ -270,7 +285,7 @@ interface FileRoutes {
 
   it("should throw for nonexistent files", async () => {
     await expect(
-      compileRoutes(["/nonexistent/path/test.ts"])
+      compileRoutes(["/nonexistent/path/test.ts"]),
     ).rejects.toThrow();
   });
 });
@@ -316,7 +331,9 @@ interface UsersRoutes {
       const params = spec.paths["/users/{id}"]["get"].parameters;
       expect(params).toBeDefined();
       expect(params.length).toBeGreaterThanOrEqual(1);
-      const idParam = params.find((p: Record<string, unknown>) => p.name === "id");
+      const idParam = params.find(
+        (p: Record<string, unknown>) => p.name === "id",
+      );
       expect(idParam).toBeDefined();
       expect(idParam.in).toBe("path");
       expect(idParam.required).toBe(true);
@@ -349,7 +366,9 @@ interface PublicUser {
       expect(spec.components.schemas["PublicUser"]).toBeDefined();
       expect(spec.components.schemas["PublicUser"].type).toBe("object");
       expect(spec.components.schemas["PublicUser"].properties.id).toBeDefined();
-      expect(spec.components.schemas["PublicUser"].properties.name).toBeDefined();
+      expect(
+        spec.components.schemas["PublicUser"].properties.name,
+      ).toBeDefined();
     } finally {
       cleanupFile(routeFile);
       cleanupFile(typeFile);
@@ -424,11 +443,11 @@ describeNative("diffSchemas", () => {
 
     expect(draft.destructive).toBe(true);
     const addChange = draft.changes.find(
-      (c: Record<string, unknown>) => c.type === "add" && c.field === "email"
+      (c) => c.type === "add" && c.field === "email",
     );
     expect(addChange).toBeDefined();
     const modifyChange = draft.changes.find(
-      (c: Record<string, unknown>) => c.type === "modify" && c.field === "age"
+      (c) => c.type === "modify" && c.field === "age",
     );
     expect(modifyChange).toBeDefined();
   });
@@ -465,9 +484,9 @@ interface UsersRoutes {
       const result = await generateTestStubs([filePath]);
 
       expect(result).toContain("AUTO-GENERATED");
-      expect(result).toContain("describe(\"GET /users\"");
-      expect(result).toContain("describe(\"POST /users\"");
-      expect(result).toContain("describe(\"GET /users/:id\"");
+      expect(result).toContain('describe("GET /users"');
+      expect(result).toContain('describe("POST /users"');
+      expect(result).toContain('describe("GET /users/:id"');
       expect(result).toContain("accepts valid request");
       expect(result).toContain("rejects missing required fields");
       expect(result).toContain("handles path parameters");
@@ -478,7 +497,7 @@ interface UsersRoutes {
 
   it("should throw for nonexistent files", async () => {
     await expect(
-      generateTestStubs(["/nonexistent/path/test.ts"])
+      generateTestStubs(["/nonexistent/path/test.ts"]),
     ).rejects.toThrow();
   });
 });
@@ -502,11 +521,16 @@ interface Post {
 
       expect(inputs.length).toBe(2);
       // Should be alphabetically sorted
-      const postInput = inputs.find((i: Record<string, unknown>) => i.name === "Post");
-      const userInput = inputs.find((i: Record<string, unknown>) => i.name === "User");
+      const postInput = inputs.find((i) => i.name === "Post");
+      const userInput = inputs.find((i) => i.name === "User");
       expect(postInput).toBeDefined();
       expect(userInput).toBeDefined();
-      expect(Object.keys((userInput as Record<string, Record<string, unknown>>).properties).length).toBe(3);
+      expect(
+        Object.keys(
+          (userInput as unknown as Record<string, Record<string, unknown>>)
+            .properties,
+        ).length,
+      ).toBe(3);
     } finally {
       cleanupFile(filePath);
     }
@@ -523,7 +547,9 @@ describeNative("collectValidatorOutputs", () => {
     const output = await collectValidatorOutputs(results);
 
     expect(output[".typokit/validators/user.ts"]).toContain("validateUser");
-    expect(output[".typokit/validators/blog-post.ts"]).toContain("validateBlogPost");
+    expect(output[".typokit/validators/blog-post.ts"]).toContain(
+      "validateBlogPost",
+    );
   });
 });
 
@@ -546,7 +572,11 @@ describeNative("computeContentHash", () => {
     const filePath = createTempTsFile("interface A { id: string; }");
     try {
       const hash1 = await computeContentHash([filePath]);
-      fs.writeFileSync(filePath, "interface A { id: string; name: string; }", "utf-8");
+      fs.writeFileSync(
+        filePath,
+        "interface A { id: string; name: string; }",
+        "utf-8",
+      );
       const hash2 = await computeContentHash([filePath]);
       expect(hash1).not.toBe(hash2);
     } finally {
@@ -558,7 +588,10 @@ describeNative("computeContentHash", () => {
 describeNative("buildPipeline", () => {
   function createTempDir(): string {
     const tmpDir = os.tmpdir();
-    const dir = path.join(tmpDir, `typokit-pipeline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const dir = path.join(
+      tmpDir,
+      `typokit-pipeline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -644,7 +677,9 @@ interface UsersRoutes {
       // Cache hash should exist
       const cachePath = path.join(typokitDir, ".cache-hash");
       expect(fs.existsSync(cachePath)).toBe(true);
-      expect(fs.readFileSync(cachePath, "utf-8").trim()).toBe(result.contentHash);
+      expect(fs.readFileSync(cachePath, "utf-8").trim()).toBe(
+        result.contentHash,
+      );
 
       // Directories should be created
       expect(fs.existsSync(path.join(typokitDir, "validators"))).toBe(true);
@@ -726,13 +761,17 @@ interface TaskRoutes {
       expect(result1.regenerated).toBe(true);
 
       // Modify source file
-      fs.writeFileSync(typeFile, `
+      fs.writeFileSync(
+        typeFile,
+        `
 interface Task {
   id: string;
   title: string;
   done: boolean;
 }
-`, "utf-8");
+`,
+        "utf-8",
+      );
 
       // Second build — should regenerate
       const result2 = await buildPipeline({
@@ -766,10 +805,13 @@ interface User {
         routeFiles: [],
         outputDir: typokitDir,
         validatorCallback: (inputs) => {
-          return inputs.map((input) => [
-            input.name,
-            `export function validate${input.name}(input: unknown) { return true; }`,
-          ] as [string, string]);
+          return inputs.map(
+            (input) =>
+              [
+                input.name,
+                `export function validate${input.name}(input: unknown) { return true; }`,
+              ] as [string, string],
+          );
         },
       });
 

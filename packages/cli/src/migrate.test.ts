@@ -6,7 +6,9 @@ import type { MigrateCommandOptions } from "./commands/migrate.js";
 
 // ─── Helper ─────────────────────────────────────────────────
 
-function makeOptions(overrides: Partial<MigrateCommandOptions> = {}): MigrateCommandOptions {
+function makeOptions(
+  overrides: Partial<MigrateCommandOptions> = {},
+): MigrateCommandOptions {
   return {
     rootDir: "/nonexistent",
     config: {
@@ -30,7 +32,9 @@ function makeOptions(overrides: Partial<MigrateCommandOptions> = {}): MigrateCom
 describe("executeMigrate", () => {
   it("returns error for unknown subcommand", async () => {
     const { executeMigrate } = await import("./commands/migrate.js");
-    const result = await executeMigrate(makeOptions({ subcommand: "nonexistent" }));
+    const result = await executeMigrate(
+      makeOptions({ subcommand: "nonexistent" }),
+    );
 
     expect(result.success).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
@@ -39,7 +43,9 @@ describe("executeMigrate", () => {
 
   it("dispatches to migrate:generate with no type files", async () => {
     const { executeMigrate } = await import("./commands/migrate.js");
-    const result = await executeMigrate(makeOptions({ subcommand: "generate" }));
+    const result = await executeMigrate(
+      makeOptions({ subcommand: "generate" }),
+    );
 
     expect(result.success).toBe(true);
     expect(result.filesWritten).toEqual([]);
@@ -93,7 +99,9 @@ describe("isDestructiveChange", () => {
   it("identifies remove changes as destructive", async () => {
     const { isDestructiveChange } = await import("./commands/migrate.js");
     expect(isDestructiveChange({ type: "remove", entity: "users" })).toBe(true);
-    expect(isDestructiveChange({ type: "remove", entity: "users", field: "email" })).toBe(true);
+    expect(
+      isDestructiveChange({ type: "remove", entity: "users", field: "email" }),
+    ).toBe(true);
   });
 
   it("identifies type changes as destructive", async () => {
@@ -111,7 +119,9 @@ describe("isDestructiveChange", () => {
   it("does not flag add changes as destructive", async () => {
     const { isDestructiveChange } = await import("./commands/migrate.js");
     expect(isDestructiveChange({ type: "add", entity: "users" })).toBe(false);
-    expect(isDestructiveChange({ type: "add", entity: "users", field: "avatar" })).toBe(false);
+    expect(
+      isDestructiveChange({ type: "add", entity: "users", field: "avatar" }),
+    ).toBe(false);
   });
 
   it("does not flag non-type modify as destructive", async () => {
@@ -141,7 +151,9 @@ describe("annotateSql", () => {
   it("adds destructive comments to ALTER DROP statements", async () => {
     const { annotateSql } = await import("./commands/migrate.js");
     const sql = "ALTER TABLE users DROP COLUMN email;";
-    const changes = [{ type: "remove" as const, entity: "users", field: "email" }];
+    const changes = [
+      { type: "remove" as const, entity: "users", field: "email" },
+    ];
 
     const annotated = annotateSql(sql, changes);
     expect(annotated).toContain("-- DESTRUCTIVE: requires review");
@@ -164,7 +176,11 @@ describe("CLI migrate routing", () => {
   it("parseArgs parses migrate:generate correctly", async () => {
     const { parseArgs } = await import("./index.js");
     const result = parseArgs([
-      "node", "typokit", "migrate:generate", "--name", "add-avatar",
+      "node",
+      "typokit",
+      "migrate:generate",
+      "--name",
+      "add-avatar",
     ]);
 
     expect(result.command).toBe("migrate:generate");

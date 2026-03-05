@@ -27,15 +27,24 @@ describe("OtelLogSink", () => {
   });
 
   it("should forward log entries to OTel collector with correct OTLP format", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
 
     try {
-      const sink = new OtelLogSink({ endpoint: "http://test:4318/v1/logs", serviceName: "test-svc" });
+      const sink = new OtelLogSink({
+        endpoint: "http://test:4318/v1/logs",
+        serviceName: "test-svc",
+      });
       const entry: LogEntry = {
         level: "info",
         message: "test log message",
@@ -68,10 +77,13 @@ describe("OtelLogSink", () => {
       expect(logRecord.severityNumber).toBe(9); // INFO
       expect(logRecord.severityText).toBe("INFO");
       expect(logRecord.body.stringValue).toBe("test log message");
-      expect(logRecord.timeUnixNano).toBe(new Date("2026-01-01T00:00:00.000Z").getTime() * 1_000_000);
+      expect(logRecord.timeUnixNano).toBe(
+        new Date("2026-01-01T00:00:00.000Z").getTime() * 1_000_000,
+      );
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -79,9 +91,15 @@ describe("OtelLogSink", () => {
   });
 
   it("should include traceId in log record for correlation", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -102,7 +120,8 @@ describe("OtelLogSink", () => {
       expect(logRecord.traceId).toBe("abcdef0123456789abcdef0123456789");
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -110,9 +129,15 @@ describe("OtelLogSink", () => {
   });
 
   it("should include spanId from data field for correlation", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -141,7 +166,8 @@ describe("OtelLogSink", () => {
       expect(attrKeys.includes("data.userId")).toBe(true);
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -149,9 +175,15 @@ describe("OtelLogSink", () => {
   });
 
   it("should map all log levels to correct OTel severity numbers", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -184,7 +216,8 @@ describe("OtelLogSink", () => {
       }
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -192,9 +225,15 @@ describe("OtelLogSink", () => {
   });
 
   it("should include route, phase, requestId, serverAdapter as OTLP attributes", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -213,7 +252,12 @@ describe("OtelLogSink", () => {
 
       const body = JSON.parse(fetchCalls[0].init["body"] as string);
       const attrs = body.resourceLogs[0].scopeLogs[0].logRecords[0].attributes;
-      const attrMap = new Map(attrs.map((a: { key: string; value: { stringValue: string } }) => [a.key, a.value.stringValue]));
+      const attrMap = new Map(
+        attrs.map((a: { key: string; value: { stringValue: string } }) => [
+          a.key,
+          a.value.stringValue,
+        ]),
+      );
 
       expect(attrMap.get("route")).toBe("POST /items");
       expect(attrMap.get("phase")).toBe("validation");
@@ -221,7 +265,8 @@ describe("OtelLogSink", () => {
       expect(attrMap.get("serverAdapter")).toBe("native");
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -229,7 +274,9 @@ describe("OtelLogSink", () => {
   });
 
   it("should silently handle missing fetch", () => {
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
     delete (globalThis as unknown as Record<string, unknown>)["fetch"];
 
     try {
@@ -242,7 +289,8 @@ describe("OtelLogSink", () => {
       });
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       }
     }
   });
@@ -272,16 +320,26 @@ describe("createOtelLogSink", () => {
 
   it("should return OtelLogSink when tracing is configured as object", () => {
     const sink = createOtelLogSink({
-      tracing: { enabled: true, exporter: "otlp", endpoint: "http://collector:4318/v1/traces" },
+      tracing: {
+        enabled: true,
+        exporter: "otlp",
+        endpoint: "http://collector:4318/v1/traces",
+      },
     });
     expect(sink).toBeDefined();
     expect(sink).toBeInstanceOf(OtelLogSink);
   });
 
   it("should derive logs endpoint from traces endpoint", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -301,7 +359,8 @@ describe("createOtelLogSink", () => {
       expect(fetchCalls[0].url).toBe("http://collector:4318/v1/logs");
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -309,9 +368,15 @@ describe("createOtelLogSink", () => {
   });
 
   it("should use serviceName from telemetry config", () => {
-    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const fetchCalls: Array<{ url: string; init: Record<string, unknown> }> =
+      [];
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       fetchCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -331,7 +396,8 @@ describe("createOtelLogSink", () => {
       expect(svcAttr.value.stringValue).toBe("my-app");
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -343,8 +409,13 @@ describe("OtelLogSink + StructuredLogger integration", () => {
   it("should work alongside StdoutSink (both active simultaneously)", () => {
     const testSink = new TestSink();
     const otelCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       otelCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -374,7 +445,8 @@ describe("OtelLogSink + StructuredLogger integration", () => {
       expect(logRecord.severityText).toBe("INFO");
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }
@@ -383,8 +455,13 @@ describe("OtelLogSink + StructuredLogger integration", () => {
 
   it("should forward log entries with correct trace context from logger metadata", () => {
     const otelCalls: Array<{ url: string; init: Record<string, unknown> }> = [];
-    const originalFetch = (globalThis as unknown as Record<string, unknown>)["fetch"];
-    (globalThis as unknown as Record<string, unknown>)["fetch"] = (url: string, init: Record<string, unknown>) => {
+    const originalFetch = (globalThis as unknown as Record<string, unknown>)[
+      "fetch"
+    ];
+    (globalThis as unknown as Record<string, unknown>)["fetch"] = (
+      url: string,
+      init: Record<string, unknown>,
+    ) => {
       otelCalls.push({ url, init });
       return Promise.resolve({ ok: true });
     };
@@ -393,7 +470,11 @@ describe("OtelLogSink + StructuredLogger integration", () => {
       const otelSink = new OtelLogSink();
       const logger = new StructuredLogger(
         { level: "trace" },
-        { traceId: "aaaa1111bbbb2222cccc3333dddd4444", route: "POST /orders", phase: "handler" },
+        {
+          traceId: "aaaa1111bbbb2222cccc3333dddd4444",
+          route: "POST /orders",
+          phase: "handler",
+        },
         [otelSink],
       );
 
@@ -409,13 +490,19 @@ describe("OtelLogSink + StructuredLogger integration", () => {
 
       // Attributes should include route and phase
       const attrs = logRecord.attributes;
-      const attrMap = new Map(attrs.map((a: { key: string; value: { stringValue: string } }) => [a.key, a.value.stringValue]));
+      const attrMap = new Map(
+        attrs.map((a: { key: string; value: { stringValue: string } }) => [
+          a.key,
+          a.value.stringValue,
+        ]),
+      );
       expect(attrMap.get("route")).toBe("POST /orders");
       expect(attrMap.get("phase")).toBe("handler");
       expect(attrMap.get("data.orderId")).toBe("ord-1");
     } finally {
       if (originalFetch !== undefined) {
-        (globalThis as unknown as Record<string, unknown>)["fetch"] = originalFetch;
+        (globalThis as unknown as Record<string, unknown>)["fetch"] =
+          originalFetch;
       } else {
         delete (globalThis as unknown as Record<string, unknown>)["fetch"];
       }

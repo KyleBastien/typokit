@@ -6,18 +6,84 @@ export { loadConfig } from "./config.js";
 export type { TypoKitConfig } from "./config.js";
 export { executeBuild } from "./commands/build.js";
 export type { BuildCommandOptions, BuildError } from "./commands/build.js";
-export { executeDev, createDevState, detectChangedFiles, updateTrackedFiles, buildDepGraph, getAffectedOutputs, isCacheValid, updateCache } from "./commands/dev.js";
+export {
+  executeDev,
+  createDevState,
+  detectChangedFiles,
+  updateTrackedFiles,
+  buildDepGraph,
+  getAffectedOutputs,
+  isCacheValid,
+  updateCache,
+} from "./commands/dev.js";
 export type { DevCommandOptions, DevServerState } from "./commands/dev.js";
-export { executeInspect, inspectRoutes, inspectRoute, inspectMiddleware, inspectDependencies, inspectSchema, inspectErrors, inspectPerformance, inspectServer, inspectBuildPipeline } from "./commands/inspect.js";
+export {
+  executeInspect,
+  inspectRoutes,
+  inspectRoute,
+  inspectMiddleware,
+  inspectDependencies,
+  inspectSchema,
+  inspectErrors,
+  inspectPerformance,
+  inspectServer,
+  inspectBuildPipeline,
+} from "./commands/inspect.js";
 export type { InspectOptions, InspectResult } from "./commands/inspect.js";
-export { executeGenerate, generateDb, generateClient, generateOpenapi, generateTests, generateClientCode } from "./commands/generate.js";
-export type { GenerateCommandOptions, GenerateResult } from "./commands/generate.js";
-export { executeMigrate, migrateGenerate, migrateDiff, migrateApply } from "./commands/migrate.js";
-export type { MigrateCommandOptions, MigrateResult } from "./commands/migrate.js";
-export { executeScaffold, scaffoldInit, scaffoldRoute, scaffoldService, generateRouteContracts, generateRouteHandlers, generateRouteMiddleware, generateService, generatePackageJson, generateTsconfig, generateAppTs, generateTypesTs, toPascalCase, toCamelCase } from "./commands/scaffold.js";
-export type { ScaffoldCommandOptions, ScaffoldResult, InitOptions } from "./commands/scaffold.js";
-export { executeTest, detectTestRunner, buildRunnerCommand, schemasChanged } from "./commands/test.js";
-export type { TestCommandOptions, TestResult, TestRunner } from "./commands/test.js";
+export {
+  executeGenerate,
+  generateDb,
+  generateClient,
+  generateOpenapi,
+  generateTests,
+  generateClientCode,
+} from "./commands/generate.js";
+export type {
+  GenerateCommandOptions,
+  GenerateResult,
+} from "./commands/generate.js";
+export {
+  executeMigrate,
+  migrateGenerate,
+  migrateDiff,
+  migrateApply,
+} from "./commands/migrate.js";
+export type {
+  MigrateCommandOptions,
+  MigrateResult,
+} from "./commands/migrate.js";
+export {
+  executeScaffold,
+  scaffoldInit,
+  scaffoldRoute,
+  scaffoldService,
+  generateRouteContracts,
+  generateRouteHandlers,
+  generateRouteMiddleware,
+  generateService,
+  generatePackageJson,
+  generateTsconfig,
+  generateAppTs,
+  generateTypesTs,
+  toPascalCase,
+  toCamelCase,
+} from "./commands/scaffold.js";
+export type {
+  ScaffoldCommandOptions,
+  ScaffoldResult,
+  InitOptions,
+} from "./commands/scaffold.js";
+export {
+  executeTest,
+  detectTestRunner,
+  buildRunnerCommand,
+  schemasChanged,
+} from "./commands/test.js";
+export type {
+  TestCommandOptions,
+  TestResult,
+  TestRunner,
+} from "./commands/test.js";
 
 /** Parse CLI arguments into a structured object */
 export function parseArgs(argv: string[]): {
@@ -61,7 +127,7 @@ export function parseArgs(argv: string[]): {
  * Returns the exit code (0 = success, 1 = failure).
  */
 export async function run(argv: string[]): Promise<number> {
-  const { resolve } = await import(/* @vite-ignore */ "path") as {
+  const { resolve } = (await import(/* @vite-ignore */ "path")) as {
     resolve: (...args: string[]) => string;
   };
 
@@ -83,23 +149,39 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("    generate:openapi Generate OpenAPI spec (--output <path>)");
     logger.info("    generate:tests   Regenerate contract tests");
     logger.info("  migrate:<sub>      Database migration management");
-    logger.info("    migrate:generate Generate migration from type diff (--name <name>)");
-    logger.info("    migrate:diff     Show pending schema changes (--json for JSON)");
-    logger.info("    migrate:apply    Apply pending migrations (--force for destructive)");
-    logger.info("  inspect <sub>      Inspect framework state (routes, schema, etc.)");
+    logger.info(
+      "    migrate:generate Generate migration from type diff (--name <name>)",
+    );
+    logger.info(
+      "    migrate:diff     Show pending schema changes (--json for JSON)",
+    );
+    logger.info(
+      "    migrate:apply    Apply pending migrations (--force for destructive)",
+    );
+    logger.info(
+      "  inspect <sub>      Inspect framework state (routes, schema, etc.)",
+    );
     logger.info("  test               Run all tests (auto-detects runner)");
     logger.info("  test:contracts     Run generated contract tests only");
     logger.info("  test:integration   Run integration tests");
-    logger.info("  init [name]        Create a new TypoKit project from template");
+    logger.info(
+      "  init [name]        Create a new TypoKit project from template",
+    );
     logger.info("  add route <name>   Scaffold a new route module");
     logger.info("  add service <name> Scaffold a new service file");
     logger.info("");
     logger.info("Options:");
     logger.info("  --verbose, -v         Show detailed output");
-    logger.info("  --root <dir>          Project root directory (default: cwd)");
-    logger.info("  --json                Output as JSON (for inspect commands)");
+    logger.info(
+      "  --root <dir>          Project root directory (default: cwd)",
+    );
+    logger.info(
+      "  --json                Output as JSON (for inspect commands)",
+    );
     logger.info("  --format json         Alias for --json");
-    logger.info("  --runner <runner>     Override test runner (jest|vitest|rstest)");
+    logger.info(
+      "  --runner <runner>     Override test runner (jest|vitest|rstest)",
+    );
     logger.info("  --debug-port <port>   Debug sidecar port (default: 9800)");
     return 0;
   }
@@ -108,9 +190,8 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
@@ -130,13 +211,13 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
-    const debugPort = typeof flags["debug-port"] === "string"
-      ? parseInt(flags["debug-port"], 10)
-      : 9800;
+    const debugPort =
+      typeof flags["debug-port"] === "string"
+        ? parseInt(flags["debug-port"], 10)
+        : 9800;
 
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
@@ -166,15 +247,15 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
 
     const subcommand = command.slice("generate:".length);
-    const { executeGenerate: execGenerate } = await import("./commands/generate.js");
+    const { executeGenerate: execGenerate } =
+      await import("./commands/generate.js");
     const result = await execGenerate({
       rootDir,
       config,
@@ -191,15 +272,15 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
 
     const subcommand = command.slice("migrate:".length);
-    const { executeMigrate: execMigrate } = await import("./commands/migrate.js");
+    const { executeMigrate: execMigrate } =
+      await import("./commands/migrate.js");
     const result = await execMigrate({
       rootDir,
       config,
@@ -216,14 +297,14 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
 
-    const { executeInspect: execInspect } = await import("./commands/inspect.js");
+    const { executeInspect: execInspect } =
+      await import("./commands/inspect.js");
     const subcommand = positional[0] ?? "";
     const subPositional = positional.slice(1);
 
@@ -243,11 +324,11 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
-    const { executeScaffold: execScaffold } = await import("./commands/scaffold.js");
+    const { executeScaffold: execScaffold } =
+      await import("./commands/scaffold.js");
     const result = await execScaffold({
       rootDir,
       logger,
@@ -264,14 +345,14 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
     const subcommand = positional[0] ?? "";
     const subPositional = positional.slice(1);
 
-    const { executeScaffold: execScaffold } = await import("./commands/scaffold.js");
+    const { executeScaffold: execScaffold } =
+      await import("./commands/scaffold.js");
     const result = await execScaffold({
       rootDir,
       logger,
@@ -288,16 +369,14 @@ export async function run(argv: string[]): Promise<number> {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { cwd(): string } | undefined;
     const cwd = proc?.cwd() ?? ".";
-    const rootDir = typeof flags["root"] === "string"
-      ? resolve(flags["root"])
-      : cwd;
+    const rootDir =
+      typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
 
-    const subcommand = command === "test"
-      ? "all"
-      : command.slice("test:".length);
+    const subcommand =
+      command === "test" ? "all" : command.slice("test:".length);
 
     const { executeTest: execTest } = await import("./commands/test.js");
     const result = await execTest({
@@ -316,4 +395,3 @@ export async function run(argv: string[]): Promise<number> {
   logger.info("Run 'typokit help' for usage information.");
   return 1;
 }
-
