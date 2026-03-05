@@ -1,5 +1,11 @@
 import type { Logger } from "@typokit/types";
-import type { LogLevel, LogEntry, LoggingConfig, LogMetadata, LogSink } from "./types.js";
+import type {
+  LogLevel,
+  LogEntry,
+  LoggingConfig,
+  LogMetadata,
+  LogSink,
+} from "./types.js";
 import { LOG_LEVELS } from "./types.js";
 import { redactFields } from "./redact.js";
 
@@ -8,7 +14,11 @@ export class StdoutSink implements LogSink {
   write(entry: LogEntry): void {
     const output = JSON.stringify(entry);
     // Use globalThis to avoid @types/node dependency
-    const proc = (globalThis as unknown as { process?: { stdout?: { write(s: string): void } } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { stdout?: { write(s: string): void } };
+      }
+    ).process;
     if (proc?.stdout?.write) {
       proc.stdout.write(output + "\n");
     }
@@ -25,7 +35,11 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 function isProduction(): boolean {
-  const proc = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
+  const proc = (
+    globalThis as unknown as {
+      process?: { env?: Record<string, string | undefined> };
+    }
+  ).process;
   return proc?.env?.["NODE_ENV"] === "production";
 }
 
@@ -88,7 +102,11 @@ export class StructuredLogger implements Logger {
     );
   }
 
-  private log(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+  private log(
+    level: LogLevel,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
     if (LEVEL_PRIORITY[level] < this.minLevel) return;
 
     const redactedData =
@@ -101,11 +119,21 @@ export class StructuredLogger implements Logger {
       message,
       timestamp: new Date().toISOString(),
       ...(redactedData !== undefined ? { data: redactedData } : {}),
-      ...(this.metadata.traceId !== undefined ? { traceId: this.metadata.traceId } : {}),
-      ...(this.metadata.route !== undefined ? { route: this.metadata.route } : {}),
-      ...(this.metadata.phase !== undefined ? { phase: this.metadata.phase } : {}),
-      ...(this.metadata.requestId !== undefined ? { requestId: this.metadata.requestId } : {}),
-      ...(this.metadata.serverAdapter !== undefined ? { serverAdapter: this.metadata.serverAdapter } : {}),
+      ...(this.metadata.traceId !== undefined
+        ? { traceId: this.metadata.traceId }
+        : {}),
+      ...(this.metadata.route !== undefined
+        ? { route: this.metadata.route }
+        : {}),
+      ...(this.metadata.phase !== undefined
+        ? { phase: this.metadata.phase }
+        : {}),
+      ...(this.metadata.requestId !== undefined
+        ? { requestId: this.metadata.requestId }
+        : {}),
+      ...(this.metadata.serverAdapter !== undefined
+        ? { serverAdapter: this.metadata.serverAdapter }
+        : {}),
     };
 
     for (const sink of this.sinks) {

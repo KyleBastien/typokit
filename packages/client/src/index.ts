@@ -25,8 +25,11 @@ export interface RouteDefinition<
 }
 
 /** Map of path patterns to their route definitions per method */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type RouteMap = Record<string, Partial<Record<HttpMethod, RouteContract<any, any, any, any>>>>;
+export type RouteMap = Record<
+  string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional: generic route map accepts any contract shape
+  Partial<Record<HttpMethod, RouteContract<any, any, any, any>>>
+>;
 
 // ─── Client Options ─────────────────────────────────────────
 
@@ -54,10 +57,12 @@ export interface RequestOptions<TQuery = void, TBody = void> {
 
 /** Error thrown when an API call returns a non-OK status */
 export class ClientError extends AppError {
-  constructor(
-    public readonly response: { status: number; body: unknown },
-  ) {
-    super("CLIENT_ERROR", response.status, `Request failed with status ${response.status}`);
+  constructor(public readonly response: { status: number; body: unknown }) {
+    super(
+      "CLIENT_ERROR",
+      response.status,
+      `Request failed with status ${response.status}`,
+    );
     this.name = "ClientError";
     Object.setPrototypeOf(this, new.target.prototype);
   }
@@ -78,8 +83,10 @@ type ContractFor<
   M extends HttpMethod,
 > = P extends keyof TRoutes
   ? M extends keyof TRoutes[P]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? TRoutes[P][M] extends RouteContract<any, any, any, any> ? TRoutes[P][M] : never
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      TRoutes[P][M] extends RouteContract<any, any, any, any>
+      ? TRoutes[P][M]
+      : never
     : never
   : never;
 
@@ -88,8 +95,14 @@ type MethodRequestOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TContract extends RouteContract<any, any, any, any>,
   _TPath extends string,
-> = TContract extends RouteContract<infer TParams, infer TQuery, infer TBody, infer _TResponse>
-  ? (TParams extends void
+> =
+  TContract extends RouteContract<
+    infer TParams,
+    infer TQuery,
+    infer TBody,
+    infer _TResponse
+  >
+    ? TParams extends void
       ? TQuery extends void
         ? TBody extends void
           ? { headers?: Record<string, string> } | undefined
@@ -99,17 +112,35 @@ type MethodRequestOptions<
           : { query: TQuery; body: TBody; headers?: Record<string, string> }
       : TQuery extends void
         ? TBody extends void
-          ? { params: TParams & Record<string, string>; headers?: Record<string, string> }
-          : { params: TParams & Record<string, string>; body: TBody; headers?: Record<string, string> }
+          ? {
+              params: TParams & Record<string, string>;
+              headers?: Record<string, string>;
+            }
+          : {
+              params: TParams & Record<string, string>;
+              body: TBody;
+              headers?: Record<string, string>;
+            }
         : TBody extends void
-          ? { params: TParams & Record<string, string>; query: TQuery; headers?: Record<string, string> }
-          : { params: TParams & Record<string, string>; query: TQuery; body: TBody; headers?: Record<string, string> })
-  : never;
+          ? {
+              params: TParams & Record<string, string>;
+              query: TQuery;
+              headers?: Record<string, string>;
+            }
+          : {
+              params: TParams & Record<string, string>;
+              query: TQuery;
+              body: TBody;
+              headers?: Record<string, string>;
+            }
+    : never;
 
 /** Extract the response type from a contract */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ResponseFor<TContract extends RouteContract<any, any, any, any>> =
-  TContract extends RouteContract<infer _P, infer _Q, infer _B, infer TResponse> ? TResponse : never;
+  TContract extends RouteContract<infer _P, infer _Q, infer _B, infer TResponse>
+    ? TResponse
+    : never;
 
 // ─── Client Interface ───────────────────────────────────────
 
@@ -206,7 +237,15 @@ async function handleResponse<T>(response: ResponseLike): Promise<T> {
       "error" in body &&
       typeof (body as Record<string, unknown>).error === "object"
     ) {
-      const errBody = (body as { error: { code?: string; message?: string; details?: Record<string, unknown> } }).error;
+      const errBody = (
+        body as {
+          error: {
+            code?: string;
+            message?: string;
+            details?: Record<string, unknown>;
+          };
+        }
+      ).error;
       throw createAppError(
         response.status,
         errBody.code ?? "UNKNOWN_ERROR",
@@ -276,12 +315,14 @@ export function createClient<TRoutes extends RouteMap>(
 
   return {
     get: (path, opts) => request("GET", path, opts as Record<string, unknown>),
-    post: (path, opts) => request("POST", path, opts as Record<string, unknown>),
+    post: (path, opts) =>
+      request("POST", path, opts as Record<string, unknown>),
     put: (path, opts) => request("PUT", path, opts as Record<string, unknown>),
-    patch: (path, opts) => request("PATCH", path, opts as Record<string, unknown>),
-    delete: (path, opts) => request("DELETE", path, opts as Record<string, unknown>),
+    patch: (path, opts) =>
+      request("PATCH", path, opts as Record<string, unknown>),
+    delete: (path, opts) =>
+      request("DELETE", path, opts as Record<string, unknown>),
   } as TypeSafeClient<TRoutes>;
 }
 
 export type { ExtractParams };
-

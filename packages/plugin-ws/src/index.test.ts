@@ -26,7 +26,7 @@ import type { AppInstance } from "@typokit/core";
 describe("defineWsHandlers", () => {
   it("returns handlers as-is (identity function for type safety)", () => {
     interface TestChannels extends WsChannels {
-      "chat": {
+      chat: {
         serverToClient: { type: "message"; text: string };
         clientToServer: { type: "send"; text: string };
       };
@@ -49,7 +49,7 @@ describe("defineWsHandlers", () => {
 
   it("allows partial handler definitions (only onMessage)", () => {
     const handlers = defineWsHandlers({
-      "notifications": {
+      notifications: {
         onMessage: async () => {},
       },
     });
@@ -237,9 +237,30 @@ describe("WsConnectionManager", () => {
 
   it("gets connections by channel", () => {
     const mgr = new WsConnectionManager();
-    mgr.add({ id: "c1", channel: "chat", send: () => {}, close: () => {}, meta: {}, isOpen: true });
-    mgr.add({ id: "c2", channel: "chat", send: () => {}, close: () => {}, meta: {}, isOpen: true });
-    mgr.add({ id: "c3", channel: "notif", send: () => {}, close: () => {}, meta: {}, isOpen: true });
+    mgr.add({
+      id: "c1",
+      channel: "chat",
+      send: () => {},
+      close: () => {},
+      meta: {},
+      isOpen: true,
+    });
+    mgr.add({
+      id: "c2",
+      channel: "chat",
+      send: () => {},
+      close: () => {},
+      meta: {},
+      isOpen: true,
+    });
+    mgr.add({
+      id: "c3",
+      channel: "notif",
+      send: () => {},
+      close: () => {},
+      meta: {},
+      isOpen: true,
+    });
 
     const chatConns = mgr.getByChannel("chat");
     expect(chatConns.length).toBe(2);
@@ -250,8 +271,22 @@ describe("WsConnectionManager", () => {
   it("broadcasts to channel connections", () => {
     const mgr = new WsConnectionManager();
     const sent: unknown[] = [];
-    mgr.add({ id: "c1", channel: "chat", send: (d) => sent.push(d), close: () => {}, meta: {}, isOpen: true });
-    mgr.add({ id: "c2", channel: "chat", send: (d) => sent.push(d), close: () => {}, meta: {}, isOpen: true });
+    mgr.add({
+      id: "c1",
+      channel: "chat",
+      send: (d) => sent.push(d),
+      close: () => {},
+      meta: {},
+      isOpen: true,
+    });
+    mgr.add({
+      id: "c2",
+      channel: "chat",
+      send: (d) => sent.push(d),
+      close: () => {},
+      meta: {},
+      isOpen: true,
+    });
 
     const count = mgr.broadcast("chat", { type: "hello" });
     expect(count).toBe(2);
@@ -261,8 +296,22 @@ describe("WsConnectionManager", () => {
   it("closes all connections", () => {
     const mgr = new WsConnectionManager();
     const closeCalls: Array<{ code?: number; reason?: string }> = [];
-    mgr.add({ id: "c1", channel: "chat", send: () => {}, close: (c, r) => closeCalls.push({ code: c, reason: r }), meta: {}, isOpen: true });
-    mgr.add({ id: "c2", channel: "notif", send: () => {}, close: (c, r) => closeCalls.push({ code: c, reason: r }), meta: {}, isOpen: true });
+    mgr.add({
+      id: "c1",
+      channel: "chat",
+      send: () => {},
+      close: (c, r) => closeCalls.push({ code: c, reason: r }),
+      meta: {},
+      isOpen: true,
+    });
+    mgr.add({
+      id: "c2",
+      channel: "notif",
+      send: () => {},
+      close: (c, r) => closeCalls.push({ code: c, reason: r }),
+      meta: {},
+      isOpen: true,
+    });
 
     mgr.closeAll(1001, "shutdown");
     expect(closeCalls.length).toBe(2);
@@ -292,7 +341,9 @@ describe("validateWsMessage", () => {
       },
     };
 
-    expect(validateWsMessage("chat", { type: "send" }, validators).valid).toBe(true);
+    expect(validateWsMessage("chat", { type: "send" }, validators).valid).toBe(
+      true,
+    );
     expect(validateWsMessage("chat", {}, validators).valid).toBe(false);
     expect(validateWsMessage("chat", null, validators).valid).toBe(false);
   });
@@ -354,8 +405,12 @@ describe("wsPlugin", () => {
     expect(wsService.registerValidator).toBeDefined();
     expect(wsService.registerHandlers).toBeDefined();
     expect(wsService.getChannelInfos).toBeDefined();
-    expect((wsService.config as Record<string, unknown>).pathPrefix).toBe("/ws");
-    expect((wsService.config as Record<string, unknown>).requireAuth).toBe(true);
+    expect((wsService.config as Record<string, unknown>).pathPrefix).toBe(
+      "/ws",
+    );
+    expect((wsService.config as Record<string, unknown>).requireAuth).toBe(
+      true,
+    );
   });
 
   it("shuts down cleanly on onStop", async () => {
@@ -388,12 +443,16 @@ describe("handleWsUpgrade", () => {
   function makeMockCtx(): RequestContext {
     return {
       log: {
+        trace: () => {},
         info: () => {},
         warn: () => {},
         error: () => {},
         debug: () => {},
+        fatal: () => {},
       },
-      fail: (() => { throw new Error("fail"); }) as never,
+      fail: (() => {
+        throw new Error("fail");
+      }) as never,
       services: {},
       requestId: "test-req-1",
     };
@@ -489,7 +548,9 @@ describe("handleWsUpgrade", () => {
       // Send invalid message (missing type field)
       result.onMessage('{"text":"no type"}');
       expect(sent.length).toBe(1);
-      expect((sent[0] as Record<string, unknown>).type).toBe("validation_error");
+      expect((sent[0] as Record<string, unknown>).type).toBe(
+        "validation_error",
+      );
 
       // Send valid message
       result.onMessage('{"type":"send","text":"hello"}');

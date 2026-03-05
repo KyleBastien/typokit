@@ -11,7 +11,9 @@ import {
 
 describe("AppError", () => {
   it("should set code, status, message, and details", () => {
-    const err = new AppError("TEST_ERROR", 500, "Something failed", { key: "value" });
+    const err = new AppError("TEST_ERROR", 500, "Something failed", {
+      key: "value",
+    });
     expect(err.code).toBe("TEST_ERROR");
     expect(err.status).toBe(500);
     expect(err.message).toBe("Something failed");
@@ -61,7 +63,9 @@ describe("NotFoundError", () => {
   });
 
   it("should serialize correctly", () => {
-    const err = new NotFoundError("USER_NOT_FOUND", "User not found", { id: "123" });
+    const err = new NotFoundError("USER_NOT_FOUND", "User not found", {
+      id: "123",
+    });
     expect(err.toJSON()).toEqual({
       error: {
         code: "USER_NOT_FOUND",
@@ -74,7 +78,9 @@ describe("NotFoundError", () => {
 
 describe("ValidationError", () => {
   it("should have status 400", () => {
-    const err = new ValidationError("VALIDATION_FAILED", "Invalid input", { field: "email" });
+    const err = new ValidationError("VALIDATION_FAILED", "Invalid input", {
+      field: "email",
+    });
     expect(err.status).toBe(400);
     expect(err.code).toBe("VALIDATION_FAILED");
     expect(err.message).toBe("Invalid input");
@@ -146,7 +152,9 @@ describe("createAppError", () => {
   });
 
   it("should return generic AppError for other status codes", () => {
-    const err = createAppError(503, "SERVICE_UNAVAILABLE", "Down", { retry: true });
+    const err = createAppError(503, "SERVICE_UNAVAILABLE", "Down", {
+      retry: true,
+    });
     expect(err instanceof AppError).toBe(true);
     expect(err.status).toBe(503);
     expect(err.code).toBe("SERVICE_UNAVAILABLE");

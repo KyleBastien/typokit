@@ -18,4 +18,3 @@ export type { DevExecutorSchema } from "./executors/dev/schema.js";
 export type { TestExecutorSchema } from "./executors/test/schema.js";
 export type { InitGeneratorSchema } from "./generators/init/schema.js";
 export type { RouteGeneratorSchema } from "./generators/route/schema.js";
-

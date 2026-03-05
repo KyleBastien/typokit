@@ -37,9 +37,24 @@ export interface TestResult {
  * Config file patterns used to auto-detect test runners.
  */
 const RUNNER_CONFIG_PATTERNS: Record<TestRunner, string[]> = {
-  jest: ["jest.config.js", "jest.config.ts", "jest.config.mjs", "jest.config.cjs"],
-  vitest: ["vitest.config.js", "vitest.config.ts", "vitest.config.mjs", "vitest.config.cjs"],
-  rstest: ["rstest.config.js", "rstest.config.ts", "rstest.config.mjs", "rstest.config.cjs"],
+  jest: [
+    "jest.config.js",
+    "jest.config.ts",
+    "jest.config.mjs",
+    "jest.config.cjs",
+  ],
+  vitest: [
+    "vitest.config.js",
+    "vitest.config.ts",
+    "vitest.config.mjs",
+    "vitest.config.cjs",
+  ],
+  rstest: [
+    "rstest.config.js",
+    "rstest.config.ts",
+    "rstest.config.mjs",
+    "rstest.config.cjs",
+  ],
 };
 
 /**
@@ -47,14 +62,17 @@ const RUNNER_CONFIG_PATTERNS: Record<TestRunner, string[]> = {
  * Returns the first match found, or "vitest" as default.
  */
 export async function detectTestRunner(rootDir: string): Promise<TestRunner> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync } = (await import(/* @vite-ignore */ "fs")) as {
     existsSync: (p: string) => boolean;
   };
 
-  for (const [runner, patterns] of Object.entries(RUNNER_CONFIG_PATTERNS) as [TestRunner, string[]][]) {
+  for (const [runner, patterns] of Object.entries(RUNNER_CONFIG_PATTERNS) as [
+    TestRunner,
+    string[],
+  ][]) {
     for (const pattern of patterns) {
       if (existsSync(join(rootDir, pattern))) {
         return runner;
@@ -126,10 +144,10 @@ export async function schemasChanged(
   rootDir: string,
   config: Required<TypoKitConfig>,
 ): Promise<boolean> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync } = (await import(/* @vite-ignore */ "fs")) as {
     existsSync: (p: string) => boolean;
   };
 
@@ -177,11 +195,16 @@ async function regenerateContracts(
       return { success: false, errors: result.errors };
     }
 
-    logger.success(`Contract tests regenerated — ${result.filesWritten.length} files`);
+    logger.success(
+      `Contract tests regenerated — ${result.filesWritten.length} files`,
+    );
     return { success: true, errors: [] };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return { success: false, errors: [`Failed to regenerate contracts: ${message}`] };
+    return {
+      success: false,
+      errors: [`Failed to regenerate contracts: ${message}`],
+    };
   }
 }
 
@@ -193,7 +216,9 @@ async function regenerateContracts(
  *   "contracts"   — runs only contract tests from __generated__/
  *   "integration" — runs integration tests with in-memory database
  */
-export async function executeTest(options: TestCommandOptions): Promise<TestResult> {
+export async function executeTest(
+  options: TestCommandOptions,
+): Promise<TestResult> {
   const startTime = Date.now();
   const { logger, rootDir, config, flags, verbose } = options;
   const subcommand = options.subcommand || "all";
@@ -204,11 +229,17 @@ export async function executeTest(options: TestCommandOptions): Promise<TestResu
   let runner: TestRunner;
   if (typeof flags["runner"] === "string") {
     const requested = flags["runner"] as string;
-    if (requested === "jest" || requested === "vitest" || requested === "rstest") {
+    if (
+      requested === "jest" ||
+      requested === "vitest" ||
+      requested === "rstest"
+    ) {
       runner = requested;
       logger.step("test", `Using runner: ${runner} (from --runner flag)`);
     } else {
-      logger.error(`Unknown test runner: ${requested}. Use jest, vitest, or rstest.`);
+      logger.error(
+        `Unknown test runner: ${requested}. Use jest, vitest, or rstest.`,
+      );
       return {
         success: false,
         runner: "vitest",
@@ -229,7 +260,9 @@ export async function executeTest(options: TestCommandOptions): Promise<TestResu
       const regenResult = await regenerateContracts(options);
       contractsRegenerated = true;
       if (!regenResult.success) {
-        logger.warn("Contract test regeneration failed — running existing tests");
+        logger.warn(
+          "Contract test regeneration failed — running existing tests",
+        );
         for (const e of regenResult.errors) {
           errors.push(e);
         }
@@ -238,17 +271,31 @@ export async function executeTest(options: TestCommandOptions): Promise<TestResu
   }
 
   // Build runner command
-  const { command, args } = buildRunnerCommand(runner, subcommand, rootDir, verbose);
+  const { command, args } = buildRunnerCommand(
+    runner,
+    subcommand,
+    rootDir,
+    verbose,
+  );
 
   logger.step("test", `Running: ${command} ${args.join(" ")}`);
 
   // Execute the test runner
-  const { spawnSync } = await import(/* @vite-ignore */ "child_process") as {
-    spawnSync: (cmd: string, args: string[], opts: {
-      cwd?: string;
-      encoding?: string;
-      stdio?: string;
-    }) => { status: number | null; stdout: string; stderr: string; error?: Error };
+  const { spawnSync } = (await import(/* @vite-ignore */ "child_process")) as {
+    spawnSync: (
+      cmd: string,
+      args: string[],
+      opts: {
+        cwd?: string;
+        encoding?: string;
+        stdio?: string;
+      },
+    ) => {
+      status: number | null;
+      stdout: string;
+      stderr: string;
+      error?: Error;
+    };
   };
 
   const result = spawnSync(command, args, {

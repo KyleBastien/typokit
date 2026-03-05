@@ -1,11 +1,14 @@
 // @typokit/nx — Init generator: adds TypoKit to an existing Nx workspace project
 import type { Tree } from "@nx/devkit";
-import { readProjectConfiguration, updateProjectConfiguration } from "@nx/devkit";
+import {
+  readProjectConfiguration,
+  updateProjectConfiguration,
+} from "@nx/devkit";
 import type { InitGeneratorSchema } from "./schema.js";
 
 export default async function initGenerator(
   tree: Tree,
-  options: InitGeneratorSchema
+  options: InitGeneratorSchema,
 ): Promise<void> {
   const projectConfig = readProjectConfiguration(tree, options.project);
   const projectRoot = projectConfig.root;
@@ -44,14 +47,19 @@ export interface Todo {
   // Add TypoKit dependencies to package.json
   const pkgJsonPath = `${projectRoot}/package.json`;
   if (tree.exists(pkgJsonPath)) {
-    const pkgJson = JSON.parse(tree.read(pkgJsonPath, "utf-8") ?? "{}") as Record<string, Record<string, string>>;
+    const pkgJson = JSON.parse(
+      tree.read(pkgJsonPath, "utf-8") ?? "{}",
+    ) as Record<string, Record<string, string>>;
     pkgJson["dependencies"] = pkgJson["dependencies"] ?? {};
     pkgJson["dependencies"]["@typokit/core"] = "workspace:*";
     pkgJson["dependencies"]["@typokit/types"] = "workspace:*";
     pkgJson["dependencies"]["@typokit/cli"] = "workspace:*";
 
     // Add server adapter
-    const serverPkg = server === "native" ? "@typokit/server-native" : `@typokit/server-${server}`;
+    const serverPkg =
+      server === "native"
+        ? "@typokit/server-native"
+        : `@typokit/server-${server}`;
     pkgJson["dependencies"][serverPkg] = "workspace:*";
 
     // Add db adapter

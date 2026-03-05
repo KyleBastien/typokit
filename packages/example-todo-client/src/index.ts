@@ -38,7 +38,7 @@ export type TodoAppRoutes = {
     PUT: TodosRoutes["PUT /todos/:id"];
     DELETE: TodosRoutes["DELETE /todos/:id"];
   };
-}
+};
 
 // ─── Client Factory ──────────────────────────────────────────
 
@@ -55,7 +55,9 @@ export type TodoAppRoutes = {
  * const todo = await client.get("/todos/:id", { params: { id: "abc" } });
  * ```
  */
-export function createTodoClient(options: ClientOptions): TypeSafeClient<TodoAppRoutes> {
+export function createTodoClient(
+  options: ClientOptions,
+): TypeSafeClient<TodoAppRoutes> {
   return createClient<TodoAppRoutes>(options);
 }
 

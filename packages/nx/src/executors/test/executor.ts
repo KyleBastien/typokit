@@ -5,7 +5,7 @@ import { resolveProjectRoot, runTypokitCommand } from "../../utils.js";
 
 export default async function testExecutor(
   options: TestExecutorSchema,
-  context: ExecutorContext
+  context: ExecutorContext,
 ): Promise<{ success: boolean }> {
   const projectRoot = resolveProjectRoot(options.rootDir, context);
   const subcommand = options.subcommand ?? "all";

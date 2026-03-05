@@ -36,7 +36,10 @@ function wrapHandler(
   handler: AnyHandler,
   successStatus: number = 200,
 ): (req: TypoKitRequest, ctx: RequestContext) => Promise<TypoKitResponse> {
-  return async (req: TypoKitRequest, ctx: RequestContext): Promise<TypoKitResponse> => {
+  return async (
+    req: TypoKitRequest,
+    ctx: RequestContext,
+  ): Promise<TypoKitResponse> => {
     try {
       const result = await handler({
         params: req.params,
@@ -71,48 +74,93 @@ function validateCreateUser(input: unknown): ValidationResult {
   const body = (input ?? {}) as Record<string, unknown>;
   const errors: ValidationFieldError[] = [];
   if (typeof body.email !== "string" || !body.email.includes("@")) {
-    errors.push({ path: "email", expected: "email string", actual: body.email });
+    errors.push({
+      path: "email",
+      expected: "email string",
+      actual: body.email,
+    });
   }
   if (typeof body.displayName !== "string" || body.displayName.length < 2) {
-    errors.push({ path: "displayName", expected: "string (min 2 chars)", actual: body.displayName });
+    errors.push({
+      path: "displayName",
+      expected: "string (min 2 chars)",
+      actual: body.displayName,
+    });
   }
-  return errors.length > 0 ? { success: false, errors } : { success: true, data: input };
+  return errors.length > 0
+    ? { success: false, errors }
+    : { success: true, data: input };
 }
 
 function validateUpdateUser(input: unknown): ValidationResult {
   const body = (input ?? {}) as Record<string, unknown>;
   const errors: ValidationFieldError[] = [];
-  if (body.email !== undefined && (typeof body.email !== "string" || !body.email.includes("@"))) {
-    errors.push({ path: "email", expected: "email string", actual: body.email });
+  if (
+    body.email !== undefined &&
+    (typeof body.email !== "string" || !body.email.includes("@"))
+  ) {
+    errors.push({
+      path: "email",
+      expected: "email string",
+      actual: body.email,
+    });
   }
-  if (body.displayName !== undefined && (typeof body.displayName !== "string" || body.displayName.length < 2)) {
-    errors.push({ path: "displayName", expected: "string (min 2 chars)", actual: body.displayName });
+  if (
+    body.displayName !== undefined &&
+    (typeof body.displayName !== "string" || body.displayName.length < 2)
+  ) {
+    errors.push({
+      path: "displayName",
+      expected: "string (min 2 chars)",
+      actual: body.displayName,
+    });
   }
-  return errors.length > 0 ? { success: false, errors } : { success: true, data: input };
+  return errors.length > 0
+    ? { success: false, errors }
+    : { success: true, data: input };
 }
 
 function validateCreateTodo(input: unknown): ValidationResult {
   const body = (input ?? {}) as Record<string, unknown>;
   const errors: ValidationFieldError[] = [];
   if (typeof body.title !== "string" || body.title.length < 1) {
-    errors.push({ path: "title", expected: "string (min 1 char)", actual: body.title });
+    errors.push({
+      path: "title",
+      expected: "string (min 1 char)",
+      actual: body.title,
+    });
   }
   if (typeof body.userId !== "string") {
     errors.push({ path: "userId", expected: "string", actual: body.userId });
   }
-  return errors.length > 0 ? { success: false, errors } : { success: true, data: input };
+  return errors.length > 0
+    ? { success: false, errors }
+    : { success: true, data: input };
 }
 
 function validateUpdateTodo(input: unknown): ValidationResult {
   const body = (input ?? {}) as Record<string, unknown>;
   const errors: ValidationFieldError[] = [];
-  if (body.title !== undefined && (typeof body.title !== "string" || body.title.length < 1)) {
-    errors.push({ path: "title", expected: "string (min 1 char)", actual: body.title });
+  if (
+    body.title !== undefined &&
+    (typeof body.title !== "string" || body.title.length < 1)
+  ) {
+    errors.push({
+      path: "title",
+      expected: "string (min 1 char)",
+      actual: body.title,
+    });
   }
   if (body.completed !== undefined && typeof body.completed !== "boolean") {
-    errors.push({ path: "completed", expected: "boolean", actual: body.completed });
+    errors.push({
+      path: "completed",
+      expected: "boolean",
+      actual: body.completed,
+    });
   }
-  return errors.length > 0 ? { success: false, errors } : { success: true, data: input };
+  return errors.length > 0
+    ? { success: false, errors }
+    : { success: true, data: input };
 }
 
 // ─── Route Table ─────────────────────────────────────────────
@@ -125,14 +173,22 @@ function buildRouteTable(): CompiledRouteTable {
         segment: "users",
         handlers: {
           GET: { ref: "users#list", middleware: [] },
-          POST: { ref: "users#create", middleware: [], validators: { body: "CreateUserInput" } },
+          POST: {
+            ref: "users#create",
+            middleware: [],
+            validators: { body: "CreateUserInput" },
+          },
         },
         paramChild: {
           segment: ":id",
           paramName: "id",
           handlers: {
             GET: { ref: "users#get", middleware: [] },
-            PUT: { ref: "users#update", middleware: [], validators: { body: "UpdateUserInput" } },
+            PUT: {
+              ref: "users#update",
+              middleware: [],
+              validators: { body: "UpdateUserInput" },
+            },
             DELETE: { ref: "users#delete", middleware: [] },
           },
         },
@@ -141,14 +197,22 @@ function buildRouteTable(): CompiledRouteTable {
         segment: "todos",
         handlers: {
           GET: { ref: "todos#list", middleware: [] },
-          POST: { ref: "todos#create", middleware: [], validators: { body: "CreateTodoInput" } },
+          POST: {
+            ref: "todos#create",
+            middleware: [],
+            validators: { body: "CreateTodoInput" },
+          },
         },
         paramChild: {
           segment: ":id",
           paramName: "id",
           handlers: {
             GET: { ref: "todos#get", middleware: [] },
-            PUT: { ref: "todos#update", middleware: [], validators: { body: "UpdateTodoInput" } },
+            PUT: {
+              ref: "todos#update",
+              middleware: [],
+              validators: { body: "UpdateTodoInput" },
+            },
             DELETE: { ref: "todos#delete", middleware: [] },
           },
         },
@@ -161,16 +225,40 @@ function buildRouteTable(): CompiledRouteTable {
 
 function buildHandlerMap(): HandlerMap {
   return {
-    "users#list": wrapHandler(userHandlers["GET /users"] as unknown as AnyHandler),
-    "users#create": wrapHandler(userHandlers["POST /users"] as unknown as AnyHandler, 201),
-    "users#get": wrapHandler(userHandlers["GET /users/:id"] as unknown as AnyHandler),
-    "users#update": wrapHandler(userHandlers["PUT /users/:id"] as unknown as AnyHandler),
-    "users#delete": wrapHandler(userHandlers["DELETE /users/:id"] as unknown as AnyHandler, 204),
-    "todos#list": wrapHandler(todoHandlers["GET /todos"] as unknown as AnyHandler),
-    "todos#create": wrapHandler(todoHandlers["POST /todos"] as unknown as AnyHandler, 201),
-    "todos#get": wrapHandler(todoHandlers["GET /todos/:id"] as unknown as AnyHandler),
-    "todos#update": wrapHandler(todoHandlers["PUT /todos/:id"] as unknown as AnyHandler),
-    "todos#delete": wrapHandler(todoHandlers["DELETE /todos/:id"] as unknown as AnyHandler, 204),
+    "users#list": wrapHandler(
+      userHandlers["GET /users"] as unknown as AnyHandler,
+    ),
+    "users#create": wrapHandler(
+      userHandlers["POST /users"] as unknown as AnyHandler,
+      201,
+    ),
+    "users#get": wrapHandler(
+      userHandlers["GET /users/:id"] as unknown as AnyHandler,
+    ),
+    "users#update": wrapHandler(
+      userHandlers["PUT /users/:id"] as unknown as AnyHandler,
+    ),
+    "users#delete": wrapHandler(
+      userHandlers["DELETE /users/:id"] as unknown as AnyHandler,
+      204,
+    ),
+    "todos#list": wrapHandler(
+      todoHandlers["GET /todos"] as unknown as AnyHandler,
+    ),
+    "todos#create": wrapHandler(
+      todoHandlers["POST /todos"] as unknown as AnyHandler,
+      201,
+    ),
+    "todos#get": wrapHandler(
+      todoHandlers["GET /todos/:id"] as unknown as AnyHandler,
+    ),
+    "todos#update": wrapHandler(
+      todoHandlers["PUT /todos/:id"] as unknown as AnyHandler,
+    ),
+    "todos#delete": wrapHandler(
+      todoHandlers["DELETE /todos/:id"] as unknown as AnyHandler,
+      204,
+    ),
   };
 }
 

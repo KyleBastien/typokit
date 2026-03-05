@@ -51,26 +51,66 @@ describe("@typokit/example-todo-client", () => {
     const _todosRoutes: TodosRoutes | undefined = undefined;
 
     // Suppress unused warnings
-    void _routes; void _user; void _todo; void _createUser;
-    void _updateUser; void _createTodo; void _updateTodo;
-    void _paginated; void _options; void _safeClient;
-    void _usersRoutes; void _todosRoutes;
+    void _routes;
+    void _user;
+    void _todo;
+    void _createUser;
+    void _updateUser;
+    void _createTodo;
+    void _updateTodo;
+    void _paginated;
+    void _options;
+    void _safeClient;
+    void _usersRoutes;
+    void _todosRoutes;
 
     expect(true).toBe(true);
   });
 
   it("TodoAppRoutes has correct route paths", () => {
     // Type-level check: these assignments will fail to compile if routes are wrong
-    type HasUsersGet = TodoAppRoutes extends { "/users": { GET: unknown } } ? true : false;
-    type HasUsersPost = TodoAppRoutes extends { "/users": { POST: unknown } } ? true : false;
-    type HasUsersIdGet = TodoAppRoutes extends { "/users/:id": { GET: unknown } } ? true : false;
-    type HasUsersIdPut = TodoAppRoutes extends { "/users/:id": { PUT: unknown } } ? true : false;
-    type HasUsersIdDelete = TodoAppRoutes extends { "/users/:id": { DELETE: unknown } } ? true : false;
-    type HasTodosGet = TodoAppRoutes extends { "/todos": { GET: unknown } } ? true : false;
-    type HasTodosPost = TodoAppRoutes extends { "/todos": { POST: unknown } } ? true : false;
-    type HasTodosIdGet = TodoAppRoutes extends { "/todos/:id": { GET: unknown } } ? true : false;
-    type HasTodosIdPut = TodoAppRoutes extends { "/todos/:id": { PUT: unknown } } ? true : false;
-    type HasTodosIdDelete = TodoAppRoutes extends { "/todos/:id": { DELETE: unknown } } ? true : false;
+    type HasUsersGet = TodoAppRoutes extends { "/users": { GET: unknown } }
+      ? true
+      : false;
+    type HasUsersPost = TodoAppRoutes extends { "/users": { POST: unknown } }
+      ? true
+      : false;
+    type HasUsersIdGet = TodoAppRoutes extends {
+      "/users/:id": { GET: unknown };
+    }
+      ? true
+      : false;
+    type HasUsersIdPut = TodoAppRoutes extends {
+      "/users/:id": { PUT: unknown };
+    }
+      ? true
+      : false;
+    type HasUsersIdDelete = TodoAppRoutes extends {
+      "/users/:id": { DELETE: unknown };
+    }
+      ? true
+      : false;
+    type HasTodosGet = TodoAppRoutes extends { "/todos": { GET: unknown } }
+      ? true
+      : false;
+    type HasTodosPost = TodoAppRoutes extends { "/todos": { POST: unknown } }
+      ? true
+      : false;
+    type HasTodosIdGet = TodoAppRoutes extends {
+      "/todos/:id": { GET: unknown };
+    }
+      ? true
+      : false;
+    type HasTodosIdPut = TodoAppRoutes extends {
+      "/todos/:id": { PUT: unknown };
+    }
+      ? true
+      : false;
+    type HasTodosIdDelete = TodoAppRoutes extends {
+      "/todos/:id": { DELETE: unknown };
+    }
+      ? true
+      : false;
 
     // Runtime assertion — if the types are correct, these will all be true
     const _usersGet: HasUsersGet = true;
@@ -84,8 +124,16 @@ describe("@typokit/example-todo-client", () => {
     const _todosIdPut: HasTodosIdPut = true;
     const _todosIdDelete: HasTodosIdDelete = true;
 
-    void _usersGet; void _usersPost; void _usersIdGet; void _usersIdPut; void _usersIdDelete;
-    void _todosGet; void _todosPost; void _todosIdGet; void _todosIdPut; void _todosIdDelete;
+    void _usersGet;
+    void _usersPost;
+    void _usersIdGet;
+    void _usersIdPut;
+    void _usersIdDelete;
+    void _todosGet;
+    void _todosPost;
+    void _todosIdGet;
+    void _todosIdPut;
+    void _todosIdDelete;
 
     expect(true).toBe(true);
   });
@@ -126,9 +174,16 @@ describe("@typokit/example-todo-client", () => {
     const _d1: DeletePaths = "/users/:id";
     const _d2: DeletePaths = "/todos/:id";
 
-    void _g1; void _g2; void _g3; void _g4;
-    void _p1; void _p2; void _u1; void _u2;
-    void _d1; void _d2;
+    void _g1;
+    void _g2;
+    void _g3;
+    void _g4;
+    void _p1;
+    void _p2;
+    void _u1;
+    void _u2;
+    void _d1;
+    void _d2;
 
     expect(true).toBe(true);
   });

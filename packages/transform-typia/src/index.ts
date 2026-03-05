@@ -92,9 +92,7 @@ function buildValidatorCode(
   const lines: string[] = [];
 
   lines.push(`function ${fnName}(input) {`);
-  lines.push(
-    `  if (typeof input !== "object" || input === null) {`,
-  );
+  lines.push(`  if (typeof input !== "object" || input === null) {`);
   lines.push(
     `    return { success: false, errors: [{ path: "$input", expected: "object", actual: input === null ? "null" : typeof input }] };`,
   );
@@ -284,4 +282,3 @@ function buildTemplateLiteralRegex(inner: string): string {
   }
   return pattern;
 }
-

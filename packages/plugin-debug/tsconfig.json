@@ -1,24 +1,28 @@
 {
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ],
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "composite": true,
-    "rootDir": "./src",
-    "outDir": "./dist"
-  },
-  "include": [
-    "src/**/*.ts"
-  ],
+  "files": [],
+  "include": [],
   "references": [
-    { "path": "../core" },
-    { "path": "../types" },
-    { "path": "../errors" },
-    { "path": "../otel" },
-    { "path": "../platform-node" }
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../errors"
+    },
+    {
+      "path": "../otel"
+    },
+    {
+      "path": "../platform-node"
+    }
   ]
 }

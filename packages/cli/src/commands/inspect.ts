@@ -45,7 +45,10 @@ interface DependencyNode {
 
 interface SchemaInfo {
   name: string;
-  properties: Record<string, { type: string; optional?: boolean; tags?: Record<string, string> }>;
+  properties: Record<
+    string,
+    { type: string; optional?: boolean; tags?: Record<string, string> }
+  >;
   usedIn: string[];
 }
 
@@ -87,13 +90,11 @@ function isJsonOutput(flags: Record<string, string | boolean>): boolean {
   return flags["json"] === true || flags["format"] === "json";
 }
 
-function writeOutput(
-  data: unknown,
-  json: boolean,
-  logger: CliLogger,
-): void {
+function writeOutput(data: unknown, json: boolean, logger: CliLogger): void {
   const g = globalThis as Record<string, unknown>;
-  const proc = g["process"] as { stdout: { write(s: string): void } } | undefined;
+  const proc = g["process"] as
+    | { stdout: { write(s: string): void } }
+    | undefined;
   const stdout = proc?.stdout ?? { write: () => {} };
 
   if (json) {
@@ -111,21 +112,31 @@ function formatHumanReadable(data: unknown, logger: CliLogger): void {
         if ("method" in obj && "path" in obj) {
           // Route info
           logger.info(`  ${String(obj["method"])} ${String(obj["path"])}`);
-          if (obj["params"]) logger.info(`    params: ${JSON.stringify(obj["params"])}`);
-          if (obj["handler"]) logger.info(`    handler: ${String(obj["handler"])}`);
+          if (obj["params"])
+            logger.info(`    params: ${JSON.stringify(obj["params"])}`);
+          if (obj["handler"])
+            logger.info(`    handler: ${String(obj["handler"])}`);
         } else if ("name" in obj && "priority" in obj) {
           // Middleware info
-          logger.info(`  [${String(obj["priority"])}] ${String(obj["name"])} (${String(obj["type"])})`);
+          logger.info(
+            `  [${String(obj["priority"])}] ${String(obj["name"])} (${String(obj["type"])})`,
+          );
         } else if ("name" in obj && "dependsOn" in obj) {
           // Dependency node
           const deps = obj["dependsOn"] as string[];
-          logger.info(`  ${String(obj["name"])} → ${deps.length > 0 ? deps.join(", ") : "(none)"}`);
+          logger.info(
+            `  ${String(obj["name"])} → ${deps.length > 0 ? deps.join(", ") : "(none)"}`,
+          );
         } else if ("name" in obj && "order" in obj) {
           // Build hook
-          logger.info(`  ${String(obj["order"])}. ${String(obj["name"])}: ${String(obj["description"])}`);
+          logger.info(
+            `  ${String(obj["order"])}. ${String(obj["name"])}: ${String(obj["description"])}`,
+          );
         } else if ("timestamp" in obj && "code" in obj) {
           // Error entry
-          logger.info(`  [${String(obj["timestamp"])}] ${String(obj["code"])}: ${String(obj["message"])}`);
+          logger.info(
+            `  [${String(obj["timestamp"])}] ${String(obj["code"])}: ${String(obj["message"])}`,
+          );
           if (obj["route"]) logger.info(`    route: ${String(obj["route"])}`);
         } else {
           logger.info(`  ${JSON.stringify(obj)}`);
@@ -151,11 +162,17 @@ function formatHumanReadable(data: unknown, logger: CliLogger): void {
 
 // ─── Subcommand Implementations ─────────────────────────────
 
-async function readGeneratedFile(rootDir: string, config: Required<TypoKitConfig>, relativePath: string): Promise<string | null> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+async function readGeneratedFile(
+  rootDir: string,
+  config: Required<TypoKitConfig>,
+  relativePath: string,
+): Promise<string | null> {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync, readFileSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync, readFileSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     existsSync: (p: string) => boolean;
     readFileSync: (p: string, encoding: string) => string;
   };
@@ -172,7 +189,8 @@ function parseRoutesFromCompiled(content: string): RouteInfo[] {
   const routes: RouteInfo[] = [];
   // The compiled router contains route definitions as a radix tree structure
   // Parse the route entries from comment blocks or structured data
-  const routePattern = /\/\/ Route: (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) ([^\n]+)/g;
+  const routePattern =
+    /\/\/ Route: (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) ([^\n]+)/g;
   let match: RegExpExecArray | null;
   while ((match = routePattern.exec(content)) !== null) {
     routes.push({
@@ -188,7 +206,7 @@ function parseRoutesFromCompiled(content: string): RouteInfo[] {
     const method = match[1];
     const path = match[2];
     // Avoid duplicates
-    if (!routes.some(r => r.method === method && r.path === path)) {
+    if (!routes.some((r) => r.method === method && r.path === path)) {
       const params: string[] = [];
       const paramPattern = /:(\w+)/g;
       let paramMatch: RegExpExecArray | null;
@@ -207,17 +225,38 @@ function parseRoutesFromCompiled(content: string): RouteInfo[] {
 }
 
 /** Parse schema types from OpenAPI or type metadata files */
-function parseSchemaFromOpenApi(content: string, typeName?: string): SchemaInfo[] {
+function parseSchemaFromOpenApi(
+  content: string,
+  typeName?: string,
+): SchemaInfo[] {
   try {
     const spec = JSON.parse(content) as {
       components?: {
-        schemas?: Record<string, {
-          type?: string;
-          properties?: Record<string, { type?: string; format?: string }>;
-          required?: string[];
-        }>;
+        schemas?: Record<
+          string,
+          {
+            type?: string;
+            properties?: Record<string, { type?: string; format?: string }>;
+            required?: string[];
+          }
+        >;
       };
-      paths?: Record<string, Record<string, { parameters?: Array<{ schema?: { $ref?: string } }>; requestBody?: { content?: Record<string, { schema?: { $ref?: string } }> }; responses?: Record<string, { content?: Record<string, { schema?: { $ref?: string } }> }> }>>;
+      paths?: Record<
+        string,
+        Record<
+          string,
+          {
+            parameters?: Array<{ schema?: { $ref?: string } }>;
+            requestBody?: {
+              content?: Record<string, { schema?: { $ref?: string } }>;
+            };
+            responses?: Record<
+              string,
+              { content?: Record<string, { schema?: { $ref?: string } }> }
+            >;
+          }
+        >
+      >;
     };
 
     const schemas: SchemaInfo[] = [];
@@ -261,8 +300,15 @@ function parseSchemaFromOpenApi(content: string, typeName?: string): SchemaInfo[
   }
 }
 
-export async function inspectRoutes(rootDir: string, config: Required<TypoKitConfig>): Promise<InspectResult> {
-  const content = await readGeneratedFile(rootDir, config, "routes/compiled-router.ts");
+export async function inspectRoutes(
+  rootDir: string,
+  config: Required<TypoKitConfig>,
+): Promise<InspectResult> {
+  const content = await readGeneratedFile(
+    rootDir,
+    config,
+    "routes/compiled-router.ts",
+  );
   if (!content) {
     return {
       success: false,
@@ -274,16 +320,44 @@ export async function inspectRoutes(rootDir: string, config: Required<TypoKitCon
   const routes = parseRoutesFromCompiled(content);
 
   // Also try to enrich from OpenAPI spec
-  const openApiContent = await readGeneratedFile(rootDir, config, "schemas/openapi.json");
+  const openApiContent = await readGeneratedFile(
+    rootDir,
+    config,
+    "schemas/openapi.json",
+  );
   if (openApiContent) {
     try {
       const spec = JSON.parse(openApiContent) as {
-        paths?: Record<string, Record<string, {
-          summary?: string;
-          parameters?: Array<{ name: string; in: string; schema?: { type?: string } }>;
-          requestBody?: { content?: Record<string, { schema?: { $ref?: string; type?: string } }> };
-          responses?: Record<string, { description?: string; content?: Record<string, { schema?: { $ref?: string; type?: string } }> }>;
-        }>>;
+        paths?: Record<
+          string,
+          Record<
+            string,
+            {
+              summary?: string;
+              parameters?: Array<{
+                name: string;
+                in: string;
+                schema?: { type?: string };
+              }>;
+              requestBody?: {
+                content?: Record<
+                  string,
+                  { schema?: { $ref?: string; type?: string } }
+                >;
+              };
+              responses?: Record<
+                string,
+                {
+                  description?: string;
+                  content?: Record<
+                    string,
+                    { schema?: { $ref?: string; type?: string } }
+                  >;
+                }
+              >;
+            }
+          >
+        >;
       };
 
       if (spec.paths) {
@@ -311,7 +385,9 @@ export async function inspectRoutes(rootDir: string, config: Required<TypoKitCon
           if (bodyContent) {
             const jsonBody = bodyContent["application/json"];
             if (jsonBody?.schema) {
-              route.body = jsonBody.schema["$ref"]?.replace("#/components/schemas/", "") ?? jsonBody.schema.type;
+              route.body =
+                jsonBody.schema["$ref"]?.replace("#/components/schemas/", "") ??
+                jsonBody.schema.type;
             }
           }
 
@@ -320,7 +396,9 @@ export async function inspectRoutes(rootDir: string, config: Required<TypoKitCon
           if (resp200?.content) {
             const jsonResp = resp200.content["application/json"];
             if (jsonResp?.schema) {
-              route.response = jsonResp.schema["$ref"]?.replace("#/components/schemas/", "") ?? jsonResp.schema.type;
+              route.response =
+                jsonResp.schema["$ref"]?.replace("#/components/schemas/", "") ??
+                jsonResp.schema.type;
             }
           }
         }
@@ -333,7 +411,11 @@ export async function inspectRoutes(rootDir: string, config: Required<TypoKitCon
   return { success: true, data: routes };
 }
 
-export async function inspectRoute(rootDir: string, config: Required<TypoKitConfig>, routeKey: string): Promise<InspectResult> {
+export async function inspectRoute(
+  rootDir: string,
+  config: Required<TypoKitConfig>,
+  routeKey: string,
+): Promise<InspectResult> {
   const result = await inspectRoutes(rootDir, config);
   if (!result.success) return result;
 
@@ -343,7 +425,7 @@ export async function inspectRoute(rootDir: string, config: Required<TypoKitConf
   const method = parts[0]?.toUpperCase() ?? "";
   const path = parts[1] ?? "";
 
-  const found = routes.find(r => r.method === method && r.path === path);
+  const found = routes.find((r) => r.method === method && r.path === path);
   if (!found) {
     return {
       success: false,
@@ -355,10 +437,17 @@ export async function inspectRoute(rootDir: string, config: Required<TypoKitConf
   return { success: true, data: found };
 }
 
-export async function inspectMiddleware(rootDir: string, config: Required<TypoKitConfig>): Promise<InspectResult> {
+export async function inspectMiddleware(
+  rootDir: string,
+  config: Required<TypoKitConfig>,
+): Promise<InspectResult> {
   // Middleware info is not persisted to disk during build.
   // Return what we can infer from the build output or provide empty result.
-  const content = await readGeneratedFile(rootDir, config, "routes/compiled-router.ts");
+  const content = await readGeneratedFile(
+    rootDir,
+    config,
+    "routes/compiled-router.ts",
+  );
   const middleware: MiddlewareInfo[] = [];
 
   if (content) {
@@ -367,9 +456,12 @@ export async function inspectMiddleware(rootDir: string, config: Required<TypoKi
     let match: RegExpExecArray | null;
     let order = 0;
     while ((match = mwPattern.exec(content)) !== null) {
-      const refs = match[1].split(",").map(s => s.trim().replace(/['"]/g, "")).filter(Boolean);
+      const refs = match[1]
+        .split(",")
+        .map((s) => s.trim().replace(/['"]/g, ""))
+        .filter(Boolean);
       for (const ref of refs) {
-        if (!middleware.some(m => m.name === ref)) {
+        if (!middleware.some((m) => m.name === ref)) {
           middleware.push({
             name: ref,
             priority: order++,
@@ -390,11 +482,16 @@ export async function inspectMiddleware(rootDir: string, config: Required<TypoKi
   return { success: true, data: middleware };
 }
 
-export async function inspectDependencies(rootDir: string, _config: Required<TypoKitConfig>): Promise<InspectResult> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+export async function inspectDependencies(
+  rootDir: string,
+  _config: Required<TypoKitConfig>,
+): Promise<InspectResult> {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync, readFileSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync, readFileSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     existsSync: (p: string) => boolean;
     readFileSync: (p: string, encoding: string) => string;
   };
@@ -412,7 +509,9 @@ export async function inspectDependencies(rootDir: string, _config: Required<Typ
         devDependencies?: Record<string, string>;
       };
 
-      const deps = Object.keys(pkg.dependencies ?? {}).filter(d => d.startsWith("@typokit/"));
+      const deps = Object.keys(pkg.dependencies ?? {}).filter((d) =>
+        d.startsWith("@typokit/"),
+      );
       nodes.push({
         name: pkg.name ?? "root",
         dependsOn: deps,
@@ -424,7 +523,7 @@ export async function inspectDependencies(rootDir: string, _config: Required<Typ
 
   // Also check for workspace packages if we're in a monorepo
   const packagesDir = join(rootDir, "packages");
-  const { readdirSync } = await import(/* @vite-ignore */ "fs") as {
+  const { readdirSync } = (await import(/* @vite-ignore */ "fs")) as {
     readdirSync: (p: string) => string[];
   };
 
@@ -440,7 +539,9 @@ export async function inspectDependencies(rootDir: string, _config: Required<Typ
               name?: string;
               dependencies?: Record<string, string>;
             };
-            const deps = Object.keys(subPkg.dependencies ?? {}).filter(d => d.startsWith("@typokit/"));
+            const deps = Object.keys(subPkg.dependencies ?? {}).filter((d) =>
+              d.startsWith("@typokit/"),
+            );
             nodes.push({
               name: subPkg.name ?? `@typokit/${pkg}`,
               dependsOn: deps,
@@ -458,8 +559,16 @@ export async function inspectDependencies(rootDir: string, _config: Required<Typ
   return { success: true, data: nodes };
 }
 
-export async function inspectSchema(rootDir: string, config: Required<TypoKitConfig>, typeName: string): Promise<InspectResult> {
-  const openApiContent = await readGeneratedFile(rootDir, config, "schemas/openapi.json");
+export async function inspectSchema(
+  rootDir: string,
+  config: Required<TypoKitConfig>,
+  typeName: string,
+): Promise<InspectResult> {
+  const openApiContent = await readGeneratedFile(
+    rootDir,
+    config,
+    "schemas/openapi.json",
+  );
   if (!openApiContent) {
     return {
       success: false,
@@ -534,23 +643,46 @@ export async function inspectServer(debugPort: number): Promise<InspectResult> {
   }
 }
 
-export async function inspectBuildPipeline(rootDir: string, config: Required<TypoKitConfig>): Promise<InspectResult> {
+export async function inspectBuildPipeline(
+  rootDir: string,
+  config: Required<TypoKitConfig>,
+): Promise<InspectResult> {
   // Build pipeline hooks are defined in the plugin system
   // Return the standard hook order from the TypoKit build pipeline
   const hooks: BuildHookInfo[] = [
-    { name: "beforeTransform", order: 1, description: "Register additional type sources before parsing" },
-    { name: "afterTypeParse", order: 2, description: "Inspect or modify the schema type map after parsing" },
-    { name: "afterValidators", order: 3, description: "Add custom validators after Typia generation" },
-    { name: "afterRouteTable", order: 4, description: "Post-process the compiled route table" },
+    {
+      name: "beforeTransform",
+      order: 1,
+      description: "Register additional type sources before parsing",
+    },
+    {
+      name: "afterTypeParse",
+      order: 2,
+      description: "Inspect or modify the schema type map after parsing",
+    },
+    {
+      name: "afterValidators",
+      order: 3,
+      description: "Add custom validators after Typia generation",
+    },
+    {
+      name: "afterRouteTable",
+      order: 4,
+      description: "Post-process the compiled route table",
+    },
     { name: "emit", order: 5, description: "Plugins emit their own artifacts" },
-    { name: "done", order: 6, description: "Cleanup, reporting, and finalization" },
+    {
+      name: "done",
+      order: 6,
+      description: "Cleanup, reporting, and finalization",
+    },
   ];
 
   // Try to detect registered plugins from config or build output
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync } = (await import(/* @vite-ignore */ "fs")) as {
     existsSync: (p: string) => boolean;
   };
 
@@ -558,15 +690,24 @@ export async function inspectBuildPipeline(rootDir: string, config: Required<Typ
   const lastBuild = existsSync(cacheHashPath) ? "cached" : "no build found";
 
   // Try to load plugins and show their registered taps
-  let registeredTaps: Array<{ hookName: string; tapName: string; order: number }> = [];
+  let registeredTaps: Array<{
+    hookName: string;
+    tapName: string;
+    order: number;
+  }> = [];
   try {
-    const { createBuildPipeline, getPipelineTaps } = await import(
+    const { createBuildPipeline, getPipelineTaps } = (await import(
       /* @vite-ignore */ "@typokit/core"
-    ) as {
+    )) as {
       createBuildPipeline: () => {
-        hooks: Record<string, { tap(name: string, fn: (...args: unknown[]) => void): void }>;
+        hooks: Record<
+          string,
+          { tap(name: string, fn: (...args: unknown[]) => void): void }
+        >;
       };
-      getPipelineTaps: (pipeline: unknown) => Array<{ hookName: string; tapName: string; order: number }>;
+      getPipelineTaps: (
+        pipeline: unknown,
+      ) => Array<{ hookName: string; tapName: string; order: number }>;
     };
     const pipeline = createBuildPipeline();
     registeredTaps = getPipelineTaps(pipeline);
@@ -588,8 +729,15 @@ export async function inspectBuildPipeline(rootDir: string, config: Required<Typ
 /** Helper to fetch from the debug sidecar HTTP endpoint */
 async function fetchDebugEndpoint(url: string): Promise<unknown> {
   // Use dynamic import for http module (no @types/node)
-  const http = await import(/* @vite-ignore */ "http") as {
-    get: (url: string, cb: (res: { statusCode?: number; on(event: string, cb: (data?: unknown) => void): void; setEncoding(enc: string): void }) => void) => { on(event: string, cb: (err: Error) => void): void };
+  const http = (await import(/* @vite-ignore */ "http")) as {
+    get: (
+      url: string,
+      cb: (res: {
+        statusCode?: number;
+        on(event: string, cb: (data?: unknown) => void): void;
+        setEncoding(enc: string): void;
+      }) => void,
+    ) => { on(event: string, cb: (err: Error) => void): void };
   };
 
   return new Promise((resolve, reject) => {
@@ -615,12 +763,15 @@ async function fetchDebugEndpoint(url: string): Promise<unknown> {
 
 // ─── Main Dispatcher ────────────────────────────────────────
 
-export async function executeInspect(options: InspectOptions): Promise<InspectResult> {
+export async function executeInspect(
+  options: InspectOptions,
+): Promise<InspectResult> {
   const { rootDir, config, logger, subcommand, positional, flags } = options;
   const json = isJsonOutput(flags);
-  const debugPort = typeof flags["debug-port"] === "string"
-    ? parseInt(flags["debug-port"], 10)
-    : 9800;
+  const debugPort =
+    typeof flags["debug-port"] === "string"
+      ? parseInt(flags["debug-port"], 10)
+      : 9800;
 
   let result: InspectResult;
 
@@ -673,18 +824,16 @@ export async function executeInspect(options: InspectOptions): Promise<InspectRe
     }
 
     case "errors": {
-      const lastN = typeof flags["last"] === "string"
-        ? parseInt(flags["last"], 10)
-        : 10;
+      const lastN =
+        typeof flags["last"] === "string" ? parseInt(flags["last"], 10) : 10;
       logger.step("inspect", `Fetching last ${lastN} errors...`);
       result = await inspectErrors(debugPort, lastN);
       break;
     }
 
     case "performance": {
-      const routePath = typeof flags["route"] === "string"
-        ? flags["route"]
-        : "/";
+      const routePath =
+        typeof flags["route"] === "string" ? flags["route"] : "/";
       logger.step("inspect", `Fetching performance for: ${routePath}`);
       result = await inspectPerformance(debugPort, routePath);
       break;
@@ -710,8 +859,12 @@ export async function executeInspect(options: InspectOptions): Promise<InspectRe
       logger.info("  middleware          Full middleware chain");
       logger.info("  dependencies        Service dependency graph");
       logger.info("  schema <TypeName>   Type details and usage");
-      logger.info("  errors --last <N>   Recent errors (requires running server)");
-      logger.info("  performance --route <path>  Latency percentiles (requires running server)");
+      logger.info(
+        "  errors --last <N>   Recent errors (requires running server)",
+      );
+      logger.info(
+        "  performance --route <path>  Latency percentiles (requires running server)",
+      );
       logger.info("  server              Active server adapter info");
       logger.info("  build-pipeline      Registered build hooks and order");
       return {

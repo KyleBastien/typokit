@@ -184,66 +184,72 @@ export function generatePackageJson(options: InitOptions): string {
     deps[`@typokit/db-${options.db}`] = "^0.1.0";
   }
 
-  return JSON.stringify(
-    {
-      name: options.name,
-      version: "0.1.0",
-      type: "module",
-      private: true,
-      scripts: {
-        build: "typokit build",
-        dev: "typokit dev",
-        test: "typokit test",
-        "generate:db": "typokit generate:db",
-        "generate:client": "typokit generate:client",
-        typecheck: "tsc --noEmit",
+  return (
+    JSON.stringify(
+      {
+        name: options.name,
+        version: "0.1.0",
+        type: "module",
+        private: true,
+        scripts: {
+          build: "typokit build",
+          dev: "typokit dev",
+          test: "typokit test",
+          "generate:db": "typokit generate:db",
+          "generate:client": "typokit generate:client",
+          typecheck: "tsc --noEmit",
+        },
+        dependencies: deps,
+        devDependencies: {
+          typescript: "^5.7.0",
+          "@typokit/transform-native": "^0.1.0",
+        },
       },
-      dependencies: deps,
-      devDependencies: {
-        typescript: "^5.7.0",
-        "@typokit/transform-native": "^0.1.0",
-      },
-    },
-    null,
-    2,
-  ) + "\n";
+      null,
+      2,
+    ) + "\n"
+  );
 }
 
 /** Generate tsconfig.json for a new project */
 export function generateTsconfig(): string {
-  return JSON.stringify(
-    {
-      compilerOptions: {
-        target: "ES2022",
-        module: "NodeNext",
-        moduleResolution: "NodeNext",
-        allowImportingTsExtensions: true,
-        rewriteRelativeImportExtensions: true,
-        strict: true,
-        esModuleInterop: true,
-        skipLibCheck: true,
-        outDir: "dist",
-        rootDir: "src",
-        declaration: true,
-        declarationMap: true,
-        sourceMap: true,
+  return (
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          allowImportingTsExtensions: true,
+          rewriteRelativeImportExtensions: true,
+          strict: true,
+          esModuleInterop: true,
+          skipLibCheck: true,
+          outDir: "dist",
+          rootDir: "src",
+          declaration: true,
+          declarationMap: true,
+          sourceMap: true,
+        },
+        include: ["src"],
       },
-      include: ["src"],
-    },
-    null,
-    2,
-  ) + "\n";
+      null,
+      2,
+    ) + "\n"
+  );
 }
 
 /** Generate the main app.ts for a new project */
 export function generateAppTs(options: InitOptions): string {
-  const serverImport = options.server === "native"
-    ? `import { nativeServer } from "@typokit/server-native";`
-    : `import { ${options.server}Server } from "@typokit/server-${options.server}";`;
+  const serverImport =
+    options.server === "native"
+      ? `import { nativeServer } from "@typokit/server-native";`
+      : `import { ${options.server}Server } from "@typokit/server-${options.server}";`;
 
-  const serverValue = options.server === "native"
-    ? "nativeServer()"
-    : `${options.server}Server()`;
+  const serverValue =
+    options.server === "native"
+      ? "nativeServer()"
+      : `${options.server}Server()`;
 
   return `// Application entry point — explicit route registration
 import { createApp } from "@typokit/core";
@@ -305,10 +311,12 @@ export async function scaffoldInit(
   logger: CliLogger,
 ): Promise<ScaffoldResult> {
   const start = Date.now();
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { mkdirSync, writeFileSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { mkdirSync, writeFileSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     mkdirSync: (p: string, o?: { recursive?: boolean }) => void;
     writeFileSync: (p: string, data: string) => void;
     existsSync: (p: string) => boolean;
@@ -321,7 +329,12 @@ export async function scaffoldInit(
   // Check if directory already exists with content
   if (existsSync(projectDir)) {
     errors.push(`Directory "${options.name}" already exists`);
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 
   try {
@@ -367,11 +380,21 @@ export async function scaffoldInit(
     logger.info("  npm install");
     logger.info("  typokit dev\n");
 
-    return { success: true, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: true,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 }
 
@@ -384,10 +407,12 @@ export async function scaffoldRoute(
   logger: CliLogger,
 ): Promise<ScaffoldResult> {
   const start = Date.now();
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { mkdirSync, writeFileSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { mkdirSync, writeFileSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     mkdirSync: (p: string, o?: { recursive?: boolean }) => void;
     writeFileSync: (p: string, data: string) => void;
     existsSync: (p: string) => boolean;
@@ -398,14 +423,26 @@ export async function scaffoldRoute(
 
   if (!name) {
     errors.push("Route name is required. Usage: typokit add route <name>");
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 
   const routeDir = join(rootDir, "src", "routes", name);
 
   if (existsSync(routeDir)) {
-    errors.push(`Route directory "${name}" already exists at src/routes/${name}`);
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    errors.push(
+      `Route directory "${name}" already exists at src/routes/${name}`,
+    );
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 
   try {
@@ -432,11 +469,21 @@ export async function scaffoldRoute(
     logger.info(`\nRoute "${name}" scaffolded at src/routes/${name}/`);
     logger.info("  Don't forget to register it in src/app.ts!\n");
 
-    return { success: true, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: true,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 }
 
@@ -449,10 +496,12 @@ export async function scaffoldService(
   logger: CliLogger,
 ): Promise<ScaffoldResult> {
   const start = Date.now();
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { mkdirSync, writeFileSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { mkdirSync, writeFileSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     mkdirSync: (p: string, o?: { recursive?: boolean }) => void;
     writeFileSync: (p: string, data: string) => void;
     existsSync: (p: string) => boolean;
@@ -463,15 +512,27 @@ export async function scaffoldService(
 
   if (!name) {
     errors.push("Service name is required. Usage: typokit add service <name>");
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 
   const servicesDir = join(rootDir, "src", "services");
   const servicePath = join(servicesDir, `${name}.service.ts`);
 
   if (existsSync(servicePath)) {
-    errors.push(`Service "${name}" already exists at src/services/${name}.service.ts`);
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    errors.push(
+      `Service "${name}" already exists at src/services/${name}.service.ts`,
+    );
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 
   try {
@@ -481,24 +542,40 @@ export async function scaffoldService(
     filesCreated.push(servicePath);
     logger.info(`Created ${servicePath}`);
 
-    logger.info(`\nService "${name}" scaffolded at src/services/${name}.service.ts\n`);
+    logger.info(
+      `\nService "${name}" scaffolded at src/services/${name}.service.ts\n`,
+    );
 
-    return { success: true, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: true,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);
-    return { success: false, filesCreated, duration: Date.now() - start, errors };
+    return {
+      success: false,
+      filesCreated,
+      duration: Date.now() - start,
+      errors,
+    };
   }
 }
 
 /**
  * Execute scaffold commands dispatcher.
  */
-export async function executeScaffold(options: ScaffoldCommandOptions): Promise<ScaffoldResult> {
+export async function executeScaffold(
+  options: ScaffoldCommandOptions,
+): Promise<ScaffoldResult> {
   const { rootDir, logger, subcommand, positional, flags } = options;
 
   if (subcommand === "init") {
-    const name = positional[0] ?? (typeof flags["name"] === "string" ? flags["name"] : "my-app");
+    const name =
+      positional[0] ??
+      (typeof flags["name"] === "string" ? flags["name"] : "my-app");
     const server = parseServerFlag(flags["server"]);
     const db = parseDbFlag(flags["db"]);
 
@@ -519,15 +596,19 @@ export async function executeScaffold(options: ScaffoldCommandOptions): Promise<
     success: false,
     filesCreated: [],
     duration: 0,
-    errors: [`Unknown scaffold subcommand: "${subcommand}". Use: init, route, service`],
+    errors: [
+      `Unknown scaffold subcommand: "${subcommand}". Use: init, route, service`,
+    ],
   };
 }
 
 /** Parse server adapter flag */
-function parseServerFlag(value: string | boolean | undefined): InitOptions["server"] {
+function parseServerFlag(
+  value: string | boolean | undefined,
+): InitOptions["server"] {
   if (typeof value === "string") {
     const valid = ["native", "fastify", "hono", "express"] as const;
-    if (valid.includes(value as typeof valid[number])) {
+    if (valid.includes(value as (typeof valid)[number])) {
       return value as InitOptions["server"];
     }
   }
@@ -538,7 +619,7 @@ function parseServerFlag(value: string | boolean | undefined): InitOptions["serv
 function parseDbFlag(value: string | boolean | undefined): InitOptions["db"] {
   if (typeof value === "string") {
     const valid = ["drizzle", "kysely", "prisma", "raw", "none"] as const;
-    if (valid.includes(value as typeof valid[number])) {
+    if (valid.includes(value as (typeof valid)[number])) {
       return value as InitOptions["db"];
     }
   }

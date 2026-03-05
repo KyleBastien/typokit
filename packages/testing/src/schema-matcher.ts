@@ -95,8 +95,7 @@ export function matchSchema(
 
   return {
     pass: false,
-    message:
-      `Expected value to match schema "${schemaName}", but validation failed.${errorDetails}`,
+    message: `Expected value to match schema "${schemaName}", but validation failed.${errorDetails}`,
   };
 }
 

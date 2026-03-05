@@ -9,9 +9,13 @@ const proc = g["process"] as { argv: string[]; exit(code: number): void };
 run(proc.argv).then(
   (code) => proc.exit(code),
   (err) => {
-    const stderr = (proc as unknown as Record<string, { write(s: string): void }>)["stderr"];
+    const stderr = (
+      proc as unknown as Record<string, { write(s: string): void }>
+    )["stderr"];
     if (stderr?.write) {
-      stderr.write(`[error] ${err instanceof Error ? err.message : String(err)}\n`);
+      stderr.write(
+        `[error] ${err instanceof Error ? err.message : String(err)}\n`,
+      );
     }
     proc.exit(1);
   },

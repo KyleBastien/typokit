@@ -1,7 +1,7 @@
 // @typokit/client-swr — Tests
 
 import { describe, it, expect } from "@rstest/core";
-import { buildSWRKey } from "./index";
+import { buildSWRKey } from "./index.js";
 
 // ─── buildSWRKey Tests ──────────────────────────────────────
 

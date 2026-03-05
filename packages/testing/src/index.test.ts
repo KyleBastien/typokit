@@ -61,9 +61,7 @@ function makeHandlerMap(): HandlerMap {
       headers: { "content-type": "application/json" },
       body: { message: "Hello, TypoKit!" },
     }),
-    "users#list": async (
-      req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => {
+    "users#list": async (req: TypoKitRequest): Promise<TypoKitResponse> => {
       const limit = req.query["limit"];
       const data = limit ? users.slice(0, Number(limit)) : users;
       return {
@@ -72,9 +70,7 @@ function makeHandlerMap(): HandlerMap {
         body: { data },
       };
     },
-    "users#create": async (
-      req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => {
+    "users#create": async (req: TypoKitRequest): Promise<TypoKitResponse> => {
       const newUser = req.body as { name: string };
       return {
         status: 201,
@@ -82,9 +78,7 @@ function makeHandlerMap(): HandlerMap {
         body: { id: "3", name: newUser.name },
       };
     },
-    "users#get": async (
-      req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => {
+    "users#get": async (req: TypoKitRequest): Promise<TypoKitResponse> => {
       const user = users.find((u) => u.id === req.params["id"]);
       if (!user) {
         return {
@@ -99,9 +93,7 @@ function makeHandlerMap(): HandlerMap {
         body: user,
       };
     },
-    "users#update": async (
-      req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => {
+    "users#update": async (req: TypoKitRequest): Promise<TypoKitResponse> => {
       const updates = req.body as { name: string };
       return {
         status: 200,
@@ -109,20 +101,16 @@ function makeHandlerMap(): HandlerMap {
         body: { id: req.params["id"], name: updates.name },
       };
     },
-    "users#delete": async (
-      _req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => ({
+    "users#delete": async (_req: TypoKitRequest): Promise<TypoKitResponse> => ({
       status: 204,
       headers: {},
       body: null,
     }),
-    "echo#post": async (
-      req: TypoKitRequest,
-    ): Promise<TypoKitResponse> => ({
+    "echo#post": async (req: TypoKitRequest): Promise<TypoKitResponse> => ({
       status: 200,
       headers: {
         "content-type": "application/json",
-        "x-custom": req.headers["x-custom"] as string ?? "",
+        "x-custom": (req.headers["x-custom"] as string) ?? "",
       },
       body: { echo: req.body },
     }),
@@ -173,9 +161,9 @@ describe("createTestClient", () => {
     const app = createTestApp();
     const client = await createTestClient(app);
     try {
-      const res = await client.get<{ data: Array<{ id: string; name: string }> }>(
-        "/users",
-      );
+      const res = await client.get<{
+        data: Array<{ id: string; name: string }>;
+      }>("/users");
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(2);
       expect(res.body.data[0].name).toBe("Alice");
@@ -188,10 +176,9 @@ describe("createTestClient", () => {
     const app = createTestApp();
     const client = await createTestClient(app);
     try {
-      const res = await client.get<{ data: Array<{ id: string; name: string }> }>(
-        "/users",
-        { query: { limit: "1" } },
-      );
+      const res = await client.get<{
+        data: Array<{ id: string; name: string }>;
+      }>("/users", { query: { limit: "1" } });
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(1);
     } finally {
@@ -270,14 +257,7 @@ describe("createTestClient", () => {
     const app = createTestApp();
     const client = await createTestClient(app);
     try {
-      interface ListUsersContract {
-        params: void;
-        query: void;
-        body: void;
-        response: { data: Array<{ id: string; name: string }> };
-      }
-
-      const res = await client.request<ListUsersContract>("GET", "/users");
+      const res = await client.request<any>("GET", "/users");
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(2);
     } finally {

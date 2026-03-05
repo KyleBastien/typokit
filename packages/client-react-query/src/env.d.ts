@@ -37,18 +37,32 @@ declare module "@tanstack/react-query" {
     TContext = unknown,
   > {
     mutationFn: (variables: TVariables) => Promise<TData>;
-    onSuccess?: (data: TData, variables: TVariables, context: TContext | undefined) => void;
-    onError?: (error: TError, variables: TVariables, context: TContext | undefined) => void;
+    onSuccess?: (
+      data: TData,
+      variables: TVariables,
+      context: TContext | undefined,
+    ) => void;
+    onError?: (
+      error: TError,
+      variables: TVariables,
+      context: TContext | undefined,
+    ) => void;
     onSettled?: (
       data: TData | undefined,
       error: TError | null,
       variables: TVariables,
       context: TContext | undefined,
     ) => void;
-    onMutate?: (variables: TVariables) => TContext | Promise<TContext | undefined>;
+    onMutate?: (
+      variables: TVariables,
+    ) => TContext | Promise<TContext | undefined>;
   }
 
-  export interface UseMutationResult<TData = unknown, TError = Error, TVariables = void> {
+  export interface UseMutationResult<
+    TData = unknown,
+    TError = Error,
+    TVariables = void,
+  > {
     mutate: (variables: TVariables) => void;
     mutateAsync: (variables: TVariables) => Promise<TData>;
     data: TData | undefined;

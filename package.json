@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.30.3",
   "description": "TypoKit — AI-Native Node.js Framework",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "build": "nx run-many --target=build",
@@ -20,9 +20,14 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@napi-rs/cli": "^3.5.1",
+    "@nx/eslint": "22.5.4",
+    "@nx/js": "22.5.4",
     "@rstest/core": "^0.0.1",
     "eslint": "^9.0.0",
-    "nx": "^20.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "nx": "22.5.4",
+    "prettier": "^3.8.1",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.0.0"
   }

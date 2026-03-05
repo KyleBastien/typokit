@@ -14,7 +14,13 @@ describe("parseArgs with inspect command", () => {
   });
 
   it("parses inspect route with quoted key", () => {
-    const result = parseArgs(["node", "typokit", "inspect", "route", "GET /users/:id"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "inspect",
+      "route",
+      "GET /users/:id",
+    ]);
     expect(result.command).toBe("inspect");
     expect(result.positional).toEqual(["route", "GET /users/:id"]);
   });
@@ -26,24 +32,51 @@ describe("parseArgs with inspect command", () => {
   });
 
   it("parses --json flag", () => {
-    const result = parseArgs(["node", "typokit", "inspect", "routes", "--json"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "inspect",
+      "routes",
+      "--json",
+    ]);
     expect(result.flags["json"]).toBe(true);
   });
 
   it("parses --format json", () => {
-    const result = parseArgs(["node", "typokit", "inspect", "routes", "--format", "json"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "inspect",
+      "routes",
+      "--format",
+      "json",
+    ]);
     expect(result.flags["format"]).toBe("json");
   });
 
   it("parses inspect errors --last 5", () => {
-    const result = parseArgs(["node", "typokit", "inspect", "errors", "--last", "5"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "inspect",
+      "errors",
+      "--last",
+      "5",
+    ]);
     expect(result.command).toBe("inspect");
     expect(result.positional).toEqual(["errors"]);
     expect(result.flags["last"]).toBe("5");
   });
 
   it("parses inspect performance --route /users", () => {
-    const result = parseArgs(["node", "typokit", "inspect", "performance", "--route", "/users"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "inspect",
+      "performance",
+      "--route",
+      "/users",
+    ]);
     expect(result.command).toBe("inspect");
     expect(result.positional).toEqual(["performance"]);
     expect(result.flags["route"]).toBe("/users");
@@ -142,7 +175,10 @@ describe("executeInspect", () => {
       flags: {},
     });
     expect(result.success).toBe(true);
-    const data = result.data as { hooks: Array<{ name: string; order: number; description: string }>; lastBuildStatus: string };
+    const data = result.data as {
+      hooks: Array<{ name: string; order: number; description: string }>;
+      lastBuildStatus: string;
+    };
     expect(Array.isArray(data.hooks)).toBe(true);
     expect(data.hooks.length).toBe(6);
     expect(data.hooks[0].name).toBe("beforeTransform");
@@ -187,7 +223,7 @@ describe("executeInspect", () => {
     expect(result.success).toBe(true);
     const mw = result.data as Array<{ name: string; type: string }>;
     expect(Array.isArray(mw)).toBe(true);
-    expect(mw.some(m => m.name === "errorMiddleware")).toBe(true);
+    expect(mw.some((m) => m.name === "errorMiddleware")).toBe(true);
   });
 });
 
@@ -212,14 +248,18 @@ describe("inspectRoutes", () => {
 describe("inspectSchema", () => {
   it("returns error when no OpenAPI spec exists", async () => {
     const { inspectSchema } = await import("./commands/inspect.js");
-    const result = await inspectSchema("/nonexistent/path", {
-      typeFiles: [],
-      routeFiles: [],
-      outputDir: ".typokit",
-      distDir: "dist",
-      compiler: "tsc",
-      compilerArgs: [],
-    }, "User");
+    const result = await inspectSchema(
+      "/nonexistent/path",
+      {
+        typeFiles: [],
+        routeFiles: [],
+        outputDir: ".typokit",
+        distDir: "dist",
+        compiler: "tsc",
+        compilerArgs: [],
+      },
+      "User",
+    );
     expect(result.success).toBe(false);
     expect(result.error).toContain("No OpenAPI spec");
   });
@@ -267,7 +307,9 @@ describe("inspectBuildPipeline", () => {
       compilerArgs: [],
     });
     expect(result.success).toBe(true);
-    const data = result.data as { hooks: Array<{ name: string; order: number }> };
+    const data = result.data as {
+      hooks: Array<{ name: string; order: number }>;
+    };
     expect(data.hooks.length).toBe(6);
     // Verify hook ordering
     for (let i = 0; i < data.hooks.length - 1; i++) {

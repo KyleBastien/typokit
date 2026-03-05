@@ -263,7 +263,12 @@ export async function createTestClient(app: TypoKitApp): Promise<TestClient> {
       path: string,
       options?: TypedRequestOptions<TContract>,
     ): Promise<TestResponse<TContract["response"]>> {
-      return executeRequest(baseUrl, method, path, options as TestRequestOptions);
+      return executeRequest(
+        baseUrl,
+        method,
+        path,
+        options as TestRequestOptions,
+      );
     },
 
     async close(): Promise<void> {
@@ -273,4 +278,3 @@ export async function createTestClient(app: TypoKitApp): Promise<TestClient> {
 
   return client;
 }
-

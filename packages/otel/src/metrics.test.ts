@@ -32,12 +32,18 @@ describe("MetricsCollector", () => {
 
     expect(exporter.exported.length).toBe(1);
     const metrics = exporter.exported[0];
-    const duration = metrics.find((m) => m.name === "http.server.request.duration");
+    const duration = metrics.find(
+      (m) => m.name === "http.server.request.duration",
+    );
     expect(duration).toBeDefined();
     expect(duration!.type).toBe("histogram");
     expect(duration!.dataPoints.length).toBe(1);
     expect(duration!.dataPoints[0].value).toBe(42);
-    expect(duration!.dataPoints[0].labels).toEqual({ route: "/users", method: "GET", status: 200 });
+    expect(duration!.dataPoints[0].labels).toEqual({
+      route: "/users",
+      method: "GET",
+      status: 200,
+    });
   });
 
   it("should track active requests gauge", () => {
@@ -104,13 +110,22 @@ describe("MetricsCollector", () => {
     const collector = new MetricsCollector({ exporter });
 
     collector.requestStart();
-    collector.requestEnd({ route: "/api/users/:id", method: "PUT", status: 204 }, 30);
+    collector.requestEnd(
+      { route: "/api/users/:id", method: "PUT", status: 204 },
+      30,
+    );
     collector.flush();
 
     const metrics = exporter.exported[0];
-    const duration = metrics.find((m) => m.name === "http.server.request.duration")!;
+    const duration = metrics.find(
+      (m) => m.name === "http.server.request.duration",
+    )!;
     const dp = duration.dataPoints[0];
-    expect(dp.labels).toEqual({ route: "/api/users/:id", method: "PUT", status: 204 });
+    expect(dp.labels).toEqual({
+      route: "/api/users/:id",
+      method: "PUT",
+      status: 204,
+    });
   });
 
   it("should not record when disabled", () => {
@@ -161,7 +176,9 @@ describe("MetricsCollector", () => {
     collector.requestEnd({ route: "/users", method: "POST", status: 201 }, 30);
     collector.flush();
 
-    const durations = exporter.exported[0].find((m) => m.name === "http.server.request.duration")!;
+    const durations = exporter.exported[0].find(
+      (m) => m.name === "http.server.request.duration",
+    )!;
     expect(durations.dataPoints.length).toBe(3);
   });
 
@@ -207,7 +224,12 @@ describe("resolveMetricsConfig", () => {
 
   it("should handle object metrics config", () => {
     const config = resolveMetricsConfig({
-      metrics: { enabled: true, exporter: "otlp", endpoint: "http://custom:4318", serviceName: "test-svc" },
+      metrics: {
+        enabled: true,
+        exporter: "otlp",
+        endpoint: "http://custom:4318",
+        serviceName: "test-svc",
+      },
     });
     expect(config.enabled).toBe(true);
     expect(config.exporter).toBe("otlp");
@@ -253,7 +275,10 @@ describe("createMetricExporter", () => {
   });
 
   it("should create ConsoleMetricExporter by default", () => {
-    const exporter = createMetricExporter({ enabled: true, exporter: "console" });
+    const exporter = createMetricExporter({
+      enabled: true,
+      exporter: "console",
+    });
     expect(exporter).toBeInstanceOf(ConsoleMetricExporter);
   });
 
@@ -267,7 +292,10 @@ describe("createMetricExporter", () => {
 
 describe("createMetricsCollector", () => {
   it("should create collector from TelemetryConfig", () => {
-    const collector = createMetricsCollector({ metrics: true, serviceName: "test" });
+    const collector = createMetricsCollector({
+      metrics: true,
+      serviceName: "test",
+    });
     expect(collector.getServiceName()).toBe("test");
   });
 
@@ -295,20 +323,34 @@ describe("createMetricsCollector", () => {
 describe("ConsoleMetricExporter", () => {
   it("should write JSON to stdout", () => {
     const written: string[] = [];
-    const originalProcess = (globalThis as unknown as Record<string, unknown>).process;
+    const originalProcess = (globalThis as unknown as Record<string, unknown>)
+      .process;
     (globalThis as unknown as Record<string, unknown>).process = {
-      stdout: { write: (s: string) => { written.push(s); } },
+      stdout: {
+        write: (s: string) => {
+          written.push(s);
+        },
+      },
       env: {},
     };
 
     const exporter = new ConsoleMetricExporter();
-    exporter.export([{
-      name: "http.server.request.duration",
-      type: "histogram",
-      dataPoints: [{ labels: { route: "/a", method: "GET", status: 200 }, value: 42, timestamp: "2026-01-01T00:00:00Z" }],
-    }]);
+    exporter.export([
+      {
+        name: "http.server.request.duration",
+        type: "histogram",
+        dataPoints: [
+          {
+            labels: { route: "/a", method: "GET", status: 200 },
+            value: 42,
+            timestamp: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+    ]);
 
-    (globalThis as unknown as Record<string, unknown>).process = originalProcess;
+    (globalThis as unknown as Record<string, unknown>).process =
+      originalProcess;
 
     expect(written.length).toBe(1);
     const parsed = JSON.parse(written[0].trim());
@@ -320,10 +362,12 @@ describe("ConsoleMetricExporter", () => {
 describe("NoopMetricExporter", () => {
   it("should not throw", () => {
     const exporter = new NoopMetricExporter();
-    exporter.export([{
-      name: "test",
-      type: "counter",
-      dataPoints: [],
-    }]);
+    exporter.export([
+      {
+        name: "test",
+        type: "counter",
+        dataPoints: [],
+      },
+    ]);
   });
 });

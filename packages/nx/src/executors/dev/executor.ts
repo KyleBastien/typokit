@@ -5,7 +5,7 @@ import { resolveProjectRoot, runTypokitCommand } from "../../utils.js";
 
 export default async function devExecutor(
   options: DevExecutorSchema,
-  context: ExecutorContext
+  context: ExecutorContext,
 ): Promise<{ success: boolean }> {
   const projectRoot = resolveProjectRoot(options.rootDir, context);
   const args = ["dev", "--root", projectRoot];

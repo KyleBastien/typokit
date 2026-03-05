@@ -1,11 +1,8 @@
 {
   "scripts": {
     "test": "rstest run --passWithNoTests",
-    "build": "tsc -p tsconfig.json",
     "build:native": "napi build --platform --dts src/index.d.ts --js false",
-    "build:native:release": "napi build --platform --release --dts src/index.d.ts --js false",
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build:native:release": "napi build --platform --release --dts src/index.d.ts --js false"
   },
   "name": "@typokit/transform-native",
   "exports": {

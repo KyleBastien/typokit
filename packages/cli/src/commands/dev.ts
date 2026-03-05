@@ -81,13 +81,19 @@ async function resolveFilesWithMtime(
   rootDir: string,
   patterns: string[],
 ): Promise<TrackedFile[]> {
-  const { join, resolve } = await import(/* @vite-ignore */ "path") as {
+  const { join, resolve } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
     resolve: (...args: string[]) => string;
   };
-  const { readdirSync, statSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { readdirSync, statSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     readdirSync: (p: string) => string[];
-    statSync: (p: string) => { isFile(): boolean; isDirectory(): boolean; mtimeMs: number };
+    statSync: (p: string) => {
+      isFile(): boolean;
+      isDirectory(): boolean;
+      mtimeMs: number;
+    };
     existsSync: (p: string) => boolean;
   };
 
@@ -104,13 +110,14 @@ async function resolveFilesWithMtime(
         if (part.includes("*")) break;
         baseParts.push(part);
       }
-      const baseDir = baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
+      const baseDir =
+        baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
 
       if (!existsSync(baseDir)) continue;
 
       const entries = hasDoubleGlob
         ? listFilesRecursive(baseDir, existsSync, readdirSync, statSync, join)
-        : readdirSync(baseDir).map(f => join(baseDir, f));
+        : readdirSync(baseDir).map((f) => join(baseDir, f));
 
       const filePattern = lastPart.replace(/\*/g, ".*");
       const regex = new RegExp(`^${filePattern}$`);
@@ -146,18 +153,24 @@ async function resolveFilesWithMtime(
 
   // Deduplicate by path
   const seen = new Set<string>();
-  return files.filter(f => {
-    if (seen.has(f.path)) return false;
-    seen.add(f.path);
-    return true;
-  }).sort((a, b) => a.path.localeCompare(b.path));
+  return files
+    .filter((f) => {
+      if (seen.has(f.path)) return false;
+      seen.add(f.path);
+      return true;
+    })
+    .sort((a, b) => a.path.localeCompare(b.path));
 }
 
 function listFilesRecursive(
   dir: string,
   existsSync: (p: string) => boolean,
   readdirSync: (p: string) => string[],
-  statSync: (p: string) => { isFile(): boolean; isDirectory(): boolean; mtimeMs: number },
+  statSync: (p: string) => {
+    isFile(): boolean;
+    isDirectory(): boolean;
+    mtimeMs: number;
+  },
   join: (...args: string[]) => string,
 ): string[] {
   if (!existsSync(dir)) return [];
@@ -168,8 +181,20 @@ function listFilesRecursive(
     try {
       const stat = statSync(fullPath);
       if (stat.isDirectory()) {
-        if (entry !== "node_modules" && entry !== "dist" && entry !== ".typokit") {
-          results.push(...listFilesRecursive(fullPath, existsSync, readdirSync, statSync, join));
+        if (
+          entry !== "node_modules" &&
+          entry !== "dist" &&
+          entry !== ".typokit"
+        ) {
+          results.push(
+            ...listFilesRecursive(
+              fullPath,
+              existsSync,
+              readdirSync,
+              statSync,
+              join,
+            ),
+          );
         }
       } else if (stat.isFile()) {
         results.push(fullPath);
@@ -192,7 +217,7 @@ export function detectChangedFiles(
   const added: TrackedFile[] = [];
   const removed: string[] = [];
 
-  const currentPaths = new Set(currentFiles.map(f => f.path));
+  const currentPaths = new Set(currentFiles.map((f) => f.path));
 
   // Check for changed and added files
   for (const file of currentFiles) {
@@ -240,10 +265,7 @@ export function buildDepGraph(
   for (const file of typeFiles) {
     graph.set(file, {
       category: "type",
-      affectedOutputs: [
-        "validators",
-        "schemas/openapi.json",
-      ],
+      affectedOutputs: ["validators", "schemas/openapi.json"],
     });
   }
 
@@ -346,7 +368,10 @@ export async function incrementalRebuild(
     return { success: true, duration: 0, filesProcessed: 0 };
   }
 
-  logger.step("rebuild", `Incremental rebuild: ${filesToProcess.length} file(s) changed`);
+  logger.step(
+    "rebuild",
+    `Incremental rebuild: ${filesToProcess.length} file(s) changed`,
+  );
 
   try {
     // Re-run the native transform pipeline with all files
@@ -358,9 +383,9 @@ export async function incrementalRebuild(
       .filter(([, e]) => e.category === "route")
       .map(([p]) => p);
 
-    const { buildPipeline } = await import(
+    const { buildPipeline } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
+    )) as {
       buildPipeline: (opts: {
         typeFiles: string[];
         routeFiles: string[];
@@ -391,7 +416,9 @@ export async function incrementalRebuild(
     state.rebuildCount++;
 
     if (result.regenerated) {
-      logger.success(`Rebuild complete in ${duration}ms — ${result.filesWritten.length} files written`);
+      logger.success(
+        `Rebuild complete in ${duration}ms — ${result.filesWritten.length} files written`,
+      );
     } else {
       logger.success(`Rebuild complete in ${duration}ms — cache hit`);
     }
@@ -418,10 +445,10 @@ async function startFileWatcher(
 
   // Collect directories to watch based on config patterns
   const watchDirs = new Set<string>();
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync } = (await import(/* @vite-ignore */ "fs")) as {
     existsSync: (p: string) => boolean;
   };
 
@@ -449,45 +476,58 @@ async function startFileWatcher(
   const watchers: Array<{ close(): void }> = [];
 
   try {
-    const fs = await import(/* @vite-ignore */ "fs") as {
-      watch: (path: string, options: { recursive?: boolean }, listener: (event: string, filename: string | null) => void) => { close(): void };
+    const fs = (await import(/* @vite-ignore */ "fs")) as {
+      watch: (
+        path: string,
+        options: { recursive?: boolean },
+        listener: (event: string, filename: string | null) => void,
+      ) => { close(): void };
     };
 
     for (const dir of watchDirs) {
-      const watcher = fs.watch(dir, { recursive: true }, (_event: string, filename: string | null) => {
-        if (!filename) return;
+      const watcher = fs.watch(
+        dir,
+        { recursive: true },
+        (_event: string, filename: string | null) => {
+          if (!filename) return;
 
-        const fullPath = join(dir, filename);
+          const fullPath = join(dir, filename);
 
-        // Only track .ts files matching our patterns
-        if (!fullPath.endsWith(".ts")) return;
+          // Only track .ts files matching our patterns
+          if (!fullPath.endsWith(".ts")) return;
 
-        // Check if this file is in our tracked set
-        if (state.trackedFiles.has(fullPath) || state.depGraph.has(fullPath)) {
-          pendingChanges.add(fullPath);
-        } else {
-          // Could be a new file matching our patterns — add it
-          const isTypePattern = config.typeFiles.some(p =>
-            matchesGlobPattern(fullPath, rootDir, p));
-          const isRoutePattern = config.routeFiles.some(p =>
-            matchesGlobPattern(fullPath, rootDir, p));
-          if (isTypePattern || isRoutePattern) {
+          // Check if this file is in our tracked set
+          if (
+            state.trackedFiles.has(fullPath) ||
+            state.depGraph.has(fullPath)
+          ) {
             pendingChanges.add(fullPath);
+          } else {
+            // Could be a new file matching our patterns — add it
+            const isTypePattern = config.typeFiles.some((p) =>
+              matchesGlobPattern(fullPath, rootDir, p),
+            );
+            const isRoutePattern = config.routeFiles.some((p) =>
+              matchesGlobPattern(fullPath, rootDir, p),
+            );
+            if (isTypePattern || isRoutePattern) {
+              pendingChanges.add(fullPath);
+            }
           }
-        }
 
-        // Debounce
-        if (debounceTimer) {
-          g.clearTimeout(debounceTimer);
-        }
-        debounceTimer = g.setTimeout(() => {
-          const changes = [...pendingChanges];
-          pendingChanges.clear();
-          if (changes.length > 0) {
-            onChanges(changes);
+          // Debounce
+          if (debounceTimer) {
+            g.clearTimeout(debounceTimer);
           }
-        }, DEBOUNCE_MS);
-      });
+          debounceTimer = g.setTimeout(() => {
+            const changes = [...pendingChanges];
+            pendingChanges.clear();
+            if (changes.length > 0) {
+              onChanges(changes);
+            }
+          }, DEBOUNCE_MS);
+        },
+      );
 
       watchers.push(watcher);
     }
@@ -502,13 +542,16 @@ async function startFileWatcher(
     const POLL_INTERVAL = 500;
     const pollTimer = gTimer.setInterval(async () => {
       const typeFiles = await resolveFilesWithMtime(rootDir, config.typeFiles);
-      const routeFiles = await resolveFilesWithMtime(rootDir, config.routeFiles);
+      const routeFiles = await resolveFilesWithMtime(
+        rootDir,
+        config.routeFiles,
+      );
       const allFiles = [...typeFiles, ...routeFiles];
 
       const { changed, added, removed } = detectChangedFiles(state, allFiles);
       const changedPaths = [
-        ...changed.map(f => f.path),
-        ...added.map(f => f.path),
+        ...changed.map((f) => f.path),
+        ...added.map((f) => f.path),
         ...removed,
       ];
 
@@ -538,7 +581,11 @@ async function startFileWatcher(
 /**
  * Simple glob pattern matching for a file against a pattern.
  */
-function matchesGlobPattern(filePath: string, rootDir: string, pattern: string): boolean {
+function matchesGlobPattern(
+  filePath: string,
+  rootDir: string,
+  pattern: string,
+): boolean {
   // Normalize separators
   const normalized = filePath.replace(/\\/g, "/");
   const normalizedRoot = rootDir.replace(/\\/g, "/");
@@ -586,15 +633,18 @@ export async function executeDev(
   const routeFiles = await resolveFilesWithMtime(rootDir, config.routeFiles);
   const allFiles = [...typeFiles, ...routeFiles];
 
-  logger.step("dev", `Found ${typeFiles.length} type file(s), ${routeFiles.length} route file(s)`);
+  logger.step(
+    "dev",
+    `Found ${typeFiles.length} type file(s), ${routeFiles.length} route file(s)`,
+  );
 
   // Initialize tracked files
   updateTrackedFiles(state, allFiles);
 
   // Build dependency graph
   state.depGraph = buildDepGraph(
-    typeFiles.map(f => f.path),
-    routeFiles.map(f => f.path),
+    typeFiles.map((f) => f.path),
+    routeFiles.map((f) => f.path),
   );
 
   // Step 2: Run initial full build
@@ -610,31 +660,46 @@ export async function executeDev(
   // Step 3: Start file watcher
   state.running = true;
 
-  const stopWatcher = await startFileWatcher(options, state, async (changedPaths: string[]) => {
-    if (!state.running) return;
+  const stopWatcher = await startFileWatcher(
+    options,
+    state,
+    async (changedPaths: string[]) => {
+      if (!state.running) return;
 
-    const fileNames = changedPaths.map(p => p.split(/[\\/]/).pop()).join(", ");
-    logger.step("change", `Detected: ${fileNames}`);
+      const fileNames = changedPaths
+        .map((p) => p.split(/[\\/]/).pop())
+        .join(", ");
+      logger.step("change", `Detected: ${fileNames}`);
 
-    // Re-resolve files to get updated mtimes
-    const updatedTypeFiles = await resolveFilesWithMtime(rootDir, config.typeFiles);
-    const updatedRouteFiles = await resolveFilesWithMtime(rootDir, config.routeFiles);
-    const updatedFiles = [...updatedTypeFiles, ...updatedRouteFiles];
+      // Re-resolve files to get updated mtimes
+      const updatedTypeFiles = await resolveFilesWithMtime(
+        rootDir,
+        config.typeFiles,
+      );
+      const updatedRouteFiles = await resolveFilesWithMtime(
+        rootDir,
+        config.routeFiles,
+      );
+      const updatedFiles = [...updatedTypeFiles, ...updatedRouteFiles];
 
-    // Update tracked files and dep graph
-    updateTrackedFiles(state, updatedFiles);
-    state.depGraph = buildDepGraph(
-      updatedTypeFiles.map(f => f.path),
-      updatedRouteFiles.map(f => f.path),
-    );
+      // Update tracked files and dep graph
+      updateTrackedFiles(state, updatedFiles);
+      state.depGraph = buildDepGraph(
+        updatedTypeFiles.map((f) => f.path),
+        updatedRouteFiles.map((f) => f.path),
+      );
 
-    // Incremental rebuild
-    const result = await incrementalRebuild(options, state, changedPaths);
+      // Incremental rebuild
+      const result = await incrementalRebuild(options, state, changedPaths);
 
-    if (result.success) {
-      logger.step("ready", `Server ready — rebuild #${state.rebuildCount} (${result.duration}ms)`);
-    }
-  });
+      if (result.success) {
+        logger.step(
+          "ready",
+          `Server ready — rebuild #${state.rebuildCount} (${result.duration}ms)`,
+        );
+      }
+    },
+  );
 
   state.stopWatcher = stopWatcher;
 
@@ -655,10 +720,12 @@ export async function executeDev(
 
   // Register signal handlers for graceful shutdown
   const g = globalThis as Record<string, unknown>;
-  const proc = g["process"] as {
-    on(event: string, handler: () => void): void;
-    removeListener(event: string, handler: () => void): void;
-  } | undefined;
+  const proc = g["process"] as
+    | {
+        on(event: string, handler: () => void): void;
+        removeListener(event: string, handler: () => void): void;
+      }
+    | undefined;
 
   const sigintHandler = (): void => stop();
   const sigtermHandler = (): void => stop();
@@ -695,9 +762,9 @@ async function runFullBuild(
 
   if (typeFiles.length > 0 || routeFiles.length > 0) {
     try {
-      const { buildPipeline } = await import(
+      const { buildPipeline } = (await import(
         /* @vite-ignore */ "@typokit/transform-native"
-      ) as {
+      )) as {
         buildPipeline: (opts: {
           typeFiles: string[];
           routeFiles: string[];

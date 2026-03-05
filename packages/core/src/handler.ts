@@ -6,7 +6,9 @@ import type { RouteContract, RequestContext } from "@typokit/types";
  * Input received by each handler function.
  * Types are inferred from the corresponding RouteContract.
  */
-export type HandlerInput<TContract extends RouteContract<unknown, unknown, unknown, unknown>> = {
+export type HandlerInput<
+  TContract extends RouteContract<unknown, unknown, unknown, unknown>,
+> = {
   params: TContract["params"];
   query: TContract["query"];
   body: TContract["body"];
@@ -16,14 +18,22 @@ export type HandlerInput<TContract extends RouteContract<unknown, unknown, unkno
 /**
  * A handler function that receives typed input and returns the contract's response type.
  */
-export type HandlerFn<TContract extends RouteContract<unknown, unknown, unknown, unknown>> =
-  (input: HandlerInput<TContract>) => Promise<TContract["response"]> | TContract["response"];
+export type HandlerFn<
+  TContract extends RouteContract<unknown, unknown, unknown, unknown>,
+> = (
+  input: HandlerInput<TContract>,
+) => Promise<TContract["response"]> | TContract["response"];
 
 /**
  * Maps each route key in TRoutes to a handler function whose input/output
  * types are inferred from the corresponding RouteContract.
  */
-export type HandlerDefs<TRoutes extends Record<string, RouteContract<unknown, unknown, unknown, unknown>>> = {
+export type HandlerDefs<
+  TRoutes extends Record<
+    string,
+    RouteContract<unknown, unknown, unknown, unknown>
+  >,
+> = {
   [K in keyof TRoutes]: HandlerFn<TRoutes[K]>;
 };
 
@@ -45,7 +55,10 @@ export type HandlerDefs<TRoutes extends Record<string, RouteContract<unknown, un
  * ```
  */
 export function defineHandlers<
-  TRoutes extends Record<string, RouteContract<unknown, unknown, unknown, unknown>>,
+  TRoutes extends Record<
+    string,
+    RouteContract<unknown, unknown, unknown, unknown>
+  >,
 >(handlers: HandlerDefs<TRoutes>): HandlerDefs<TRoutes> {
   return handlers;
 }

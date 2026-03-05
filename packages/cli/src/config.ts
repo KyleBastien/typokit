@@ -28,11 +28,15 @@ const DEFAULT_CONFIG: Required<TypoKitConfig> = {
  * Load TypoKit configuration from typokit.config.ts or package.json.
  * Searches in the given root directory.
  */
-export async function loadConfig(rootDir: string): Promise<Required<TypoKitConfig>> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+export async function loadConfig(
+  rootDir: string,
+): Promise<Required<TypoKitConfig>> {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync, readFileSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync, readFileSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     existsSync: (p: string) => boolean;
     readFileSync: (p: string, encoding: string) => string;
   };
@@ -43,7 +47,7 @@ export async function loadConfig(rootDir: string): Promise<Required<TypoKitConfi
 
   if (existsSync(configJsPath)) {
     try {
-      const { pathToFileURL } = await import(/* @vite-ignore */ "url") as {
+      const { pathToFileURL } = (await import(/* @vite-ignore */ "url")) as {
         pathToFileURL: (p: string) => { href: string };
       };
       const mod = (await import(pathToFileURL(configJsPath).href)) as {

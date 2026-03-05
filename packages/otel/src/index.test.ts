@@ -25,7 +25,12 @@ describe("StructuredLogger", () => {
 
     expect(sink.entries).toHaveLength(6);
     expect(sink.entries.map((e) => e.level)).toEqual([
-      "trace", "debug", "info", "warn", "error", "fatal",
+      "trace",
+      "debug",
+      "info",
+      "warn",
+      "error",
+      "fatal",
     ]);
   });
 
@@ -98,11 +103,19 @@ describe("StructuredLogger", () => {
     logger.fatal("f");
 
     expect(sink.entries).toHaveLength(3);
-    expect(sink.entries.map((e) => e.level)).toEqual(["warn", "error", "fatal"]);
+    expect(sink.entries.map((e) => e.level)).toEqual([
+      "warn",
+      "error",
+      "fatal",
+    ]);
   });
 
   it("should default to info level in production", () => {
-    const proc = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { env?: Record<string, string | undefined> };
+      }
+    ).process;
     const originalEnv = proc?.env?.["NODE_ENV"];
     if (proc?.env) {
       proc.env["NODE_ENV"] = "production";
@@ -132,7 +145,11 @@ describe("StructuredLogger", () => {
   });
 
   it("should default to debug level in development", () => {
-    const proc = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
+    const proc = (
+      globalThis as unknown as {
+        process?: { env?: Record<string, string | undefined> };
+      }
+    ).process;
     const originalEnv = proc?.env?.["NODE_ENV"];
     if (proc?.env) {
       proc.env["NODE_ENV"] = "development";
@@ -251,7 +268,9 @@ describe("redactFields", () => {
   });
 
   it("should redact exact key matches", () => {
-    const result = redactFields({ password: "secret", name: "Alice" }, ["password"]);
+    const result = redactFields({ password: "secret", name: "Alice" }, [
+      "password",
+    ]);
     expect(result).toEqual({ password: "[REDACTED]", name: "Alice" });
   });
 
@@ -267,7 +286,12 @@ describe("redactFields", () => {
 
   it("should redact fields inside arrays of objects", () => {
     const result = redactFields(
-      { users: [{ name: "A", token: "t1" }, { name: "B", token: "t2" }] },
+      {
+        users: [
+          { name: "A", token: "t1" },
+          { name: "B", token: "t2" },
+        ],
+      },
       ["*.token"],
     );
     const users = result["users"] as Array<Record<string, unknown>>;

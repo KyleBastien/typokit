@@ -40,30 +40,21 @@ interface JsPipelineResult {
 }
 
 interface NativeBindings {
-  parseAndExtractTypes(
-    filePaths: string[]
-  ): Record<string, JsTypeMetadata>;
+  parseAndExtractTypes(filePaths: string[]): Record<string, JsTypeMetadata>;
   compileRoutes(filePaths: string[]): string;
-  generateOpenApi(
-    routeFilePaths: string[],
-    typeFilePaths: string[]
-  ): string;
+  generateOpenApi(routeFilePaths: string[], typeFilePaths: string[]): string;
   diffSchemas(
     oldTypes: Record<string, JsTypeMetadata>,
     newTypes: Record<string, JsTypeMetadata>,
-    migrationName: string
+    migrationName: string,
   ): JsMigrationDraft;
   generateTestStubs(filePaths: string[]): string;
-  prepareValidatorInputs(
-    typeFilePaths: string[]
-  ): JsTypeValidatorInput[];
-  collectValidatorOutputs(
-    results: string[][]
-  ): Record<string, string>;
+  prepareValidatorInputs(typeFilePaths: string[]): JsTypeValidatorInput[];
+  collectValidatorOutputs(results: string[][]): Record<string, string>;
   computeContentHash(filePaths: string[]): string;
   runPipeline(
     typeFilePaths: string[],
-    routeFilePaths: string[]
+    routeFilePaths: string[],
   ): JsPipelineResult;
 }
 
@@ -77,7 +68,7 @@ export interface PipelineOptions {
   outputDir?: string;
   /** Optional validator callback — receives type inputs, returns [name, code] pairs */
   validatorCallback?: (
-    inputs: JsTypeValidatorInput[]
+    inputs: JsTypeValidatorInput[],
   ) => Promise<[string, string][]> | [string, string][];
   /** Path to cache hash file (defaults to ".typokit/.cache-hash") */
   cacheFile?: string;
@@ -98,9 +89,7 @@ export interface PipelineOutput {
 // Load the platform-specific native addon
 async function loadNativeAddon(): Promise<NativeBindings> {
   const g = globalThis as Record<string, unknown>;
-  const proc = g["process"] as
-    | { platform: string; arch: string }
-    | undefined;
+  const proc = g["process"] as { platform: string; arch: string } | undefined;
   const platform = proc?.platform ?? "unknown";
   const arch = proc?.arch ?? "unknown";
 
@@ -113,12 +102,12 @@ async function loadNativeAddon(): Promise<NativeBindings> {
   const triple = triples[platform]?.[arch];
   if (!triple) {
     throw new Error(
-      `@typokit/transform-native: unsupported platform ${platform}-${arch}`
+      `@typokit/transform-native: unsupported platform ${platform}-${arch}`,
     );
   }
 
   // In ESM, require() is not global. Use createRequire from 'module' built-in.
-  const { createRequire } = await import(/* @vite-ignore */ "module") as {
+  const { createRequire } = (await import(/* @vite-ignore */ "module")) as {
     createRequire: (url: string) => (id: string) => unknown;
   };
   const req = createRequire(import.meta.url);
@@ -128,13 +117,11 @@ async function loadNativeAddon(): Promise<NativeBindings> {
     return req(`../index.${triple}.node`) as NativeBindings;
   } catch {
     try {
-      return req(
-        `@typokit/transform-native-${triple}`
-      ) as NativeBindings;
+      return req(`@typokit/transform-native-${triple}`) as NativeBindings;
     } catch {
       throw new Error(
         `@typokit/transform-native: failed to load native addon for ${triple}. ` +
-          `Make sure the native addon is built.`
+          `Make sure the native addon is built.`,
       );
     }
   }
@@ -166,7 +153,7 @@ async function getNative(): Promise<NativeBindings> {
  * @returns SchemaTypeMap mapping type names to their metadata
  */
 export async function parseAndExtractTypes(
-  filePaths: string[]
+  filePaths: string[],
 ): Promise<SchemaTypeMap> {
   const native = await getNative();
   const raw = native.parseAndExtractTypes(filePaths);
@@ -197,9 +184,7 @@ export async function parseAndExtractTypes(
  * @param filePaths - Array of file paths containing route contract interfaces
  * @returns TypeScript source code for the compiled route table
  */
-export async function compileRoutes(
-  filePaths: string[]
-): Promise<string> {
+export async function compileRoutes(filePaths: string[]): Promise<string> {
   const native = await getNative();
   return native.compileRoutes(filePaths);
 }
@@ -250,9 +235,7 @@ export async function diffSchemas(
  * @param filePaths - Array of file paths containing route contract interfaces
  * @returns TypeScript test code string
  */
-export async function generateTestStubs(
-  filePaths: string[],
-): Promise<string> {
+export async function generateTestStubs(filePaths: string[]): Promise<string> {
   const native = await getNative();
   return native.generateTestStubs(filePaths);
 }
@@ -298,9 +281,7 @@ export async function collectValidatorOutputs(
  * @param filePaths - Array of file paths to hash
  * @returns Hex-encoded SHA-256 hash string
  */
-export async function computeContentHash(
-  filePaths: string[],
-): Promise<string> {
+export async function computeContentHash(filePaths: string[]): Promise<string> {
   const native = await getNative();
   return native.computeContentHash(filePaths);
 }
@@ -326,11 +307,11 @@ export async function computeContentHash(
 export async function buildPipeline(
   options: PipelineOptions,
 ): Promise<PipelineOutput> {
-  const { join, dirname } = await import(/* @vite-ignore */ "path") as {
+  const { join, dirname } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
     dirname: (p: string) => string;
   };
-  const nodeFs = await import(/* @vite-ignore */ "fs") as {
+  const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
     existsSync: (p: string) => boolean;
     mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
     readFileSync: (p: string, encoding: string) => string;
@@ -454,4 +435,3 @@ function schemaTypeMapToJs(
   }
   return result;
 }
-

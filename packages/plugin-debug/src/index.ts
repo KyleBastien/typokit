@@ -15,11 +15,7 @@ import type {
 } from "@typokit/types";
 import type { AppError } from "@typokit/errors";
 import type { RequestContext } from "@typokit/types";
-import type {
-  HistogramDataPoint,
-  LogEntry,
-  SpanData,
-} from "@typokit/otel";
+import type { HistogramDataPoint, LogEntry, SpanData } from "@typokit/otel";
 import { redactFields } from "@typokit/otel";
 import { createServer } from "@typokit/platform-node";
 
@@ -78,10 +74,7 @@ interface RateLimitEntry {
 
 // ─── Route Table Traversal ───────────────────────────────────
 
-function collectRoutes(
-  node: CompiledRoute,
-  pathPrefix: string,
-): RouteInfo[] {
+function collectRoutes(node: CompiledRoute, pathPrefix: string): RouteInfo[] {
   const routes: RouteInfo[] = [];
   const currentPath = pathPrefix + (node.segment ? `/${node.segment}` : "");
 
@@ -108,12 +101,22 @@ function collectRoutes(
 
   if (node.paramChild) {
     const paramPath = `${currentPath}/:${node.paramChild.paramName}`;
-    routes.push(...collectRoutes(node.paramChild, paramPath.replace(`/${node.paramChild.segment}`, "")));
+    routes.push(
+      ...collectRoutes(
+        node.paramChild,
+        paramPath.replace(`/${node.paramChild.segment}`, ""),
+      ),
+    );
   }
 
   if (node.wildcardChild) {
     const wcPath = `${currentPath}/*${node.wildcardChild.paramName}`;
-    routes.push(...collectRoutes(node.wildcardChild, wcPath.replace(`/${node.wildcardChild.segment}`, "")));
+    routes.push(
+      ...collectRoutes(
+        node.wildcardChild,
+        wcPath.replace(`/${node.wildcardChild.segment}`, ""),
+      ),
+    );
   }
 
   return routes;
@@ -123,7 +126,9 @@ function collectRoutes(
 
 function ipToLong(ip: string): number {
   const parts = ip.split(".").map(Number);
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  return (
+    ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+  );
 }
 
 function isIpAllowed(clientIp: string, allowlist: string[]): boolean {
@@ -210,7 +215,12 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
         return {
           status: 401,
           headers: { "content-type": "application/json" },
-          body: { error: { code: "UNAUTHORIZED", message: "Invalid or missing X-Debug-Key header" } },
+          body: {
+            error: {
+              code: "UNAUTHORIZED",
+              message: "Invalid or missing X-Debug-Key header",
+            },
+          },
         };
       }
     }
@@ -234,7 +244,9 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
         return {
           status: 429,
           headers: { "content-type": "application/json" },
-          body: { error: { code: "RATE_LIMITED", message: "Too many requests" } },
+          body: {
+            error: { code: "RATE_LIMITED", message: "Too many requests" },
+          },
         };
       }
     }
@@ -253,11 +265,16 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
     if (!match) return 300_000;
     const num = Number(match[1]);
     switch (match[2]) {
-      case "ms": return num;
-      case "s": return num * 1000;
-      case "m": return num * 60_000;
-      case "h": return num * 3_600_000;
-      default: return num * 1000; // default to seconds
+      case "ms":
+        return num;
+      case "s":
+        return num * 1000;
+      case "m":
+        return num * 60_000;
+      case "h":
+        return num * 3_600_000;
+      default:
+        return num * 1000; // default to seconds
     }
   }
 
@@ -296,14 +313,27 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
       return {
         errors: filtered.map((e) =>
           redactPatterns.length > 0
-            ? { ...e, ...(e.details ? { details: maybeRedact(e.details) } : {}) }
+            ? {
+                ...e,
+                ...(e.details ? { details: maybeRedact(e.details) } : {}),
+              }
             : e,
         ),
       };
     },
 
     "/_debug/health": () => {
-      const proc = (globalThis as unknown as { process?: { memoryUsage?: () => { heapUsed: number; heapTotal: number; rss: number } } }).process;
+      const proc = (
+        globalThis as unknown as {
+          process?: {
+            memoryUsage?: () => {
+              heapUsed: number;
+              heapTotal: number;
+              rss: number;
+            };
+          };
+        }
+      ).process;
       const mem = proc?.memoryUsage?.();
 
       return {
@@ -324,7 +354,12 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
         traces: recentTraces.slice(-100).map((spans) =>
           spans.map((s) =>
             redactPatterns.length > 0
-              ? { ...s, attributes: maybeRedact(s.attributes as unknown as Record<string, unknown>) as unknown as Record<string, string | number | boolean> }
+              ? {
+                  ...s,
+                  attributes: maybeRedact(
+                    s.attributes as unknown as Record<string, unknown>,
+                  ) as unknown as Record<string, string | number | boolean>,
+                }
               : s,
           ),
         ),
@@ -352,7 +387,12 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
       return {
         status: 405,
         headers: { "content-type": "application/json", allow: "GET" },
-        body: { error: { code: "METHOD_NOT_ALLOWED", message: "Debug endpoints are read-only" } },
+        body: {
+          error: {
+            code: "METHOD_NOT_ALLOWED",
+            message: "Debug endpoints are read-only",
+          },
+        },
       };
     }
 
@@ -365,7 +405,12 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
       return {
         status: 404,
         headers: { "content-type": "application/json" },
-        body: { error: { code: "NOT_FOUND", message: `Unknown debug endpoint: ${req.path}` } },
+        body: {
+          error: {
+            code: "NOT_FOUND",
+            message: `Unknown debug endpoint: ${req.path}`,
+          },
+        },
       };
     }
 
@@ -389,8 +434,14 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
       // Build dependency graph from services
       dependencies = {};
       for (const [key, value] of Object.entries(app.services)) {
-        if (typeof value === "object" && value !== null && "dependencies" in value) {
-          dependencies[key] = (value as { dependencies: string[] }).dependencies;
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "dependencies" in value
+        ) {
+          dependencies[key] = (
+            value as { dependencies: string[] }
+          ).dependencies;
         }
       }
 
@@ -406,19 +457,23 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
             route,
           });
           // Keep at most 1000 errors
-          if (recentErrors.length > 1000) recentErrors.splice(0, recentErrors.length - 1000);
+          if (recentErrors.length > 1000)
+            recentErrors.splice(0, recentErrors.length - 1000);
         },
         recordTrace: (spans: SpanData[]) => {
           recentTraces.push(spans);
-          if (recentTraces.length > 500) recentTraces.splice(0, recentTraces.length - 500);
+          if (recentTraces.length > 500)
+            recentTraces.splice(0, recentTraces.length - 500);
         },
         recordLog: (entry: LogEntry) => {
           recentLogs.push(entry);
-          if (recentLogs.length > 2000) recentLogs.splice(0, recentLogs.length - 2000);
+          if (recentLogs.length > 2000)
+            recentLogs.splice(0, recentLogs.length - 2000);
         },
         recordPerformance: (dataPoint: HistogramDataPoint) => {
           performanceData.push(dataPoint);
-          if (performanceData.length > 5000) performanceData.splice(0, performanceData.length - 5000);
+          if (performanceData.length > 5000)
+            performanceData.splice(0, performanceData.length - 5000);
         },
         setRouteTable: (routeTable: CompiledRouteTable) => {
           cachedRoutes = collectRoutes(routeTable, "");
@@ -447,7 +502,8 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
         details: error.details,
         route: ctx.requestId,
       });
-      if (recentErrors.length > 1000) recentErrors.splice(0, recentErrors.length - 1000);
+      if (recentErrors.length > 1000)
+        recentErrors.splice(0, recentErrors.length - 1000);
     },
 
     async onStop(_app: AppInstance): Promise<void> {
@@ -466,4 +522,3 @@ export function debugPlugin(options: DebugPluginOptions = {}): TypoKitPlugin {
 
   return plugin;
 }
-

@@ -5,8 +5,9 @@ import type { TodosRoutes } from "@typokit/example-todo-schema";
 import * as todoService from "../services/todo-service.js";
 import * as userService from "../services/user-service.js";
 
-type H<K extends keyof TodosRoutes> = (input: HandlerInput<TodosRoutes[K]>) =>
-  Promise<TodosRoutes[K]["response"]>;
+type H<K extends keyof TodosRoutes> = (
+  input: HandlerInput<TodosRoutes[K]>,
+) => Promise<TodosRoutes[K]["response"]>;
 
 const handlers: { [K in keyof TodosRoutes]: H<K> } = {
   "GET /todos": async ({ query }) => {

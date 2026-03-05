@@ -1,7 +1,7 @@
 // @typokit/client-react-query — Tests
 
 import { describe, it, expect } from "@rstest/core";
-import { buildQueryKey } from "./index";
+import { buildQueryKey } from "./index.js";
 
 // ─── buildQueryKey Tests ────────────────────────────────────
 
@@ -22,7 +22,11 @@ describe("buildQueryKey", () => {
   });
 
   it("includes both params and query when provided", () => {
-    const key = buildQueryKey("/users/:id/posts", { id: "42" }, { sort: "date" });
+    const key = buildQueryKey(
+      "/users/:id/posts",
+      { id: "42" },
+      { sort: "date" },
+    );
     expect(key).toEqual(["/users/:id/posts", { id: "42" }, { sort: "date" }]);
   });
 

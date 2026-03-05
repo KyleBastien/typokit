@@ -19,10 +19,7 @@ import type {
   ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import {
-  createRequestContext,
-  executeMiddlewareChain,
-} from "@typokit/core";
+import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
 import {
   writeResponse as nodeWriteResponse,
   createServer,
@@ -75,7 +72,10 @@ function lookupRoute(
     // 3. Try wildcard child (*path) — captures remaining segments
     if (current.wildcardChild) {
       const wildcardNode = current.wildcardChild;
-      params[wildcardNode.paramName] = segments.slice(i).map(decodeURIComponent).join("/");
+      params[wildcardNode.paramName] = segments
+        .slice(i)
+        .map(decodeURIComponent)
+        .join("/");
       return { node: wildcardNode, params };
     }
 
@@ -118,7 +118,9 @@ function validationErrorResponse(
  * Returns a 400 TypoKitResponse on validation failure, or undefined if all pass.
  */
 function runValidators(
-  routeHandler: { validators?: { params?: string; query?: string; body?: string } },
+  routeHandler: {
+    validators?: { params?: string; query?: string; body?: string };
+  },
   validatorMap: ValidatorMap | null,
   params: Record<string, string>,
   query: Record<string, string | string[] | undefined>,
@@ -137,7 +139,11 @@ function runValidators(
       const result = validator(params);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `params.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `params.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -150,7 +156,11 @@ function runValidators(
       const result = validator(query);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `query.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `query.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -163,7 +173,11 @@ function runValidators(
       const result = validator(body);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `body.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `body.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -275,7 +289,10 @@ export function nativeServer(): ServerAdapter {
       return {
         status: 404,
         headers: { "content-type": "application/json" },
-        body: { error: "Not Found", message: `No route matches ${req.method} ${req.path}` },
+        body: {
+          error: "Not Found",
+          message: `No route matches ${req.method} ${req.path}`,
+        },
       };
     }
 
@@ -289,7 +306,10 @@ export function nativeServer(): ServerAdapter {
         return {
           status: 404,
           headers: { "content-type": "application/json" },
-          body: { error: "Not Found", message: `No route matches ${req.method} ${req.path}` },
+          body: {
+            error: "Not Found",
+            message: `No route matches ${req.method} ${req.path}`,
+          },
         };
       }
       return {
@@ -298,7 +318,10 @@ export function nativeServer(): ServerAdapter {
           "content-type": "application/json",
           allow: allowed.join(", "),
         },
-        body: { error: "Method Not Allowed", message: `${method} not allowed. Use: ${allowed.join(", ")}` },
+        body: {
+          error: "Method Not Allowed",
+          message: `${method} not allowed. Use: ${allowed.join(", ")}`,
+        },
       };
     }
 
@@ -322,7 +345,10 @@ export function nativeServer(): ServerAdapter {
       return {
         status: 500,
         headers: { "content-type": "application/json" },
-        body: { error: "Internal Server Error", message: `Handler not found: ${routeHandler.ref}` },
+        body: {
+          error: "Internal Server Error",
+          message: `Handler not found: ${routeHandler.ref}`,
+        },
       };
     }
 
@@ -334,23 +360,27 @@ export function nativeServer(): ServerAdapter {
 
     // Execute middleware chain if present
     if (state.middlewareChain && state.middlewareChain.entries.length > 0) {
-      const entries: MiddlewareEntry[] = state.middlewareChain.entries.map((e) => ({
-        name: e.name,
-        middleware: { handler: async (input) => {
-          const mwReq: TypoKitRequest = {
-            method: enrichedReq.method,
-            path: enrichedReq.path,
-            headers: input.headers,
-            body: input.body,
-            query: input.query,
-            params: input.params,
-            };
-          const response = await e.handler(mwReq, input.ctx, async () => {
-            return { status: 200, headers: {}, body: null };
-          });
-          return response as unknown as Record<string, unknown>;
-        }},
-      }));
+      const entries: MiddlewareEntry[] = state.middlewareChain.entries.map(
+        (e) => ({
+          name: e.name,
+          middleware: {
+            handler: async (input) => {
+              const mwReq: TypoKitRequest = {
+                method: enrichedReq.method,
+                path: enrichedReq.path,
+                headers: input.headers,
+                body: input.body,
+                query: input.query,
+                params: input.params,
+              };
+              const response = await e.handler(mwReq, input.ctx, async () => {
+                return { status: 200, headers: {}, body: null };
+              });
+              return response as unknown as Record<string, unknown>;
+            },
+          },
+        }),
+      );
 
       ctx = await executeMiddlewareChain(enrichedReq, ctx, entries);
     }
@@ -359,7 +389,11 @@ export function nativeServer(): ServerAdapter {
     const response = await handlerFn(enrichedReq, ctx);
 
     // ── Response Serialization Pipeline ──
-    return serializeResponse(response, routeHandler.serializer, state.serializerMap);
+    return serializeResponse(
+      response,
+      routeHandler.serializer,
+      state.serializerMap,
+    );
   }
 
   const adapter: ServerAdapter = {
@@ -414,4 +448,3 @@ export function nativeServer(): ServerAdapter {
 // Re-export for convenience
 export { serializeResponse, runValidators, validationErrorResponse };
 export { type ServerAdapter } from "@typokit/core";
-

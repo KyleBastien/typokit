@@ -1,7 +1,13 @@
 // @typokit/core — App Factory Tests
 
 import { describe, it, expect } from "@rstest/core";
-import type { TypoKitRequest, TypoKitResponse, RequestContext, ErrorResponse } from "@typokit/types";
+import type {
+  TypoKitRequest,
+  TypoKitResponse,
+  RequestContext,
+  ErrorResponse,
+  ServerHandle,
+} from "@typokit/types";
 import { NotFoundError } from "@typokit/errors";
 import type { ServerAdapter } from "./adapters/server.js";
 import type { TypoKitPlugin, AppInstance } from "./plugin.js";
@@ -10,7 +16,9 @@ import { createErrorMiddleware } from "./error-middleware.js";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function createMockServerAdapter(overrides?: Partial<ServerAdapter>): ServerAdapter {
+function createMockServerAdapter(
+  overrides?: Partial<ServerAdapter>,
+): ServerAdapter {
   return {
     name: "mock-server",
     registerRoutes: () => {},
@@ -134,7 +142,7 @@ describe("app.getNativeServer()", () => {
 
   it("returns null when adapter has no getNativeServer", () => {
     const server = createMockServerAdapter();
-    delete (server as Record<string, unknown>).getNativeServer;
+    delete (server as unknown as Record<string, unknown>).getNativeServer;
 
     const app = createApp({ server, routes: [] });
     expect(app.getNativeServer()).toBeNull();
@@ -222,9 +230,15 @@ describe("plugin lifecycle hooks", () => {
     });
 
     const plugin = createMockPlugin({
-      onStart: async () => { callOrder.push("onStart"); },
-      onReady: async () => { callOrder.push("onReady"); },
-      onStop: async () => { callOrder.push("onStop"); },
+      onStart: async () => {
+        callOrder.push("onStart");
+      },
+      onReady: async () => {
+        callOrder.push("onReady");
+      },
+      onStop: async () => {
+        callOrder.push("onStop");
+      },
     });
 
     const app = createApp({ server, routes: [], plugins: [plugin] });
@@ -239,14 +253,22 @@ describe("plugin lifecycle hooks", () => {
 
     const pluginA = createMockPlugin({
       name: "plugin-a",
-      onStart: async () => { callOrder.push("a.onStart"); },
-      onReady: async () => { callOrder.push("a.onReady"); },
+      onStart: async () => {
+        callOrder.push("a.onStart");
+      },
+      onReady: async () => {
+        callOrder.push("a.onReady");
+      },
     });
 
     const pluginB = createMockPlugin({
       name: "plugin-b",
-      onStart: async () => { callOrder.push("b.onStart"); },
-      onReady: async () => { callOrder.push("b.onReady"); },
+      onStart: async () => {
+        callOrder.push("b.onStart");
+      },
+      onReady: async () => {
+        callOrder.push("b.onReady");
+      },
     });
 
     const app = createApp({
@@ -258,8 +280,10 @@ describe("plugin lifecycle hooks", () => {
     await app.listen(3000);
 
     expect(callOrder).toEqual([
-      "a.onStart", "b.onStart",
-      "a.onReady", "b.onReady",
+      "a.onStart",
+      "b.onStart",
+      "a.onReady",
+      "b.onReady",
     ]);
   });
 
@@ -294,7 +318,9 @@ describe("app.close()", () => {
     let closed = false;
     const server = createMockServerAdapter({
       listen: async () => ({
-        close: async () => { closed = true; },
+        close: async () => {
+          closed = true;
+        },
       }),
     });
 
@@ -310,12 +336,16 @@ describe("app.close()", () => {
 
     const server = createMockServerAdapter({
       listen: async () => ({
-        close: async () => { callOrder.push("server.close"); },
+        close: async () => {
+          callOrder.push("server.close");
+        },
       }),
     });
 
     const plugin = createMockPlugin({
-      onStop: async () => { callOrder.push("onStop"); },
+      onStop: async () => {
+        callOrder.push("onStop");
+      },
     });
 
     const app = createApp({ server, routes: [], plugins: [plugin] });
@@ -350,8 +380,17 @@ describe("createErrorMiddleware", () => {
   };
 
   const dummyCtx: RequestContext = {
-    log: { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, fatal: () => {} },
-    fail: () => { throw new Error("fail"); },
+    log: {
+      trace: () => {},
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      fatal: () => {},
+    },
+    fail: () => {
+      throw new Error("fail");
+    },
     services: {},
     requestId: "test-id",
   };

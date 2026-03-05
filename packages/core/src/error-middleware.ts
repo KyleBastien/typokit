@@ -48,9 +48,7 @@ function hasTypiaErrors(
 }
 
 /** Extract field-level details from a Typia validation error */
-function extractTypiaDetails(
-  error: Error,
-): Record<string, unknown> {
+function extractTypiaDetails(error: Error): Record<string, unknown> {
   if (hasTypiaErrors(error)) {
     return {
       fields: error.errors.map((e) => ({
@@ -98,8 +96,8 @@ export function createErrorMiddleware(
   const isDev =
     options?.isDev ??
     (typeof globalThis !== "undefined" &&
-      (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env
-        ?.NODE_ENV === "development");
+      (globalThis as unknown as { process?: { env?: Record<string, string> } })
+        .process?.env?.NODE_ENV === "development");
 
   return async (_req, ctx, next) => {
     try {
@@ -137,8 +135,7 @@ export function createErrorMiddleware(
       }
 
       // ── Unknown errors ──
-      const err =
-        error instanceof Error ? error : new Error(String(error));
+      const err = error instanceof Error ? error : new Error(String(error));
 
       if (isDev) {
         // Development: expose stack trace and message

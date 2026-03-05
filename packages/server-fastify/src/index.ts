@@ -5,7 +5,12 @@
 // per the architecture (Section 6.3).
 
 import Fastify from "fastify";
-import type { FastifyInstance, FastifyRequest, FastifyReply, FastifyServerOptions } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyRequest,
+  FastifyReply,
+  FastifyServerOptions,
+} from "fastify";
 import type {
   CompiledRoute,
   CompiledRouteTable,
@@ -21,10 +26,7 @@ import type {
   ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import {
-  createRequestContext,
-  executeMiddlewareChain,
-} from "@typokit/core";
+import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
 
 // ─── Route Traversal ─────────────────────────────────────────
 
@@ -102,7 +104,9 @@ function validationErrorResponse(
 }
 
 function runValidators(
-  routeHandler: { validators?: { params?: string; query?: string; body?: string } },
+  routeHandler: {
+    validators?: { params?: string; query?: string; body?: string };
+  },
   validatorMap: ValidatorMap | null,
   params: Record<string, string>,
   query: Record<string, string | string[] | undefined>,
@@ -120,7 +124,11 @@ function runValidators(
       const result = validator(params);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `params.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `params.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -132,7 +140,11 @@ function runValidators(
       const result = validator(query);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `query.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `query.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -144,7 +156,11 @@ function runValidators(
       const result = validator(body);
       if (!result.success && result.errors) {
         for (const e of result.errors) {
-          allErrors.push({ path: `body.${e.path}`, expected: e.expected, actual: e.actual });
+          allErrors.push({
+            path: `body.${e.path}`,
+            expected: e.expected,
+            actual: e.actual,
+          });
         }
       }
     }
@@ -236,7 +252,9 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
       headers[key] = value;
     }
 
-    const rawQuery = req.query as Record<string, string | string[] | undefined> | undefined;
+    const rawQuery = req.query as
+      | Record<string, string | string[] | undefined>
+      | undefined;
 
     return {
       method: req.method.toUpperCase() as HttpMethod,
@@ -290,7 +308,7 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
 
       // Register each route as a Fastify-native route
       for (const route of routes) {
-          app.route({
+        app.route({
           method: route.method,
           url: route.path,
           handler: async (req: FastifyRequest, reply: FastifyReply) => {
@@ -314,7 +332,10 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
               const errorResp: TypoKitResponse = {
                 status: 500,
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ error: "Internal Server Error", message: `Handler not found: ${route.handlerRef}` }),
+                body: JSON.stringify({
+                  error: "Internal Server Error",
+                  message: `Handler not found: ${route.handlerRef}`,
+                }),
               };
               writeResponse(reply, errorResp);
               return;
@@ -323,26 +344,34 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
             // Create request context and execute middleware chain
             let ctx = createRequestContext();
 
-            if (state.middlewareChain && state.middlewareChain.entries.length > 0) {
-              const entries: MiddlewareEntry[] = state.middlewareChain.entries.map((e) => ({
-                name: e.name,
-                middleware: {
-                  handler: async (input) => {
-                    const mwReq: TypoKitRequest = {
-                      method: typoReq.method,
-                      path: typoReq.path,
-                      headers: input.headers,
-                      body: input.body,
-                      query: input.query,
-                      params: input.params,
-                    };
-                    const response = await e.handler(mwReq, input.ctx, async () => {
-                      return { status: 200, headers: {}, body: null };
-                    });
-                    return response as unknown as Record<string, unknown>;
+            if (
+              state.middlewareChain &&
+              state.middlewareChain.entries.length > 0
+            ) {
+              const entries: MiddlewareEntry[] =
+                state.middlewareChain.entries.map((e) => ({
+                  name: e.name,
+                  middleware: {
+                    handler: async (input) => {
+                      const mwReq: TypoKitRequest = {
+                        method: typoReq.method,
+                        path: typoReq.path,
+                        headers: input.headers,
+                        body: input.body,
+                        query: input.query,
+                        params: input.params,
+                      };
+                      const response = await e.handler(
+                        mwReq,
+                        input.ctx,
+                        async () => {
+                          return { status: 200, headers: {}, body: null };
+                        },
+                      );
+                      return response as unknown as Record<string, unknown>;
+                    },
                   },
-                },
-              }));
+                }));
 
               ctx = await executeMiddlewareChain(typoReq, ctx, entries);
             }
@@ -351,7 +380,11 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
             const response = await handlerFn(typoReq, ctx);
 
             // Response serialization pipeline
-            const serialized = serializeResponse(response, route.serializer, state.serializerMap);
+            const serialized = serializeResponse(
+              response,
+              route.serializer,
+              state.serializerMap,
+            );
 
             writeResponse(reply, serialized);
           },
@@ -383,4 +416,3 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
 // Re-export for convenience
 export { serializeResponse, runValidators, validationErrorResponse };
 export { type ServerAdapter } from "@typokit/core";
-

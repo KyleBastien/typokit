@@ -5,7 +5,7 @@ import type { RouteGeneratorSchema } from "./schema.js";
 
 export default async function routeGenerator(
   tree: Tree,
-  options: RouteGeneratorSchema
+  options: RouteGeneratorSchema,
 ): Promise<void> {
   const projectName = options.project;
   let projectRoot = ".";

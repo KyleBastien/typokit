@@ -23,7 +23,10 @@ declare module "swr" {
     isLoading: boolean;
     isValidating: boolean;
     mutate: (
-      data?: TData | Promise<TData> | ((current?: TData) => TData | Promise<TData>),
+      data?:
+        | TData
+        | Promise<TData>
+        | ((current?: TData) => TData | Promise<TData>),
       opts?: boolean | { revalidate?: boolean },
     ) => Promise<TData | undefined>;
   }
@@ -38,12 +41,20 @@ declare module "swr" {
 }
 
 declare module "swr/mutation" {
-  export interface SWRMutationConfiguration<TData = unknown, TError = Error, _TArg = never> {
+  export interface SWRMutationConfiguration<
+    TData = unknown,
+    TError = Error,
+    _TArg = never,
+  > {
     onSuccess?: (data: TData) => void;
     onError?: (error: TError) => void;
   }
 
-  export interface SWRMutationResponse<TData = unknown, TError = Error, TArg = never> {
+  export interface SWRMutationResponse<
+    TData = unknown,
+    TError = Error,
+    TArg = never,
+  > {
     trigger: (arg: TArg) => Promise<TData>;
     data: TData | undefined;
     error: TError | undefined;
@@ -56,7 +67,11 @@ declare module "swr/mutation" {
     options: { arg: TArg },
   ) => Promise<TData>;
 
-  export default function useSWRMutation<TData = unknown, TError = Error, TArg = never>(
+  export default function useSWRMutation<
+    TData = unknown,
+    TError = Error,
+    TArg = never,
+  >(
     key: string | readonly unknown[],
     fetcher: MutationFetcher<TData, TArg>,
     options?: SWRMutationConfiguration<TData, TError, TArg>,

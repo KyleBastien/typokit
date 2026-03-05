@@ -1,5 +1,12 @@
 // Log levels ordered by severity
-export const LOG_LEVELS = ["trace", "debug", "info", "warn", "error", "fatal"] as const;
+export const LOG_LEVELS = [
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "fatal",
+] as const;
 
 export type LogLevel = (typeof LOG_LEVELS)[number];
 

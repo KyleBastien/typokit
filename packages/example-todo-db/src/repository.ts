@@ -63,7 +63,10 @@ export function createUserRepo(db: DB) {
       return row;
     },
 
-    update(id: string, input: Partial<Omit<NewUser, "id" | "createdAt" | "updatedAt">>) {
+    update(
+      id: string,
+      input: Partial<Omit<NewUser, "id" | "createdAt" | "updatedAt">>,
+    ) {
       const timestamp = now();
       db.update(users)
         .set({ ...input, updatedAt: timestamp })
@@ -126,7 +129,10 @@ export function createTodoRepo(db: DB) {
       return row;
     },
 
-    update(id: string, input: Partial<Omit<NewTodo, "id" | "createdAt" | "updatedAt">>) {
+    update(
+      id: string,
+      input: Partial<Omit<NewTodo, "id" | "createdAt" | "updatedAt">>,
+    ) {
       const timestamp = now();
       db.update(todos)
         .set({ ...input, updatedAt: timestamp })

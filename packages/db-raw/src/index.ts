@@ -27,7 +27,8 @@ function toSnakeCase(str: string): string {
 
 function pluralize(str: string): string {
   if (str.endsWith("s")) return str;
-  if (str.endsWith("y") && !/[aeiou]y$/i.test(str)) return str.slice(0, -1) + "ies";
+  if (str.endsWith("y") && !/[aeiou]y$/i.test(str))
+    return str.slice(0, -1) + "ies";
   return str + "s";
 }
 
@@ -61,12 +62,17 @@ function toEnumName(typeName: string, propName: string): string {
 
 // ─── PostgreSQL Column Mapping ──────────────────────────────
 
-function mapPgColumnType(
-  prop: { type: string; optional: boolean; jsdoc?: Record<string, string> },
-): string {
+function mapPgColumnType(prop: {
+  type: string;
+  optional: boolean;
+  jsdoc?: Record<string, string>;
+}): string {
   const jsdoc = prop.jsdoc ?? {};
 
-  if (prop.type === "string" && (jsdoc.id !== undefined || jsdoc.generated === "uuid")) {
+  if (
+    prop.type === "string" &&
+    (jsdoc.id !== undefined || jsdoc.generated === "uuid")
+  ) {
     return "UUID";
   }
   if (prop.type === "string" && jsdoc.maxLength) {
@@ -94,9 +100,11 @@ function mapPgColumnType(
   return "JSONB";
 }
 
-function mapSqliteColumnType(
-  prop: { type: string; optional: boolean; jsdoc?: Record<string, string> },
-): string {
+function mapSqliteColumnType(prop: {
+  type: string;
+  optional: boolean;
+  jsdoc?: Record<string, string>;
+}): string {
   if (prop.type === "number" || prop.type === "bigint") {
     return "INTEGER";
   }
@@ -114,7 +122,10 @@ interface EnumDef {
   values: string[];
 }
 
-function generatePgDdl(typeName: string, meta: TypeMetadata): { ddl: string; enums: EnumDef[] } {
+function generatePgDdl(
+  typeName: string,
+  meta: TypeMetadata,
+): { ddl: string; enums: EnumDef[] } {
   const tableName = toTableName(typeName, meta.jsdoc);
   const enums: EnumDef[] = [];
   const columns: string[] = [];
@@ -243,7 +254,10 @@ function tsTypeFromProp(prop: { type: string; optional: boolean }): string {
   return prop.type;
 }
 
-function generateTypeScriptInterface(typeName: string, meta: TypeMetadata): string {
+function generateTypeScriptInterface(
+  typeName: string,
+  meta: TypeMetadata,
+): string {
   const lines: string[] = [];
   lines.push(`export interface ${typeName} {`);
 
@@ -292,7 +306,10 @@ function generatePgTypesFile(types: SchemaTypeMap): GeneratedOutput {
   };
 }
 
-function generateSqliteFile(typeName: string, meta: TypeMetadata): GeneratedOutput {
+function generateSqliteFile(
+  typeName: string,
+  meta: TypeMetadata,
+): GeneratedOutput {
   const tableName = toTableName(typeName, meta.jsdoc);
   const ddl = generateSqliteDdl(typeName, meta);
 
@@ -309,7 +326,10 @@ function generateSqliteFile(typeName: string, meta: TypeMetadata): GeneratedOutp
 
 // ─── Diff Logic ─────────────────────────────────────────────
 
-function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaChange[] {
+function diffTypes(
+  types: SchemaTypeMap,
+  currentState: DatabaseState,
+): SchemaChange[] {
   const changes: SchemaChange[] = [];
 
   for (const [typeName, meta] of Object.entries(types)) {
@@ -326,7 +346,12 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
       const existingCol = existing.columns[colName];
 
       if (!existingCol) {
-        changes.push({ type: "add", entity: tableName, field: colName, details: { tsType: prop.type } });
+        changes.push({
+          type: "add",
+          entity: tableName,
+          field: colName,
+          details: { tsType: prop.type },
+        });
       } else {
         const nullable = prop.optional;
         if (existingCol.nullable !== nullable) {
@@ -334,7 +359,10 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
             type: "modify",
             entity: tableName,
             field: colName,
-            details: { nullableFrom: existingCol.nullable, nullableTo: nullable },
+            details: {
+              nullableFrom: existingCol.nullable,
+              nullableTo: nullable,
+            },
           });
         }
       }
@@ -342,7 +370,9 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
 
     // Detect removed columns
     for (const colName of Object.keys(existing.columns)) {
-      const hasProp = Object.keys(meta.properties).some((p) => toColumnName(p) === colName);
+      const hasProp = Object.keys(meta.properties).some(
+        (p) => toColumnName(p) === colName,
+      );
       if (!hasProp) {
         changes.push({ type: "remove", entity: tableName, field: colName });
       }
@@ -362,7 +392,10 @@ function diffTypes(types: SchemaTypeMap, currentState: DatabaseState): SchemaCha
   return changes;
 }
 
-function generateMigrationSql(changes: SchemaChange[], dialect: RawSqlDialect): string {
+function generateMigrationSql(
+  changes: SchemaChange[],
+  dialect: RawSqlDialect,
+): string {
   const lines: string[] = [];
 
   for (const change of changes) {
@@ -382,7 +415,9 @@ function generateMigrationSql(changes: SchemaChange[], dialect: RawSqlDialect): 
           `ALTER TABLE "${change.entity}" DROP COLUMN "${change.field}";`,
         );
       } else {
-        lines.push(`-- SQLite: cannot DROP COLUMN "${change.field}" from "${change.entity}" — recreate table`);
+        lines.push(
+          `-- SQLite: cannot DROP COLUMN "${change.field}" from "${change.entity}" — recreate table`,
+        );
       }
     } else if (change.type === "modify") {
       lines.push(
@@ -407,7 +442,8 @@ export class RawSqlDatabaseAdapter implements DatabaseAdapter {
 
   generate(types: SchemaTypeMap): GeneratedOutput[] {
     const outputs: GeneratedOutput[] = [];
-    const genFn = this.dialect === "postgresql" ? generatePgFile : generateSqliteFile;
+    const genFn =
+      this.dialect === "postgresql" ? generatePgFile : generateSqliteFile;
 
     for (const [typeName, meta] of Object.entries(types)) {
       const output = genFn(typeName, meta);
@@ -427,7 +463,10 @@ export class RawSqlDatabaseAdapter implements DatabaseAdapter {
     const changes = diffTypes(types, currentState);
     const destructive = changes.some((c) => c.type === "remove");
     const sql = generateMigrationSql(changes, this.dialect);
-    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T]/g, "")
+      .slice(0, 14);
 
     return {
       name: `${timestamp}_schema_update`,
@@ -437,4 +476,3 @@ export class RawSqlDatabaseAdapter implements DatabaseAdapter {
     };
   }
 }
-

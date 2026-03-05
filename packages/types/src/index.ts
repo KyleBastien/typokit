@@ -3,7 +3,14 @@
 // ─── HTTP Types ──────────────────────────────────────────────
 
 /** HTTP methods supported by TypoKit */
-export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+export type HttpMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "HEAD"
+  | "OPTIONS";
 
 /** Normalized incoming request */
 export interface TypoKitRequest {
@@ -123,7 +130,10 @@ export type CompiledRouteTable = CompiledRoute;
 /** Maps handler refs (e.g. "users#list") to handler functions */
 export type HandlerMap = Record<
   string,
-  (req: TypoKitRequest, ctx: RequestContext) => Promise<TypoKitResponse> | TypoKitResponse
+  (
+    req: TypoKitRequest,
+    ctx: RequestContext,
+  ) => Promise<TypoKitResponse> | TypoKitResponse
 >;
 
 /** A single middleware function in the chain */
@@ -158,7 +168,12 @@ export interface RequestContext {
   /** Structured logger with automatic trace correlation */
   log: Logger;
   /** Throw a structured error (syntactic sugar for AppError) */
-  fail(status: number, code: string, message: string, details?: Record<string, unknown>): never;
+  fail(
+    status: number,
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ): never;
   /** Service container for dependency injection */
   services: Record<string, unknown>;
   /** Request ID for tracing */
@@ -170,7 +185,10 @@ export interface RequestContext {
 /** Metadata about a single extracted type */
 export interface TypeMetadata {
   name: string;
-  properties: Record<string, { type: string; optional: boolean; jsdoc?: Record<string, string> }>;
+  properties: Record<
+    string,
+    { type: string; optional: boolean; jsdoc?: Record<string, string> }
+  >;
   /** Interface-level JSDoc tags (e.g. @table) */
   jsdoc?: Record<string, string>;
 }
@@ -235,4 +253,3 @@ export interface BuildResult {
   /** Errors encountered during build */
   errors: string[];
 }
-

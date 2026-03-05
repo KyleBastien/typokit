@@ -170,7 +170,9 @@ describe("createServer", () => {
     const g = globalThis as unknown as Record<string, unknown>;
     g["Deno"] = {
       version: { deno: "2.0.0", v8: "12.0", typescript: "5.0" },
-      serve: (opts: { onListen?: (addr: { port: number; hostname: string }) => void }) => {
+      serve: (opts: {
+        onListen?: (addr: { port: number; hostname: string }) => void;
+      }) => {
         if (opts.onListen) {
           opts.onListen(mockServer.addr);
         }
@@ -292,7 +294,7 @@ describe("createServer", () => {
       const webResp = await capturedHandler!(webReq);
 
       expect(webResp.status).toBe(500);
-      const body = await webResp.json();
+      const body = (await webResp.json()) as { error: string; message: string };
       expect(body.error).toBe("Internal Server Error");
       expect(body.message).toBe("boom");
 

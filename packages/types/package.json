@@ -1,9 +1,7 @@
 {
   "scripts": {
     "test": "rstest run --passWithNoTests",
-    "build": "tsc -p tsconfig.json && node -e \"require('fs').mkdirSync('dist',{recursive:true});require('fs').writeFileSync('dist/index.js','')\"",
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.lib.json && node -e \"require('fs').mkdirSync('dist',{recursive:true});require('fs').writeFileSync('dist/index.js','')\""
   },
   "name": "@typokit/types",
   "exports": {

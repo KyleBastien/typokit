@@ -14,7 +14,9 @@ import type { FastifyInstance } from "fastify";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function makeRouteTable(overrides?: Partial<CompiledRouteTable>): CompiledRouteTable {
+function makeRouteTable(
+  overrides?: Partial<CompiledRouteTable>,
+): CompiledRouteTable {
   return {
     segment: "",
     children: {
@@ -48,12 +50,18 @@ function makeHandlerMap(): HandlerMap {
     "users#list": async () => ({
       status: 200,
       headers: {},
-      body: [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }],
+      body: [
+        { id: 1, name: "Alice" },
+        { id: 2, name: "Bob" },
+      ],
     }),
     "users#create": async (req: TypoKitRequest) => ({
       status: 201,
       headers: {},
-      body: { id: 3, name: (req.body as Record<string, unknown>)?.name ?? "Unknown" },
+      body: {
+        id: 3,
+        name: (req.body as Record<string, unknown>)?.name ?? "Unknown",
+      },
     }),
     "users#get": async (req: TypoKitRequest) => ({
       status: 200,
@@ -73,7 +81,11 @@ function emptyMiddlewareChain(): MiddlewareChain {
 }
 
 // Helper to make HTTP requests to the Fastify-adapted server
-async function fetchJson(port: number, path: string, options?: RequestInit): Promise<{ status: number; body: unknown }> {
+async function fetchJson(
+  port: number,
+  path: string,
+  options?: RequestInit,
+): Promise<{ status: number; body: unknown }> {
   const res = await fetch(`http://127.0.0.1:${port}${path}`, {
     ...options,
     headers: {
@@ -114,7 +126,11 @@ describe("fastifyServer", () => {
 
   it("routes GET /health correctly", async () => {
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -131,7 +147,11 @@ describe("fastifyServer", () => {
 
   it("routes GET /users and returns list", async () => {
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -148,7 +168,11 @@ describe("fastifyServer", () => {
 
   it("routes POST /users with body", async () => {
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -167,7 +191,11 @@ describe("fastifyServer", () => {
 
   it("routes GET /users/:id with params", async () => {
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -184,7 +212,11 @@ describe("fastifyServer", () => {
 
   it("returns 404 for unknown routes", async () => {
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -228,7 +260,9 @@ describe("fastifyServer", () => {
         if (!data || typeof data.title !== "string") {
           return {
             success: false,
-            errors: [{ path: "title", expected: "string", actual: typeof data?.title }],
+            errors: [
+              { path: "title", expected: "string", actual: typeof data?.title },
+            ],
           };
         }
         return { success: true, data };
@@ -236,7 +270,12 @@ describe("fastifyServer", () => {
     };
 
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(routeTable, handlerMap, emptyMiddlewareChain(), validatorMap);
+    adapter.registerRoutes(
+      routeTable,
+      handlerMap,
+      emptyMiddlewareChain(),
+      validatorMap,
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -281,12 +320,18 @@ describe("fastifyServer", () => {
     };
 
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(routeTable, handlerMap, emptyMiddlewareChain(), undefined, {
-      "data#get.response": (input: unknown) => {
-        serializerCalls.push(input);
-        return JSON.stringify(input);
+    adapter.registerRoutes(
+      routeTable,
+      handlerMap,
+      emptyMiddlewareChain(),
+      undefined,
+      {
+        "data#get.response": (input: unknown) => {
+          serializerCalls.push(input);
+          return JSON.stringify(input);
+        },
       },
-    });
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;
@@ -365,7 +410,11 @@ describe("fastifyServer", () => {
 
   it("listen on port 0 assigns auto port", async () => {
     const adapter = fastifyServer({ logger: false });
-    adapter.registerRoutes(makeRouteTable(), makeHandlerMap(), emptyMiddlewareChain());
+    adapter.registerRoutes(
+      makeRouteTable(),
+      makeHandlerMap(),
+      emptyMiddlewareChain(),
+    );
     const handle = await adapter.listen(0);
     try {
       const native = adapter.getNativeServer!() as FastifyInstance;

@@ -2,7 +2,10 @@
 
 import { describe, it, expect } from "@rstest/core";
 import { createLogger } from "./index.js";
-import type { GenerateCommandOptions, GenerateResult } from "./commands/generate.js";
+import type {
+  GenerateCommandOptions,
+  GenerateResult,
+} from "./commands/generate.js";
 
 // ─── executeGenerate dispatcher ─────────────────────────────
 
@@ -242,7 +245,13 @@ describe("GenerateCommandOptions", () => {
 describe("parseArgs with generate commands", () => {
   it("parses generate:openapi command", async () => {
     const { parseArgs } = await import("./index.js");
-    const result = parseArgs(["node", "typokit", "generate:openapi", "--output", "./dist/api.json"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "generate:openapi",
+      "--output",
+      "./dist/api.json",
+    ]);
     expect(result.command).toBe("generate:openapi");
     expect(result.flags["output"]).toBe("./dist/api.json");
   });
@@ -262,7 +271,13 @@ describe("parseArgs with generate commands", () => {
 
   it("parses generate:tests command", async () => {
     const { parseArgs } = await import("./index.js");
-    const result = parseArgs(["node", "typokit", "generate:tests", "--root", "/my/project"]);
+    const result = parseArgs([
+      "node",
+      "typokit",
+      "generate:tests",
+      "--root",
+      "/my/project",
+    ]);
     expect(result.command).toBe("generate:tests");
     expect(result.flags["root"]).toBe("/my/project");
   });
@@ -272,13 +287,17 @@ describe("parseArgs with generate commands", () => {
 
 describe("resolveGenerateFilePatterns", () => {
   it("returns empty array for nonexistent dir patterns", async () => {
-    const { resolveGenerateFilePatterns } = await import("./commands/generate.js");
-    const files = await resolveGenerateFilePatterns("/nonexistent/dir", ["src/**/*.ts"]);
+    const { resolveGenerateFilePatterns } =
+      await import("./commands/generate.js");
+    const files = await resolveGenerateFilePatterns("/nonexistent/dir", [
+      "src/**/*.ts",
+    ]);
     expect(files).toEqual([]);
   });
 
   it("returns empty for empty patterns", async () => {
-    const { resolveGenerateFilePatterns } = await import("./commands/generate.js");
+    const { resolveGenerateFilePatterns } =
+      await import("./commands/generate.js");
     const files = await resolveGenerateFilePatterns("/nonexistent", []);
     expect(files).toEqual([]);
   });

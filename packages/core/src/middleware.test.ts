@@ -6,9 +6,15 @@ import {
 } from "./middleware.js";
 import type { TypoKitRequest } from "@typokit/types";
 import type { AppError } from "@typokit/errors";
-import { NotFoundError, ValidationError, ForbiddenError } from "@typokit/errors";
+import {
+  NotFoundError,
+  ValidationError,
+  ForbiddenError,
+} from "@typokit/errors";
 
-function createTestRequest(overrides?: Partial<TypoKitRequest>): TypoKitRequest {
+function createTestRequest(
+  overrides?: Partial<TypoKitRequest>,
+): TypoKitRequest {
   return {
     method: "GET",
     path: "/test",
@@ -36,7 +42,10 @@ describe("defineMiddleware", () => {
 
   it("receives request properties", async () => {
     const mw = defineMiddleware(async ({ headers, params }) => {
-      return { token: headers["authorization"] as string, userId: params["id"] };
+      return {
+        token: headers["authorization"] as string,
+        userId: params["id"],
+      };
     });
     const result = await mw.handler({
       headers: { authorization: "Bearer abc" },
@@ -60,7 +69,7 @@ describe("executeMiddlewareChain", () => {
 
     const mw2 = defineMiddleware(async ({ ctx }) => {
       order.push(2);
-      expect((ctx as Record<string, unknown>)["step1"]).toBe(true);
+      expect((ctx as unknown as Record<string, unknown>)["step1"]).toBe(true);
       return { step2: true };
     });
 
@@ -73,16 +82,25 @@ describe("executeMiddlewareChain", () => {
     ]);
 
     expect(order).toEqual([1, 2]);
-    expect((result as Record<string, unknown>)["step1"]).toBe(true);
-    expect((result as Record<string, unknown>)["step2"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step1"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step2"]).toBe(true);
   });
 
   it("respects priority ordering (lower runs first)", async () => {
     const order: string[] = [];
 
-    const mwA = defineMiddleware(async () => { order.push("A"); return {}; });
-    const mwB = defineMiddleware(async () => { order.push("B"); return {}; });
-    const mwC = defineMiddleware(async () => { order.push("C"); return {}; });
+    const mwA = defineMiddleware(async () => {
+      order.push("A");
+      return {};
+    });
+    const mwB = defineMiddleware(async () => {
+      order.push("B");
+      return {};
+    });
+    const mwC = defineMiddleware(async () => {
+      order.push("C");
+      return {};
+    });
 
     const req = createTestRequest();
     const ctx = createRequestContext();
@@ -99,8 +117,14 @@ describe("executeMiddlewareChain", () => {
   it("default priority is 0", async () => {
     const order: string[] = [];
 
-    const mwA = defineMiddleware(async () => { order.push("A"); return {}; });
-    const mwB = defineMiddleware(async () => { order.push("B"); return {}; });
+    const mwA = defineMiddleware(async () => {
+      order.push("A");
+      return {};
+    });
+    const mwB = defineMiddleware(async () => {
+      order.push("B");
+      return {};
+    });
 
     const req = createTestRequest();
     const ctx = createRequestContext();
@@ -116,12 +140,19 @@ describe("executeMiddlewareChain", () => {
   it("short-circuits when middleware throws", async () => {
     const order: number[] = [];
 
-    const mw1 = defineMiddleware(async () => { order.push(1); return {}; });
-    const mw2 = defineMiddleware(async ({ ctx }) => {
+    const mw1 = defineMiddleware(async () => {
+      order.push(1);
+      return {};
+    });
+    const mw2 = defineMiddleware(async ({ ctx }): Promise<Record<string, unknown>> => {
       order.push(2);
       ctx.fail(403, "FORBIDDEN", "Not allowed");
+      return {};
     });
-    const mw3 = defineMiddleware(async () => { order.push(3); return {}; });
+    const mw3 = defineMiddleware(async () => {
+      order.push(3);
+      return {};
+    });
 
     const req = createTestRequest();
     const ctx = createRequestContext();

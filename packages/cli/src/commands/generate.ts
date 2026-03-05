@@ -37,11 +37,13 @@ async function resolveFilePatterns(
   rootDir: string,
   patterns: string[],
 ): Promise<string[]> {
-  const { join, resolve } = await import(/* @vite-ignore */ "path") as {
+  const { join, resolve } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
     resolve: (...args: string[]) => string;
   };
-  const { readdirSync, statSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { readdirSync, statSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     readdirSync: (p: string) => string[];
     statSync: (p: string) => { isFile(): boolean; isDirectory(): boolean };
     existsSync: (p: string) => boolean;
@@ -60,13 +62,14 @@ async function resolveFilePatterns(
         if (part.includes("*")) break;
         baseParts.push(part);
       }
-      const baseDir = baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
+      const baseDir =
+        baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
 
       if (!existsSync(baseDir)) continue;
 
       const entries = hasDoubleGlob
         ? listFilesRecursive(baseDir, existsSync, readdirSync, statSync, join)
-        : readdirSync(baseDir).map(f => join(baseDir, f));
+        : readdirSync(baseDir).map((f) => join(baseDir, f));
 
       const filePattern = lastPart.replace(/\*/g, ".*");
       const regex = new RegExp(`^${filePattern}$`);
@@ -103,8 +106,20 @@ function listFilesRecursive(
     try {
       const stat = statSync(fullPath);
       if (stat.isDirectory()) {
-        if (entry !== "node_modules" && entry !== "dist" && entry !== ".typokit") {
-          results.push(...listFilesRecursive(fullPath, existsSync, readdirSync, statSync, join));
+        if (
+          entry !== "node_modules" &&
+          entry !== "dist" &&
+          entry !== ".typokit"
+        ) {
+          results.push(
+            ...listFilesRecursive(
+              fullPath,
+              existsSync,
+              readdirSync,
+              statSync,
+              join,
+            ),
+          );
         }
       } else if (stat.isFile()) {
         results.push(fullPath);
@@ -135,7 +150,12 @@ async function generateDb(
 
   if (typeFiles.length === 0) {
     logger.warn("No type files found matching configured patterns");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   if (verbose) {
@@ -146,10 +166,18 @@ async function generateDb(
   // Extract types using transform-native
   logger.step("generate:db", "Extracting type metadata...");
   try {
-    const { parseAndExtractTypes } = await import(
+    const { parseAndExtractTypes } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
-      parseAndExtractTypes: (files: string[]) => Promise<Record<string, { name: string; properties: Record<string, { type: string; optional: boolean }> }>>;
+    )) as {
+      parseAndExtractTypes: (files: string[]) => Promise<
+        Record<
+          string,
+          {
+            name: string;
+            properties: Record<string, { type: string; optional: boolean }>;
+          }
+        >
+      >;
     };
 
     const types = await parseAndExtractTypes(typeFiles);
@@ -157,26 +185,36 @@ async function generateDb(
 
     if (typeCount === 0) {
       logger.warn("No types extracted from source files");
-      return { success: true, filesWritten, duration: Date.now() - startTime, errors };
+      return {
+        success: true,
+        filesWritten,
+        duration: Date.now() - startTime,
+        errors,
+      };
     }
 
     logger.step("generate:db", `Extracted ${typeCount} types`);
 
     // Generate schema artifacts using diffSchemas (generates DDL from types)
-    const { diffSchemas } = await import(
+    const { diffSchemas } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
+    )) as {
       diffSchemas: (
         oldTypes: Record<string, unknown>,
         newTypes: Record<string, unknown>,
         name: string,
-      ) => Promise<{ name: string; sql: string; destructive: boolean; changes: unknown[] }>;
+      ) => Promise<{
+        name: string;
+        sql: string;
+        destructive: boolean;
+        changes: unknown[];
+      }>;
     };
 
-    const { join } = await import(/* @vite-ignore */ "path") as {
+    const { join } = (await import(/* @vite-ignore */ "path")) as {
       join: (...args: string[]) => string;
     };
-    const nodeFs = await import(/* @vite-ignore */ "fs") as {
+    const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
       mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
       writeFileSync: (p: string, data: string, encoding?: string) => void;
     };
@@ -209,11 +247,18 @@ async function generateDb(
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`generate:db failed: ${message}`);
     errors.push(message);
-    return { success: false, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: false,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   const duration = Date.now() - startTime;
-  logger.success(`generate:db complete — ${filesWritten.length} files written (${duration}ms)`);
+  logger.success(
+    `generate:db complete — ${filesWritten.length} files written (${duration}ms)`,
+  );
   return { success: true, filesWritten, duration, errors };
 }
 
@@ -236,7 +281,12 @@ async function generateClient(
 
   if (routeFiles.length === 0) {
     logger.warn("No route files found matching configured patterns");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   if (verbose) {
@@ -245,16 +295,16 @@ async function generateClient(
   }
 
   try {
-    const { compileRoutes } = await import(
+    const { compileRoutes } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
+    )) as {
       compileRoutes: (files: string[]) => Promise<string>;
     };
 
-    const { join } = await import(/* @vite-ignore */ "path") as {
+    const { join } = (await import(/* @vite-ignore */ "path")) as {
       join: (...args: string[]) => string;
     };
-    const nodeFs = await import(/* @vite-ignore */ "fs") as {
+    const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
       mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
       writeFileSync: (p: string, data: string, encoding?: string) => void;
       existsSync: (p: string) => boolean;
@@ -283,11 +333,18 @@ async function generateClient(
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`generate:client failed: ${message}`);
     errors.push(message);
-    return { success: false, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: false,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   const duration = Date.now() - startTime;
-  logger.success(`generate:client complete — ${filesWritten.length} files written (${duration}ms)`);
+  logger.success(
+    `generate:client complete — ${filesWritten.length} files written (${duration}ms)`,
+  );
   return { success: true, filesWritten, duration, errors };
 }
 
@@ -313,19 +370,27 @@ function generateClientCode(compiledRoutes: string): string {
   lines.push("}");
   lines.push("");
   lines.push("export function createClient(options: ClientOptions) {");
-  lines.push("  const { baseUrl, headers: defaultHeaders, fetch: fetchFn = globalThis.fetch } = options;");
+  lines.push(
+    "  const { baseUrl, headers: defaultHeaders, fetch: fetchFn = globalThis.fetch } = options;",
+  );
   lines.push("");
-  lines.push("  async function request(method: string, path: string, opts?: RequestOptions) {");
+  lines.push(
+    "  async function request(method: string, path: string, opts?: RequestOptions) {",
+  );
   lines.push("    let url = baseUrl + path;");
   lines.push("    if (opts?.params) {");
   lines.push("      for (const [key, value] of Object.entries(opts.params)) {");
-  lines.push('        url = url.replace(`:${key}`, encodeURIComponent(value));');
+  lines.push(
+    "        url = url.replace(`:${key}`, encodeURIComponent(value));",
+  );
   lines.push("      }");
   lines.push("    }");
   lines.push("    if (opts?.query) {");
   lines.push("      const qs = Object.entries(opts.query)");
   lines.push("        .filter(([, v]) => v !== undefined)");
-  lines.push("        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)");
+  lines.push(
+    "        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)",
+  );
   lines.push('        .join("&");');
   lines.push('      if (qs) url += "?" + qs;');
   lines.push("    }");
@@ -338,16 +403,28 @@ function generateClientCode(compiledRoutes: string): string {
   lines.push("      },");
   lines.push("      body: opts?.body ? JSON.stringify(opts.body) : undefined,");
   lines.push("    });");
-  lines.push("    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);");
+  lines.push(
+    "    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);",
+  );
   lines.push("    return res.json();");
   lines.push("  }");
   lines.push("");
   lines.push("  return {");
-  lines.push("    get: (path: string, opts?: RequestOptions) => request(\"GET\", path, opts),");
-  lines.push("    post: (path: string, opts?: RequestOptions) => request(\"POST\", path, opts),");
-  lines.push("    put: (path: string, opts?: RequestOptions) => request(\"PUT\", path, opts),");
-  lines.push("    patch: (path: string, opts?: RequestOptions) => request(\"PATCH\", path, opts),");
-  lines.push("    delete: (path: string, opts?: RequestOptions) => request(\"DELETE\", path, opts),");
+  lines.push(
+    '    get: (path: string, opts?: RequestOptions) => request("GET", path, opts),',
+  );
+  lines.push(
+    '    post: (path: string, opts?: RequestOptions) => request("POST", path, opts),',
+  );
+  lines.push(
+    '    put: (path: string, opts?: RequestOptions) => request("PUT", path, opts),',
+  );
+  lines.push(
+    '    patch: (path: string, opts?: RequestOptions) => request("PATCH", path, opts),',
+  );
+  lines.push(
+    '    delete: (path: string, opts?: RequestOptions) => request("DELETE", path, opts),',
+  );
   lines.push("  };");
   lines.push("}");
   lines.push("");
@@ -375,7 +452,12 @@ async function generateOpenapi(
 
   if (routeFiles.length === 0) {
     logger.warn("No route files found matching configured patterns");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   if (verbose) {
@@ -384,17 +466,20 @@ async function generateOpenapi(
   }
 
   try {
-    const { generateOpenApi } = await import(
+    const { generateOpenApi } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
-      generateOpenApi: (routeFiles: string[], typeFiles: string[]) => Promise<string>;
+    )) as {
+      generateOpenApi: (
+        routeFiles: string[],
+        typeFiles: string[],
+      ) => Promise<string>;
     };
 
-    const { join, dirname } = await import(/* @vite-ignore */ "path") as {
+    const { join, dirname } = (await import(/* @vite-ignore */ "path")) as {
       join: (...args: string[]) => string;
       dirname: (p: string) => string;
     };
-    const nodeFs = await import(/* @vite-ignore */ "fs") as {
+    const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
       mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
       writeFileSync: (p: string, data: string, encoding?: string) => void;
     };
@@ -403,9 +488,10 @@ async function generateOpenapi(
     const spec = await generateOpenApi(routeFiles, typeFiles);
 
     // Determine output path: --output flag or default
-    const outputPath = typeof flags["output"] === "string"
-      ? flags["output"]
-      : join(rootDir, config.outputDir, "schemas", "openapi.json");
+    const outputPath =
+      typeof flags["output"] === "string"
+        ? flags["output"]
+        : join(rootDir, config.outputDir, "schemas", "openapi.json");
 
     const dir = dirname(outputPath);
     nodeFs.mkdirSync(dir, { recursive: true });
@@ -420,11 +506,18 @@ async function generateOpenapi(
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`generate:openapi failed: ${message}`);
     errors.push(message);
-    return { success: false, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: false,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   const duration = Date.now() - startTime;
-  logger.success(`generate:openapi complete — ${filesWritten.length} files written (${duration}ms)`);
+  logger.success(
+    `generate:openapi complete — ${filesWritten.length} files written (${duration}ms)`,
+  );
   return { success: true, filesWritten, duration, errors };
 }
 
@@ -444,7 +537,12 @@ async function generateTests(
 
   if (routeFiles.length === 0) {
     logger.warn("No route files found matching configured patterns");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   if (verbose) {
@@ -453,16 +551,16 @@ async function generateTests(
   }
 
   try {
-    const { generateTestStubs } = await import(
+    const { generateTestStubs } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
+    )) as {
       generateTestStubs: (files: string[]) => Promise<string>;
     };
 
-    const { join } = await import(/* @vite-ignore */ "path") as {
+    const { join } = (await import(/* @vite-ignore */ "path")) as {
       join: (...args: string[]) => string;
     };
-    const nodeFs = await import(/* @vite-ignore */ "fs") as {
+    const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
       mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
       writeFileSync: (p: string, data: string, encoding?: string) => void;
     };
@@ -486,11 +584,18 @@ async function generateTests(
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`generate:tests failed: ${message}`);
     errors.push(message);
-    return { success: false, filesWritten, duration: Date.now() - startTime, errors };
+    return {
+      success: false,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+    };
   }
 
   const duration = Date.now() - startTime;
-  logger.success(`generate:tests complete — ${filesWritten.length} files written (${duration}ms)`);
+  logger.success(
+    `generate:tests complete — ${filesWritten.length} files written (${duration}ms)`,
+  );
   return { success: true, filesWritten, duration, errors };
 }
 

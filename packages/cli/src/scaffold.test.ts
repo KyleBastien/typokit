@@ -13,7 +13,10 @@ import {
   generateTypesTs,
   executeScaffold,
 } from "./commands/scaffold.js";
-import type { InitOptions, ScaffoldCommandOptions } from "./commands/scaffold.js";
+import type {
+  InitOptions,
+  ScaffoldCommandOptions,
+} from "./commands/scaffold.js";
 import { createLogger } from "./logger.js";
 
 const logger = createLogger({ verbose: false });
@@ -76,11 +79,17 @@ describe("scaffold — template generation", () => {
   it("generateService handles kebab-case names", () => {
     const result = generateService("user-profile");
     expect(result).toContain("export class UserProfileService {");
-    expect(result).toContain("export const userProfileService = new UserProfileService()");
+    expect(result).toContain(
+      "export const userProfileService = new UserProfileService()",
+    );
   });
 
   it("generatePackageJson produces valid JSON", () => {
-    const options: InitOptions = { name: "my-app", server: "native", db: "none" };
+    const options: InitOptions = {
+      name: "my-app",
+      server: "native",
+      db: "none",
+    };
     const result = generatePackageJson(options);
     const parsed = JSON.parse(result) as Record<string, unknown>;
     expect(parsed["name"]).toBe("my-app");
@@ -92,7 +101,11 @@ describe("scaffold — template generation", () => {
   });
 
   it("generatePackageJson includes server adapter dependency", () => {
-    const options: InitOptions = { name: "my-app", server: "fastify", db: "drizzle" };
+    const options: InitOptions = {
+      name: "my-app",
+      server: "fastify",
+      db: "drizzle",
+    };
     const result = generatePackageJson(options);
     const parsed = JSON.parse(result) as Record<string, unknown>;
     const deps = parsed["dependencies"] as Record<string, string>;
@@ -111,11 +124,19 @@ describe("scaffold — template generation", () => {
 
   it("generateAppTs uses correct server adapter", () => {
     const native = generateAppTs({ name: "app", server: "native", db: "none" });
-    expect(native).toContain('import { nativeServer } from "@typokit/server-native"');
+    expect(native).toContain(
+      'import { nativeServer } from "@typokit/server-native"',
+    );
     expect(native).toContain("nativeServer()");
 
-    const fastify = generateAppTs({ name: "app", server: "fastify", db: "none" });
-    expect(fastify).toContain('import { fastifyServer } from "@typokit/server-fastify"');
+    const fastify = generateAppTs({
+      name: "app",
+      server: "fastify",
+      db: "none",
+    });
+    expect(fastify).toContain(
+      'import { fastifyServer } from "@typokit/server-fastify"',
+    );
     expect(fastify).toContain("fastifyServer()");
   });
 
@@ -187,9 +208,20 @@ describe("scaffold — executeScaffold dispatcher", () => {
     }
     // Clean up if succeeded
     if (result.success) {
-      const { rmSync } = await import("fs") as { rmSync: (p: string, o?: { recursive?: boolean; force?: boolean }) => void };
-      const { join } = await import("path") as { join: (...args: string[]) => string };
-      try { rmSync(join(opts.rootDir, "my-app"), { recursive: true, force: true }); } catch { /* ignore */ }
+      const { rmSync } = (await import("fs")) as {
+        rmSync: (
+          p: string,
+          o?: { recursive?: boolean; force?: boolean },
+        ) => void;
+      };
+      const { join } = (await import("path")) as {
+        join: (...args: string[]) => string;
+      };
+      try {
+        rmSync(join(opts.rootDir, "my-app"), { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
     }
   });
 });
@@ -217,6 +249,8 @@ describe("scaffold — route contracts match arch doc Section 4.4", () => {
 
   it("handler imports match contracts types", () => {
     const handlers = generateRouteHandlers("products");
-    expect(handlers).toContain('import type { Products, CreateProductsBody, UpdateProductsBody } from "./contracts.ts"');
+    expect(handlers).toContain(
+      'import type { Products, CreateProductsBody, UpdateProductsBody } from "./contracts.ts"',
+    );
   });
 });

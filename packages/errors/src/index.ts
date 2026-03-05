@@ -32,7 +32,11 @@ export class AppError extends Error {
 
 /** 404 Not Found */
 export class NotFoundError extends AppError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ) {
     super(code, 404, message, details);
     this.name = "NotFoundError";
   }
@@ -40,7 +44,11 @@ export class NotFoundError extends AppError {
 
 /** 400 Bad Request / Validation */
 export class ValidationError extends AppError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ) {
     super(code, 400, message, details);
     this.name = "ValidationError";
   }
@@ -48,7 +56,11 @@ export class ValidationError extends AppError {
 
 /** 401 Unauthorized */
 export class UnauthorizedError extends AppError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ) {
     super(code, 401, message, details);
     this.name = "UnauthorizedError";
   }
@@ -56,7 +68,11 @@ export class UnauthorizedError extends AppError {
 
 /** 403 Forbidden */
 export class ForbiddenError extends AppError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ) {
     super(code, 403, message, details);
     this.name = "ForbiddenError";
   }
@@ -64,7 +80,11 @@ export class ForbiddenError extends AppError {
 
 /** 409 Conflict */
 export class ConflictError extends AppError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ) {
     super(code, 409, message, details);
     this.name = "ConflictError";
   }
@@ -94,4 +114,3 @@ export function createAppError(
       return new AppError(code, status, message, details);
   }
 }
-

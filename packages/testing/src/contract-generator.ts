@@ -154,10 +154,7 @@ function toCodeLiteral(value: unknown): string {
 }
 
 /** Build a valid body object literal as code string */
-function buildBodyLiteral(
-  schema: TypeMetadata,
-  indent: string,
-): string {
+function buildBodyLiteral(schema: TypeMetadata, indent: string): string {
   const entries: string[] = [];
   for (const [key, prop] of Object.entries(schema.properties)) {
     if (prop.optional) continue;
@@ -193,8 +190,8 @@ export function generateContractTests(
   const groups = groupRoutesByPrefix(routes);
   const outputs: ContractTestOutput[] = [];
 
-  for (const [prefix, groupRoutes] of Object.entries(groups).sort(
-    ([a], [b]) => a.localeCompare(b),
+  for (const [prefix, groupRoutes] of Object.entries(groups).sort(([a], [b]) =>
+    a.localeCompare(b),
   )) {
     const content = generateTestFile(runner, appImport, groupRoutes, schemas);
     outputs.push({
@@ -304,16 +301,16 @@ function generateRouteTests(
     if (requiredFields.length > 0) {
       lines.push("");
       lines.push(`  it("rejects missing required fields", async () => {`);
-      lines.push(`    const res = await client.${methodLower}("${path}", { body: {} });`);
+      lines.push(
+        `    const res = await client.${methodLower}("${path}", { body: {} });`,
+      );
       lines.push(`    expect(res.status).toBe(400);`);
       lines.push(`  });`);
 
       // Individual field tests for more specific coverage
       for (const field of requiredFields) {
         lines.push("");
-        lines.push(
-          `  it("rejects missing '${field}' field", async () => {`,
-        );
+        lines.push(`  it("rejects missing '${field}' field", async () => {`);
         // Build a body with all required fields except this one
         const partialEntries: string[] = [];
         for (const [key, prop] of Object.entries(bodySchema.properties)) {
@@ -325,9 +322,7 @@ function generateRouteTests(
           partialEntries.length > 0
             ? `{\n${partialEntries.join("\n")}\n      }`
             : "{}";
-        lines.push(
-          `    const res = await client.${methodLower}("${path}", {`,
-        );
+        lines.push(`    const res = await client.${methodLower}("${path}", {`);
         lines.push(`      body: ${partialBody},`);
         lines.push(`    });`);
         lines.push(`    expect(res.status).toBe(400);`);
@@ -364,9 +359,7 @@ function generateRouteTests(
     for (const [field, prop] of invalidFields) {
       const invalidValue = generateInvalidSampleValue(prop.type, prop.jsdoc);
       lines.push("");
-      lines.push(
-        `  it("rejects invalid ${field} format", async () => {`,
-      );
+      lines.push(`  it("rejects invalid ${field} format", async () => {`);
       // Build a valid body, then replace the field with invalid value
       const fullEntries: string[] = [];
       for (const [key, p] of Object.entries(bodySchema.properties)) {
@@ -376,12 +369,8 @@ function generateRouteTests(
         fullEntries.push(`        ${key}: ${toCodeLiteral(value)},`);
       }
       const fullBody =
-        fullEntries.length > 0
-          ? `{\n${fullEntries.join("\n")}\n      }`
-          : "{}";
-      lines.push(
-        `    const res = await client.${methodLower}("${path}", {`,
-      );
+        fullEntries.length > 0 ? `{\n${fullEntries.join("\n")}\n      }` : "{}";
+      lines.push(`    const res = await client.${methodLower}("${path}", {`);
       lines.push(`      body: ${fullBody},`);
       lines.push(`    });`);
       lines.push(`    expect(res.status).toBe(400);`);
@@ -411,9 +400,7 @@ export function detectTestRunner(
   if (deps["jest"] || deps["@jest/globals"]) return "jest";
 
   // Check scripts for runner hints
-  const scripts = packageJson["scripts"] as
-    | Record<string, string>
-    | undefined;
+  const scripts = packageJson["scripts"] as Record<string, string> | undefined;
   if (scripts) {
     const testScript = scripts["test"] ?? "";
     if (testScript.includes("rstest")) return "rstest";

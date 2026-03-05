@@ -29,16 +29,36 @@ describe("PrismaDatabaseAdapter", () => {
           name: "User",
           jsdoc: { table: "users" },
           properties: {
-            id: { type: "string", optional: false, jsdoc: { id: "", generated: "uuid" } },
-            email: { type: "string", optional: false, jsdoc: { format: "email", unique: "" } },
-            displayName: { type: "string", optional: false, jsdoc: { maxLength: "100" } },
+            id: {
+              type: "string",
+              optional: false,
+              jsdoc: { id: "", generated: "uuid" },
+            },
+            email: {
+              type: "string",
+              optional: false,
+              jsdoc: { format: "email", unique: "" },
+            },
+            displayName: {
+              type: "string",
+              optional: false,
+              jsdoc: { maxLength: "100" },
+            },
             status: {
               type: '"active" | "suspended" | "deleted"',
               optional: false,
               jsdoc: { default: "active" },
             },
-            createdAt: { type: "Date", optional: false, jsdoc: { generated: "now" } },
-            updatedAt: { type: "Date", optional: false, jsdoc: { onUpdate: "now" } },
+            createdAt: {
+              type: "Date",
+              optional: false,
+              jsdoc: { generated: "now" },
+            },
+            updatedAt: {
+              type: "Date",
+              optional: false,
+              jsdoc: { onUpdate: "now" },
+            },
           },
         },
       };
@@ -91,7 +111,11 @@ describe("PrismaDatabaseAdapter", () => {
         Product: {
           name: "Product",
           properties: {
-            id: { type: "string", optional: false, jsdoc: { id: "", generated: "uuid" } },
+            id: {
+              type: "string",
+              optional: false,
+              jsdoc: { id: "", generated: "uuid" },
+            },
             name: { type: "string", optional: false },
             price: { type: "number", optional: false },
             stock: { type: "bigint", optional: false },
@@ -157,7 +181,11 @@ describe("PrismaDatabaseAdapter", () => {
         Config: {
           name: "Config",
           properties: {
-            retryCount: { type: "number", optional: false, jsdoc: { default: "3" } },
+            retryCount: {
+              type: "number",
+              optional: false,
+              jsdoc: { default: "3" },
+            },
           },
         },
       };
@@ -171,7 +199,11 @@ describe("PrismaDatabaseAdapter", () => {
         Item: {
           name: "Item",
           properties: {
-            id: { type: "number", optional: false, jsdoc: { id: "", generated: "autoincrement" } },
+            id: {
+              type: "number",
+              optional: false,
+              jsdoc: { id: "", generated: "autoincrement" },
+            },
           },
         },
       };
@@ -275,7 +307,11 @@ describe("PrismaDatabaseAdapter", () => {
 
       const draft = adapter.diff(types, state);
       expect(draft.changes).toHaveLength(1);
-      expect(draft.changes[0]).toEqual({ type: "remove", entity: "users", field: "old_col" });
+      expect(draft.changes[0]).toEqual({
+        type: "remove",
+        entity: "users",
+        field: "old_col",
+      });
       expect(draft.destructive).toBe(true);
     });
 
@@ -341,7 +377,9 @@ describe("PrismaDatabaseAdapter", () => {
       };
 
       const draft = adapter.diff(types, state);
-      expect(draft.sql).toContain('ALTER TABLE "users" ADD COLUMN "new_field" TEXT;');
+      expect(draft.sql).toContain(
+        'ALTER TABLE "users" ADD COLUMN "new_field" TEXT;',
+      );
       expect(draft.name).toMatch(/^\d{14}_schema_update$/);
     });
   });

@@ -29,16 +29,36 @@ describe("KyselyDatabaseAdapter", () => {
           name: "User",
           jsdoc: { table: "users" },
           properties: {
-            id: { type: "string", optional: false, jsdoc: { id: "", generated: "uuid" } },
-            email: { type: "string", optional: false, jsdoc: { format: "email", unique: "" } },
-            displayName: { type: "string", optional: false, jsdoc: { maxLength: "100" } },
+            id: {
+              type: "string",
+              optional: false,
+              jsdoc: { id: "", generated: "uuid" },
+            },
+            email: {
+              type: "string",
+              optional: false,
+              jsdoc: { format: "email", unique: "" },
+            },
+            displayName: {
+              type: "string",
+              optional: false,
+              jsdoc: { maxLength: "100" },
+            },
             status: {
               type: '"active" | "suspended" | "deleted"',
               optional: false,
               jsdoc: { default: "active" },
             },
-            createdAt: { type: "Date", optional: false, jsdoc: { generated: "now" } },
-            updatedAt: { type: "Date", optional: false, jsdoc: { onUpdate: "now" } },
+            createdAt: {
+              type: "Date",
+              optional: false,
+              jsdoc: { generated: "now" },
+            },
+            updatedAt: {
+              type: "Date",
+              optional: false,
+              jsdoc: { onUpdate: "now" },
+            },
           },
         },
       };
@@ -71,7 +91,9 @@ describe("KyselyDatabaseAdapter", () => {
       expect(content).toContain("display_name: string;");
 
       // status is Generated<union> (has default)
-      expect(content).toContain('status: Generated<"active" | "suspended" | "deleted">');
+      expect(content).toContain(
+        'status: Generated<"active" | "suspended" | "deleted">',
+      );
 
       // createdAt → created_at is Generated<Date>
       expect(content).toContain("created_at: Generated<Date>");
@@ -89,7 +111,11 @@ describe("KyselyDatabaseAdapter", () => {
         Product: {
           name: "Product",
           properties: {
-            id: { type: "string", optional: false, jsdoc: { id: "", generated: "uuid" } },
+            id: {
+              type: "string",
+              optional: false,
+              jsdoc: { id: "", generated: "uuid" },
+            },
             name: { type: "string", optional: false },
             price: { type: "number", optional: false },
             stock: { type: "bigint", optional: false },
@@ -125,7 +151,9 @@ describe("KyselyDatabaseAdapter", () => {
       };
 
       const outputs = adapter.generate(types);
-      expect(outputs[0].content).toContain("custom_accounts: UserAccountTable;");
+      expect(outputs[0].content).toContain(
+        "custom_accounts: UserAccountTable;",
+      );
     });
 
     it("should pluralize table names from type names", () => {
@@ -165,7 +193,11 @@ describe("KyselyDatabaseAdapter", () => {
         Config: {
           name: "Config",
           properties: {
-            retryCount: { type: "number", optional: false, jsdoc: { default: "3" } },
+            retryCount: {
+              type: "number",
+              optional: false,
+              jsdoc: { default: "3" },
+            },
           },
         },
       };
@@ -208,7 +240,11 @@ describe("KyselyDatabaseAdapter", () => {
         Event: {
           name: "Event",
           properties: {
-            createdAt: { type: "Date", optional: false, jsdoc: { generated: "now" } },
+            createdAt: {
+              type: "Date",
+              optional: false,
+              jsdoc: { generated: "now" },
+            },
           },
         },
       };
@@ -289,7 +325,11 @@ describe("KyselyDatabaseAdapter", () => {
 
       const draft = adapter.diff(types, state);
       expect(draft.changes).toHaveLength(1);
-      expect(draft.changes[0]).toEqual({ type: "remove", entity: "users", field: "old_col" });
+      expect(draft.changes[0]).toEqual({
+        type: "remove",
+        entity: "users",
+        field: "old_col",
+      });
       expect(draft.destructive).toBe(true);
     });
 
@@ -355,7 +395,9 @@ describe("KyselyDatabaseAdapter", () => {
       };
 
       const draft = adapter.diff(types, state);
-      expect(draft.sql).toContain('ALTER TABLE "users" ADD COLUMN "new_field" TEXT;');
+      expect(draft.sql).toContain(
+        'ALTER TABLE "users" ADD COLUMN "new_field" TEXT;',
+      );
       expect(draft.name).toMatch(/^\d{14}_schema_update$/);
     });
   });

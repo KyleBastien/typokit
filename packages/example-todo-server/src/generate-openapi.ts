@@ -99,7 +99,10 @@ function paginatedResponseOf(itemRef: string) {
   return {
     type: "object" as const,
     properties: {
-      data: { type: "array", items: { $ref: `#/components/schemas/${itemRef}` } },
+      data: {
+        type: "array",
+        items: { $ref: `#/components/schemas/${itemRef}` },
+      },
       pagination: { $ref: "#/components/schemas/Pagination" },
     },
     required: ["data", "pagination"],

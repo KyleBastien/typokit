@@ -44,7 +44,10 @@ function createPublicUserValidator(): ValidatorFn {
 }
 
 /** Creates a simple pass/fail validator */
-function createSimpleValidator(fieldName: string, fieldType: string): ValidatorFn {
+function createSimpleValidator(
+  fieldName: string,
+  fieldType: string,
+): ValidatorFn {
   return (input: unknown) => {
     if (typeof input !== "object" || input === null) {
       return {
@@ -56,7 +59,9 @@ function createSimpleValidator(fieldName: string, fieldType: string): ValidatorF
     if (typeof obj[fieldName] !== fieldType) {
       return {
         success: false,
-        errors: [{ path: fieldName, expected: fieldType, actual: obj[fieldName] }],
+        errors: [
+          { path: fieldName, expected: fieldType, actual: obj[fieldName] },
+        ],
       };
     }
     return { success: true, data: input };
@@ -153,7 +158,10 @@ describe("schema-matcher", () => {
     it("should include field-level error details", () => {
       registerSchemaValidators({ PublicUser: createPublicUserValidator() });
 
-      const result = matchSchema({ id: 42, name: true, email: null }, "PublicUser");
+      const result = matchSchema(
+        { id: 42, name: true, email: null },
+        "PublicUser",
+      );
       expect(result.pass).toBe(false);
       expect(result.message).toContain("id");
       expect(result.message).toContain("expected string");

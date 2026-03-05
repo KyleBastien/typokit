@@ -12,7 +12,12 @@ import type {
   ValidatorMap,
 } from "@typokit/types";
 import type { Server } from "node:http";
-import { nativeServer, runValidators, serializeResponse, validationErrorResponse } from "./index.js";
+import {
+  nativeServer,
+  runValidators,
+  serializeResponse,
+  validationErrorResponse,
+} from "./index.js";
 
 // ─── Test Helpers ────────────────────────────────────────────
 
@@ -164,7 +169,11 @@ function makeValidatorMap(): ValidatorMap {
       const obj = input as Record<string, unknown>;
       const errors = [];
       if (obj.page !== undefined && typeof obj.page !== "string") {
-        errors.push({ path: "page", expected: "string", actual: typeof obj.page });
+        errors.push({
+          path: "page",
+          expected: "string",
+          actual: typeof obj.page,
+        });
       }
       if (obj.limit !== undefined) {
         const limit = Number(obj.limit);
@@ -180,13 +189,26 @@ function makeValidatorMap(): ValidatorMap {
       const obj = input as Record<string, unknown>;
       const errors = [];
       if (typeof obj !== "object" || obj === null) {
-        return { success: false, errors: [{ path: "$input", expected: "object", actual: typeof input }] };
+        return {
+          success: false,
+          errors: [
+            { path: "$input", expected: "object", actual: typeof input },
+          ],
+        };
       }
       if (typeof obj.name !== "string" || obj.name.length === 0) {
-        errors.push({ path: "name", expected: "non-empty string", actual: obj.name });
+        errors.push({
+          path: "name",
+          expected: "non-empty string",
+          actual: obj.name,
+        });
       }
       if (typeof obj.email !== "string" || !obj.email.includes("@")) {
-        errors.push({ path: "email", expected: "valid email", actual: obj.email });
+        errors.push({
+          path: "email",
+          expected: "valid email",
+          actual: obj.email,
+        });
       }
       return errors.length === 0
         ? { success: true, data: input }
@@ -196,13 +218,29 @@ function makeValidatorMap(): ValidatorMap {
       const obj = input as Record<string, unknown>;
       const errors = [];
       if (typeof obj !== "object" || obj === null) {
-        return { success: false, errors: [{ path: "$input", expected: "object", actual: typeof input }] };
+        return {
+          success: false,
+          errors: [
+            { path: "$input", expected: "object", actual: typeof input },
+          ],
+        };
       }
       if (obj.name !== undefined && typeof obj.name !== "string") {
-        errors.push({ path: "name", expected: "string", actual: typeof obj.name });
+        errors.push({
+          path: "name",
+          expected: "string",
+          actual: typeof obj.name,
+        });
       }
-      if (obj.email !== undefined && (typeof obj.email !== "string" || !obj.email.includes("@"))) {
-        errors.push({ path: "email", expected: "valid email", actual: obj.email });
+      if (
+        obj.email !== undefined &&
+        (typeof obj.email !== "string" || !obj.email.includes("@"))
+      ) {
+        errors.push({
+          path: "email",
+          expected: "valid email",
+          actual: obj.email,
+        });
       }
       return errors.length === 0
         ? { success: true, data: input }
@@ -213,7 +251,11 @@ function makeValidatorMap(): ValidatorMap {
 
 const emptyMiddleware: MiddlewareChain = { entries: [] };
 
-async function fetchJson(port: number, path: string, options: { method?: string; body?: unknown } = {}): Promise<{ status: number; headers: Record<string, string>; body: unknown }> {
+async function fetchJson(
+  port: number,
+  path: string,
+  options: { method?: string; body?: unknown } = {},
+): Promise<{ status: number; headers: Record<string, string>; body: unknown }> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = {};
   let bodyStr: string | undefined;
@@ -230,7 +272,9 @@ async function fetchJson(port: number, path: string, options: { method?: string;
   });
 
   const resHeaders: Record<string, string> = {};
-  res.headers.forEach((v, k) => { resHeaders[k] = v; });
+  res.headers.forEach((v, k) => {
+    resHeaders[k] = v;
+  });
 
   let body: unknown;
   const ct = res.headers.get("content-type") ?? "";
@@ -263,13 +307,7 @@ describe("validationErrorResponse", () => {
 
 describe("runValidators", () => {
   it("returns undefined when no validators configured", () => {
-    const result = runValidators(
-      { validators: undefined },
-      null,
-      {},
-      {},
-      null,
-    );
+    const result = runValidators({ validators: undefined }, null, {}, {}, null);
     expect(result).toBeUndefined();
   });
 
@@ -346,7 +384,8 @@ describe("runValidators", () => {
       null,
     );
     expect(result).toBeDefined();
-    const fields = (result!.body as ErrorResponse).error.details?.fields as Array<{ path: string }>;
+    const fields = (result!.body as ErrorResponse).error.details
+      ?.fields as Array<{ path: string }>;
     expect(fields[0].path).toBe("params.id");
   });
 
@@ -365,7 +404,8 @@ describe("runValidators", () => {
       null,
     );
     expect(result).toBeDefined();
-    const fields = (result!.body as ErrorResponse).error.details?.fields as Array<{ path: string }>;
+    const fields = (result!.body as ErrorResponse).error.details
+      ?.fields as Array<{ path: string }>;
     expect(fields[0].path).toBe("query.limit");
   });
 
@@ -388,7 +428,8 @@ describe("runValidators", () => {
       { name: 42 },
     );
     expect(result).toBeDefined();
-    const fields = (result!.body as ErrorResponse).error.details?.fields as Array<{ path: string }>;
+    const fields = (result!.body as ErrorResponse).error.details
+      ?.fields as Array<{ path: string }>;
     expect(fields).toHaveLength(2);
     expect(fields[0].path).toBe("params.id");
     expect(fields[1].path).toBe("body.name");
@@ -550,7 +591,9 @@ describe("nativeServer integration", () => {
     try {
       const server = adapter.getNativeServer!();
       expect(server).toBeDefined();
-      expect(typeof (server as Record<string, unknown>).listen).toBe("function");
+      expect(typeof (server as Record<string, unknown>).listen).toBe(
+        "function",
+      );
     } finally {
       await handle.close();
     }
@@ -657,7 +700,10 @@ describe("validation pipeline integration", () => {
       const body = res.body as ErrorResponse;
       expect(body.error.code).toBe("VALIDATION_ERROR");
       expect(body.error.message).toBe("Request validation failed");
-      const fields = body.error.details?.fields as Array<{ path: string; expected: string }>;
+      const fields = body.error.details?.fields as Array<{
+        path: string;
+        expected: string;
+      }>;
       expect(fields.length).toBeGreaterThan(0);
       // All body errors should be prefixed with "body."
       for (const f of fields) {
@@ -834,14 +880,22 @@ function makeSerializedRouteTable(): CompiledRouteTable {
       users: {
         segment: "users",
         handlers: {
-          GET: { ref: "users#list", middleware: [], serializer: "UserListResponse" },
+          GET: {
+            ref: "users#list",
+            middleware: [],
+            serializer: "UserListResponse",
+          },
           POST: { ref: "users#create", middleware: [] }, // no serializer — fallback
         },
         paramChild: {
           segment: ":id",
           paramName: "id",
           handlers: {
-            GET: { ref: "users#get", middleware: [], serializer: "UserResponse" },
+            GET: {
+              ref: "users#get",
+              middleware: [],
+              serializer: "UserResponse",
+            },
             DELETE: { ref: "users#delete", middleware: [] },
           },
         },
@@ -849,19 +903,31 @@ function makeSerializedRouteTable(): CompiledRouteTable {
       nested: {
         segment: "nested",
         handlers: {
-          GET: { ref: "nested#get", middleware: [], serializer: "NestedResponse" },
+          GET: {
+            ref: "nested#get",
+            middleware: [],
+            serializer: "NestedResponse",
+          },
         },
       },
       types: {
         segment: "types",
         handlers: {
-          GET: { ref: "types#all", middleware: [], serializer: "AllTypesResponse" },
+          GET: {
+            ref: "types#all",
+            middleware: [],
+            serializer: "AllTypesResponse",
+          },
         },
       },
       "no-schema": {
         segment: "no-schema",
         handlers: {
-          GET: { ref: "noschema#get", middleware: [], serializer: "MissingSerializer" },
+          GET: {
+            ref: "noschema#get",
+            middleware: [],
+            serializer: "MissingSerializer",
+          },
         },
       },
     },
@@ -879,7 +945,12 @@ function makeSerializerHandlerMap(): HandlerMap {
     "users#list": async () => ({
       status: 200,
       headers: {},
-      body: { users: [{ id: "1", name: "Alice" }, { id: "2", name: "Bob" }] },
+      body: {
+        users: [
+          { id: "1", name: "Alice" },
+          { id: "2", name: "Bob" },
+        ],
+      },
     }),
     "users#create": async (req: TypoKitRequest) => ({
       status: 201,
@@ -899,12 +970,21 @@ function makeSerializerHandlerMap(): HandlerMap {
     "nested#get": async () => ({
       status: 200,
       headers: {},
-      body: { data: { items: [{ a: 1, b: [true, false] }], meta: { total: 1 } } },
+      body: {
+        data: { items: [{ a: 1, b: [true, false] }], meta: { total: 1 } },
+      },
     }),
     "types#all": async () => ({
       status: 200,
       headers: {},
-      body: { str: "hello", num: 42, bool: true, nil: null, arr: [1, 2, 3], obj: { k: "v" } },
+      body: {
+        str: "hello",
+        num: 42,
+        bool: true,
+        nil: null,
+        arr: [1, 2, 3],
+        obj: { k: "v" },
+      },
     }),
     "noschema#get": async () => ({
       status: 200,
@@ -936,17 +1016,29 @@ function makeSerializerMap(): SerializerMap {
 
 describe("serializeResponse (unit)", () => {
   it("returns response unchanged for null body", () => {
-    const res = serializeResponse({ status: 204, headers: {}, body: null }, "Ref", null);
+    const res = serializeResponse(
+      { status: 204, headers: {}, body: null },
+      "Ref",
+      null,
+    );
     expect(res.body).toBeNull();
   });
 
   it("returns response unchanged for undefined body", () => {
-    const res = serializeResponse({ status: 204, headers: {}, body: undefined }, "Ref", null);
+    const res = serializeResponse(
+      { status: 204, headers: {}, body: undefined },
+      "Ref",
+      null,
+    );
     expect(res.body).toBeUndefined();
   });
 
   it("returns response unchanged for string body", () => {
-    const res = serializeResponse({ status: 200, headers: {}, body: "plain text" }, "Ref", null);
+    const res = serializeResponse(
+      { status: 200, headers: {}, body: "plain text" },
+      "Ref",
+      null,
+    );
     expect(res.body).toBe("plain text");
   });
 
@@ -985,7 +1077,11 @@ describe("serializeResponse (unit)", () => {
 
   it("does not overwrite existing content-type header", () => {
     const res = serializeResponse(
-      { status: 200, headers: { "content-type": "application/vnd.api+json" }, body: { x: 1 } },
+      {
+        status: 200,
+        headers: { "content-type": "application/vnd.api+json" },
+        body: { x: 1 },
+      },
       undefined,
       null,
     );
@@ -993,7 +1089,14 @@ describe("serializeResponse (unit)", () => {
   });
 
   it("serializes all JSON types correctly", () => {
-    const body = { str: "hello", num: 42, bool: true, nil: null, arr: [1, 2], obj: { k: "v" } };
+    const body = {
+      str: "hello",
+      num: 42,
+      bool: true,
+      nil: null,
+      arr: [1, 2],
+      obj: { k: "v" },
+    };
     const res = serializeResponse(
       { status: 200, headers: {}, body },
       undefined,
@@ -1180,7 +1283,11 @@ describe("response serialization integration", () => {
 
   it("works without serializerMap (backwards compatible)", async () => {
     const adapter = nativeServer();
-    adapter.registerRoutes(makeSerializedRouteTable(), makeSerializerHandlerMap(), emptyMiddleware);
+    adapter.registerRoutes(
+      makeSerializedRouteTable(),
+      makeSerializerHandlerMap(),
+      emptyMiddleware,
+    );
     const handle = await adapter.listen(0);
     try {
       const server = adapter.getNativeServer!() as Server;

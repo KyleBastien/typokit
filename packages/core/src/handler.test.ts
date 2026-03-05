@@ -1,6 +1,10 @@
 import { describe, it, expect } from "@rstest/core";
 import { defineHandlers } from "./handler.js";
-import type { RouteContract, RequestContext, PaginatedResponse } from "@typokit/types";
+import type {
+  RouteContract,
+  RequestContext,
+  PaginatedResponse,
+} from "@typokit/types";
 import { createRequestContext } from "./middleware.js";
 
 // ─── Test Route Contracts ────────────────────────────────────
@@ -17,6 +21,7 @@ interface CreateUserInput {
 }
 
 interface UsersRoutes {
+  [key: string]: RouteContract<any, any, any, any>;
   "GET /users": RouteContract<
     void,
     { page?: number; pageSize?: number },
@@ -24,19 +29,9 @@ interface UsersRoutes {
     PaginatedResponse<TestUser>
   >;
 
-  "POST /users": RouteContract<
-    void,
-    void,
-    CreateUserInput,
-    TestUser
-  >;
+  "POST /users": RouteContract<void, void, CreateUserInput, TestUser>;
 
-  "GET /users/:id": RouteContract<
-    { id: string },
-    void,
-    void,
-    TestUser
-  >;
+  "GET /users/:id": RouteContract<{ id: string }, void, void, TestUser>;
 }
 
 // ─── Tests ───────────────────────────────────────────────────
@@ -197,7 +192,7 @@ describe("defineHandlers", () => {
     const ctx = createRequestContext({ requestId: "req-test-123" });
     await handlers["GET /users"]({
       params: undefined as void,
-      query: undefined as void,
+      query: undefined as unknown as { page?: number; pageSize?: number },
       body: undefined as void,
       ctx,
     });
@@ -229,7 +224,7 @@ describe("defineHandlers", () => {
     const ctx = createRequestContext();
     const listResult = await handlers["GET /users"]({
       params: undefined as void,
-      query: undefined as void,
+      query: undefined as unknown as { page?: number; pageSize?: number },
       body: undefined as void,
       ctx,
     });
@@ -272,7 +267,13 @@ describe("defineHandlers", () => {
 
 describe("defineHandlers with single-route contract", () => {
   interface SingleRoute {
-    "DELETE /items/:id": RouteContract<{ id: string }, void, void, { deleted: boolean }>;
+    [key: string]: RouteContract<any, any, any, any>;
+    "DELETE /items/:id": RouteContract<
+      { id: string },
+      void,
+      void,
+      { deleted: boolean }
+    >;
   }
 
   it("works with a single route contract", async () => {
@@ -308,8 +309,14 @@ describe("defineHandlers with complex types", () => {
   }
 
   interface ComplexRoutes {
+    [key: string]: RouteContract<any, any, any, any>;
     "POST /items": RouteContract<void, void, ComplexBody, ComplexResponse>;
-    "GET /items/:id": RouteContract<{ id: string }, { include?: string[] }, void, ComplexResponse>;
+    "GET /items/:id": RouteContract<
+      { id: string },
+      { include?: string[] },
+      void,
+      ComplexResponse
+    >;
   }
 
   it("handles complex body and response types", async () => {

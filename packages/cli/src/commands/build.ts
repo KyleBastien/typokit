@@ -2,7 +2,11 @@
 
 import type { CliLogger } from "../logger.js";
 import type { TypoKitConfig } from "../config.js";
-import type { BuildResult, BuildContext, GeneratedOutput } from "@typokit/types";
+import type {
+  BuildResult,
+  BuildContext,
+  GeneratedOutput,
+} from "@typokit/types";
 import type { TypoKitPlugin, BuildPipelineInstance } from "@typokit/core";
 
 export interface BuildCommandOptions {
@@ -35,11 +39,13 @@ async function resolveFilePatterns(
   rootDir: string,
   patterns: string[],
 ): Promise<string[]> {
-  const { join, resolve } = await import(/* @vite-ignore */ "path") as {
+  const { join, resolve } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
     resolve: (...args: string[]) => string;
   };
-  const { readdirSync, statSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { readdirSync, statSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     readdirSync: (p: string, opts?: { recursive?: boolean }) => string[];
     statSync: (p: string) => { isFile(): boolean; isDirectory(): boolean };
     existsSync: (p: string) => boolean;
@@ -60,14 +66,15 @@ async function resolveFilePatterns(
         if (part.includes("*")) break;
         baseParts.push(part);
       }
-      const baseDir = baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
+      const baseDir =
+        baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
 
       if (!existsSync(baseDir)) continue;
 
       // List files recursively if **
       const entries = hasDoubleGlob
         ? listFilesRecursive(baseDir, existsSync, readdirSync, statSync, join)
-        : readdirSync(baseDir).map(f => join(baseDir, f));
+        : readdirSync(baseDir).map((f) => join(baseDir, f));
 
       // Match against the filename pattern
       const filePattern = lastPart.replace(/\*/g, ".*");
@@ -106,8 +113,20 @@ function listFilesRecursive(
     try {
       const stat = statSync(fullPath);
       if (stat.isDirectory()) {
-        if (entry !== "node_modules" && entry !== "dist" && entry !== ".typokit") {
-          results.push(...listFilesRecursive(fullPath, existsSync, readdirSync, statSync, join));
+        if (
+          entry !== "node_modules" &&
+          entry !== "dist" &&
+          entry !== ".typokit"
+        ) {
+          results.push(
+            ...listFilesRecursive(
+              fullPath,
+              existsSync,
+              readdirSync,
+              statSync,
+              join,
+            ),
+          );
         }
       } else if (stat.isFile()) {
         results.push(fullPath);
@@ -159,11 +178,20 @@ function parseCompilerErrors(stderr: string): BuildError[] {
 async function runCompiler(
   options: BuildCommandOptions,
 ): Promise<{ success: boolean; errors: BuildError[] }> {
-  const { spawnSync } = await import(/* @vite-ignore */ "child_process") as {
-    spawnSync: (cmd: string, args: string[], opts: {
-      cwd?: string;
-      encoding?: string;
-    }) => { status: number | null; stdout: string; stderr: string; error?: Error };
+  const { spawnSync } = (await import(/* @vite-ignore */ "child_process")) as {
+    spawnSync: (
+      cmd: string,
+      args: string[],
+      opts: {
+        cwd?: string;
+        encoding?: string;
+      },
+    ) => {
+      status: number | null;
+      stdout: string;
+      stderr: string;
+      error?: Error;
+    };
   };
 
   const { config, rootDir, logger } = options;
@@ -202,12 +230,14 @@ async function runCompiler(
   if (result.error) {
     return {
       success: false,
-      errors: [{
-        source: compiler,
-        phase: "compile",
-        message: result.error.message,
-        errorType: "SPAWN_ERROR",
-      }],
+      errors: [
+        {
+          source: compiler,
+          phase: "compile",
+          message: result.error.message,
+          errorType: "SPAWN_ERROR",
+        },
+      ],
     };
   }
 
@@ -239,9 +269,9 @@ async function runCompiler(
 export async function executeBuild(
   options: BuildCommandOptions,
 ): Promise<BuildResult & { pipeline?: BuildPipelineInstance }> {
-  const { createBuildPipeline } = await import(
+  const { createBuildPipeline } = (await import(
     /* @vite-ignore */ "@typokit/core"
-  ) as {
+  )) as {
     createBuildPipeline: () => BuildPipelineInstance;
   };
 
@@ -289,9 +319,9 @@ export async function executeBuild(
     logger.step("transform", "Running native transform pipeline...");
 
     try {
-      const { buildPipeline: nativeBuildPipeline } = await import(
+      const { buildPipeline: nativeBuildPipeline } = (await import(
         /* @vite-ignore */ "@typokit/transform-native"
-      ) as {
+      )) as {
         buildPipeline: (opts: {
           typeFiles: string[];
           routeFiles: string[];
@@ -310,7 +340,9 @@ export async function executeBuild(
       });
 
       if (result.regenerated) {
-        logger.success(`Transform complete — ${result.filesWritten.length} files written`);
+        logger.success(
+          `Transform complete — ${result.filesWritten.length} files written`,
+        );
         for (const f of result.filesWritten) {
           outputs.push({ filePath: f, content: "", overwrite: true });
         }
@@ -330,11 +362,14 @@ export async function executeBuild(
       await pipeline.hooks.afterValidators.call(outputs, buildCtx);
 
       // Fire afterRouteTable hook
-      await pipeline.hooks.afterRouteTable.call({
-        segment: "",
-        children: {},
-        handlers: {},
-      }, buildCtx);
+      await pipeline.hooks.afterRouteTable.call(
+        {
+          segment: "",
+          children: {},
+          handlers: {},
+        },
+        buildCtx,
+      );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`Transform failed: ${message}`);
@@ -360,7 +395,8 @@ export async function executeBuild(
   if (!compileResult.success) {
     for (const buildErr of compileResult.errors) {
       const parts = [buildErr.message];
-      if (buildErr.file) parts.unshift(`${buildErr.file}:${buildErr.line ?? 0}`);
+      if (buildErr.file)
+        parts.unshift(`${buildErr.file}:${buildErr.line ?? 0}`);
       if (buildErr.errorType) parts.push(`(${buildErr.errorType})`);
       const formatted = parts.join(" — ");
       logger.error(formatted);

@@ -39,7 +39,11 @@ export interface MigrateResult {
 /**
  * Get the migrations directory path.
  */
-function getMigrationsDir(rootDir: string, outputDir: string, join: (...args: string[]) => string): string {
+function getMigrationsDir(
+  rootDir: string,
+  outputDir: string,
+  join: (...args: string[]) => string,
+): string {
   return join(rootDir, outputDir, "migrations");
 }
 
@@ -95,7 +99,8 @@ function annotateSql(sql: string, changes: SchemaChange[]): string {
     const trimmed = line.trim().toUpperCase();
     if (
       trimmed.startsWith("DROP") ||
-      trimmed.startsWith("ALTER") && (trimmed.includes("DROP") || trimmed.includes("TYPE"))
+      (trimmed.startsWith("ALTER") &&
+        (trimmed.includes("DROP") || trimmed.includes("TYPE")))
     ) {
       annotated.push("-- DESTRUCTIVE: requires review");
     }
@@ -112,11 +117,13 @@ async function resolveFilePatterns(
   rootDir: string,
   patterns: string[],
 ): Promise<string[]> {
-  const { join, resolve } = await import(/* @vite-ignore */ "path") as {
+  const { join, resolve } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
     resolve: (...args: string[]) => string;
   };
-  const { readdirSync, statSync, existsSync } = await import(/* @vite-ignore */ "fs") as {
+  const { readdirSync, statSync, existsSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     readdirSync: (p: string) => string[];
     statSync: (p: string) => { isFile(): boolean; isDirectory(): boolean };
     existsSync: (p: string) => boolean;
@@ -135,13 +142,14 @@ async function resolveFilePatterns(
         if (part.includes("*")) break;
         baseParts.push(part);
       }
-      const baseDir = baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
+      const baseDir =
+        baseParts.length > 0 ? join(rootDir, ...baseParts) : rootDir;
 
       if (!existsSync(baseDir)) continue;
 
       const entries = hasDoubleGlob
         ? listFilesRecursive(baseDir, existsSync, readdirSync, statSync, join)
-        : readdirSync(baseDir).map(f => join(baseDir, f));
+        : readdirSync(baseDir).map((f) => join(baseDir, f));
 
       const filePattern = lastPart.replace(/\*/g, ".*");
       const regex = new RegExp(`^${filePattern}$`);
@@ -178,8 +186,20 @@ function listFilesRecursive(
     try {
       const stat = statSync(fullPath);
       if (stat.isDirectory()) {
-        if (entry !== "node_modules" && entry !== "dist" && entry !== ".typokit") {
-          results.push(...listFilesRecursive(fullPath, existsSync, readdirSync, statSync, join));
+        if (
+          entry !== "node_modules" &&
+          entry !== "dist" &&
+          entry !== ".typokit"
+        ) {
+          results.push(
+            ...listFilesRecursive(
+              fullPath,
+              existsSync,
+              readdirSync,
+              statSync,
+              join,
+            ),
+          );
         }
       } else if (stat.isFile()) {
         results.push(fullPath);
@@ -199,10 +219,12 @@ async function loadSchemaSnapshot(
   rootDir: string,
   outputDir: string,
 ): Promise<Record<string, unknown>> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const { existsSync, readFileSync } = await import(/* @vite-ignore */ "fs") as {
+  const { existsSync, readFileSync } = (await import(
+    /* @vite-ignore */ "fs"
+  )) as {
     existsSync: (p: string) => boolean;
     readFileSync: (p: string, encoding: string) => string;
   };
@@ -226,10 +248,10 @@ async function saveSchemaSnapshot(
   outputDir: string,
   types: Record<string, unknown>,
 ): Promise<void> {
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const nodeFs = await import(/* @vite-ignore */ "fs") as {
+  const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
     mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
     writeFileSync: (p: string, data: string, encoding?: string) => void;
   };
@@ -262,7 +284,14 @@ async function migrateGenerate(
 
   if (typeFiles.length === 0) {
     logger.warn("No type files found matching configured patterns");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 
   if (verbose) {
@@ -273,10 +302,12 @@ async function migrateGenerate(
   try {
     // Extract current types
     logger.step("migrate:generate", "Extracting type metadata...");
-    const { parseAndExtractTypes } = await import(
+    const { parseAndExtractTypes } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
-      parseAndExtractTypes: (files: string[]) => Promise<Record<string, unknown>>;
+    )) as {
+      parseAndExtractTypes: (
+        files: string[],
+      ) => Promise<Record<string, unknown>>;
     };
 
     const currentTypes = await parseAndExtractTypes(typeFiles);
@@ -284,7 +315,14 @@ async function migrateGenerate(
 
     if (typeCount === 0) {
       logger.warn("No types extracted from source files");
-      return { success: true, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+      return {
+        success: true,
+        filesWritten,
+        duration: Date.now() - startTime,
+        errors,
+        destructive: false,
+        changes: [],
+      };
     }
 
     logger.step("migrate:generate", `Extracted ${typeCount} types`);
@@ -294,9 +332,9 @@ async function migrateGenerate(
 
     // Diff schemas
     logger.step("migrate:generate", "Diffing schemas...");
-    const { diffSchemas } = await import(
+    const { diffSchemas } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
+    )) as {
       diffSchemas: (
         oldTypes: Record<string, unknown>,
         newTypes: Record<string, unknown>,
@@ -308,14 +346,21 @@ async function migrateGenerate(
 
     if (migration.changes.length === 0) {
       logger.info("No schema changes detected");
-      return { success: true, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+      return {
+        success: true,
+        filesWritten,
+        duration: Date.now() - startTime,
+        errors,
+        destructive: false,
+        changes: [],
+      };
     }
 
     // Generate migration file
-    const { join } = await import(/* @vite-ignore */ "path") as {
+    const { join } = (await import(/* @vite-ignore */ "path")) as {
       join: (...args: string[]) => string;
     };
-    const nodeFs = await import(/* @vite-ignore */ "fs") as {
+    const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
       mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
       writeFileSync: (p: string, data: string, encoding?: string) => void;
     };
@@ -336,9 +381,13 @@ async function migrateGenerate(
       `-- Migration: ${name}`,
       `-- Generated: ${new Date().toISOString()}`,
       `-- Changes: ${migration.changes.length}`,
-      migration.destructive ? "-- WARNING: Contains destructive changes that require review" : "",
+      migration.destructive
+        ? "-- WARNING: Contains destructive changes that require review"
+        : "",
       "",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const content = header + "\n" + annotatedSql + "\n";
 
@@ -362,7 +411,9 @@ async function migrateGenerate(
     await saveSchemaSnapshot(rootDir, config.outputDir, currentTypes);
 
     if (migration.destructive) {
-      logger.warn("Migration contains DESTRUCTIVE changes — review required before applying");
+      logger.warn(
+        "Migration contains DESTRUCTIVE changes — review required before applying",
+      );
     }
 
     if (verbose) {
@@ -376,7 +427,9 @@ async function migrateGenerate(
     }
 
     const duration = Date.now() - startTime;
-    logger.success(`migrate:generate complete — ${filesWritten.length} files written (${duration}ms)`);
+    logger.success(
+      `migrate:generate complete — ${filesWritten.length} files written (${duration}ms)`,
+    );
     return {
       success: true,
       filesWritten,
@@ -389,7 +442,14 @@ async function migrateGenerate(
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`migrate:generate failed: ${message}`);
     errors.push(message);
-    return { success: false, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: false,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 }
 
@@ -412,24 +472,33 @@ async function migrateDiff(
 
   if (typeFiles.length === 0) {
     logger.warn("No type files found matching configured patterns");
-    return { success: true, filesWritten: [], duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: true,
+      filesWritten: [],
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 
   try {
     // Extract current types
-    const { parseAndExtractTypes } = await import(
+    const { parseAndExtractTypes } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
-      parseAndExtractTypes: (files: string[]) => Promise<Record<string, unknown>>;
+    )) as {
+      parseAndExtractTypes: (
+        files: string[],
+      ) => Promise<Record<string, unknown>>;
     };
 
     const currentTypes = await parseAndExtractTypes(typeFiles);
     const previousTypes = await loadSchemaSnapshot(rootDir, config.outputDir);
 
     // Diff schemas
-    const { diffSchemas } = await import(
+    const { diffSchemas } = (await import(
       /* @vite-ignore */ "@typokit/transform-native"
-    ) as {
+    )) as {
       diffSchemas: (
         oldTypes: Record<string, unknown>,
         newTypes: Record<string, unknown>,
@@ -441,12 +510,21 @@ async function migrateDiff(
 
     if (migration.changes.length === 0) {
       logger.info("No pending schema changes");
-      return { success: true, filesWritten: [], duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+      return {
+        success: true,
+        filesWritten: [],
+        duration: Date.now() - startTime,
+        errors,
+        destructive: false,
+        changes: [],
+      };
     }
 
     // Output the diff
     const g = globalThis as Record<string, unknown>;
-    const proc = g["process"] as { stdout: { write(s: string): void } } | undefined;
+    const proc = g["process"] as
+      | { stdout: { write(s: string): void } }
+      | undefined;
     const stdout = proc?.stdout ?? { write: () => {} };
 
     if (asJson) {
@@ -462,9 +540,13 @@ async function migrateDiff(
       stdout.write("─".repeat(50) + "\n");
 
       for (const change of migration.changes) {
-        const destructiveTag = isDestructiveChange(change) ? " [DESTRUCTIVE]" : "";
+        const destructiveTag = isDestructiveChange(change)
+          ? " [DESTRUCTIVE]"
+          : "";
         const field = change.field ? `.${change.field}` : "";
-        stdout.write(`  ${change.type.toUpperCase()} ${change.entity}${field}${destructiveTag}\n`);
+        stdout.write(
+          `  ${change.type.toUpperCase()} ${change.entity}${field}${destructiveTag}\n`,
+        );
         if (change.details && verbose) {
           for (const [k, v] of Object.entries(change.details)) {
             stdout.write(`    ${k}: ${JSON.stringify(v)}\n`);
@@ -492,7 +574,14 @@ async function migrateDiff(
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`migrate:diff failed: ${message}`);
     errors.push(message);
-    return { success: false, filesWritten: [], duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: false,
+      filesWritten: [],
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 }
 
@@ -510,10 +599,10 @@ async function migrateApply(
   const filesWritten: string[] = [];
   const errors: string[] = [];
 
-  const { join } = await import(/* @vite-ignore */ "path") as {
+  const { join } = (await import(/* @vite-ignore */ "path")) as {
     join: (...args: string[]) => string;
   };
-  const nodeFs = await import(/* @vite-ignore */ "fs") as {
+  const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
     existsSync: (p: string) => boolean;
     readFileSync: (p: string, encoding: string) => string;
     readdirSync: (p: string) => string[];
@@ -525,18 +614,30 @@ async function migrateApply(
 
   if (!nodeFs.existsSync(migrationsDir)) {
     logger.info("No migrations directory found — nothing to apply");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 
   // Find all .sql migration files
   const allFiles = nodeFs.readdirSync(migrationsDir);
-  const sqlFiles = allFiles
-    .filter(f => f.endsWith(".sql"))
-    .sort(); // Sorted by timestamp prefix
+  const sqlFiles = allFiles.filter((f) => f.endsWith(".sql")).sort(); // Sorted by timestamp prefix
 
   if (sqlFiles.length === 0) {
     logger.info("No pending migration files found");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 
   // Load applied migrations log
@@ -548,11 +649,18 @@ async function migrateApply(
   }
 
   // Filter to unapplied migrations
-  const pending = sqlFiles.filter(f => !appliedSet.has(f));
+  const pending = sqlFiles.filter((f) => !appliedSet.has(f));
 
   if (pending.length === 0) {
     logger.info("All migrations already applied");
-    return { success: true, filesWritten, duration: Date.now() - startTime, errors, destructive: false, changes: [] };
+    return {
+      success: true,
+      filesWritten,
+      duration: Date.now() - startTime,
+      errors,
+      destructive: false,
+      changes: [],
+    };
   }
 
   logger.step("migrate:apply", `Found ${pending.length} pending migration(s)`);
@@ -571,8 +679,14 @@ async function migrateApply(
     const metaFile = file.replace(/\.sql$/, ".json");
     if (nodeFs.existsSync(join(migrationsDir, metaFile))) {
       try {
-        const metaContent = nodeFs.readFileSync(join(migrationsDir, metaFile), "utf-8");
-        const meta = JSON.parse(metaContent) as { changes?: SchemaChange[]; destructive?: boolean };
+        const metaContent = nodeFs.readFileSync(
+          join(migrationsDir, metaFile),
+          "utf-8",
+        );
+        const meta = JSON.parse(metaContent) as {
+          changes?: SchemaChange[];
+          destructive?: boolean;
+        };
         if (meta.changes) allChanges.push(...meta.changes);
         if (meta.destructive) hasDestructive = true;
       } catch {
@@ -596,7 +710,9 @@ async function migrateApply(
       success: false,
       filesWritten,
       duration: Date.now() - startTime,
-      errors: ["Destructive migrations require review. Use --force to override."],
+      errors: [
+        "Destructive migrations require review. Use --force to override.",
+      ],
       destructive: true,
       changes: allChanges,
     };
@@ -619,11 +735,17 @@ async function migrateApply(
   }
 
   // Update applied log
-  nodeFs.writeFileSync(appliedLogPath, [...appliedSet].join("\n") + "\n", "utf-8");
+  nodeFs.writeFileSync(
+    appliedLogPath,
+    [...appliedSet].join("\n") + "\n",
+    "utf-8",
+  );
   filesWritten.push(appliedLogPath);
 
   const duration = Date.now() - startTime;
-  logger.success(`migrate:apply complete — ${appliedFiles.length} migration(s) applied (${duration}ms)`);
+  logger.success(
+    `migrate:apply complete — ${appliedFiles.length} migration(s) applied (${duration}ms)`,
+  );
   return {
     success: true,
     filesWritten,

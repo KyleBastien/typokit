@@ -276,7 +276,7 @@ describe("createServer", () => {
       const webResp = await capturedFetch!(webReq);
 
       expect(webResp.status).toBe(500);
-      const body = await webResp.json();
+      const body = (await webResp.json()) as { error: string; message: string };
       expect(body.error).toBe("Internal Server Error");
       expect(body.message).toBe("boom");
 
