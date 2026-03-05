@@ -20,6 +20,11 @@
     }
   ],
   "targetDefaults": {
+    "nx-release-publish": {
+      "options": {
+        "access": "public"
+      }
+    },
     "build": {
       "dependsOn": [
         "^build"
