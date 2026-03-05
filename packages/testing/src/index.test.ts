@@ -6,6 +6,7 @@ import type {
   CompiledRouteTable,
   HandlerMap,
   MiddlewareChain,
+  RouteContract,
   TypoKitRequest,
   TypoKitResponse,
 } from "@typokit/types";
@@ -257,8 +258,14 @@ describe("createTestClient", () => {
     const app = createTestApp();
     const client = await createTestClient(app);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res = await client.request<any>("GET", "/users");
+      const res = await client.request<
+        RouteContract<
+          void,
+          void,
+          void,
+          { data: Array<{ id: string; name: string }> }
+        >
+      >("GET", "/users");
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(2);
     } finally {

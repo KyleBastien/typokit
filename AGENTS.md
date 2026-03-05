@@ -128,6 +128,8 @@ All publishable packages share **lock-step versioning** — same version number 
 - ESLint with `@typescript-eslint/consistent-type-imports` (enforced — use `import type` for type-only imports)
 - Unused vars must be prefixed with `_` (e.g., `_unused`)
 - `@typescript-eslint/no-explicit-any` is an error
+- **Never use `any`** — always use `unknown`, proper generic constraints, or specific types instead
+- **Never use `eslint-disable` comments** — fix the underlying issue instead of suppressing warnings
 - Generated code goes in `.typokit/` and `__generated__/` (both gitignored)
 - Tests live alongside source as `*.test.ts` files (e.g., `src/hooks.test.ts`)
 - All packages are ESM (`"type": "module"`) with composite TypeScript project references
