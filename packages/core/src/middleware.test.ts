@@ -144,11 +144,13 @@ describe("executeMiddlewareChain", () => {
       order.push(1);
       return {};
     });
-    const mw2 = defineMiddleware(async ({ ctx }): Promise<Record<string, unknown>> => {
-      order.push(2);
-      ctx.fail(403, "FORBIDDEN", "Not allowed");
-      return {};
-    });
+    const mw2 = defineMiddleware(
+      async ({ ctx }): Promise<Record<string, unknown>> => {
+        order.push(2);
+        ctx.fail(403, "FORBIDDEN", "Not allowed");
+        return {};
+      },
+    );
     const mw3 = defineMiddleware(async () => {
       order.push(3);
       return {};

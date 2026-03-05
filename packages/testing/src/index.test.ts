@@ -257,7 +257,7 @@ describe("createTestClient", () => {
     const app = createTestApp();
     const client = await createTestClient(app);
     try {
-      const res = await client.request<any>("GET", "/users");
+      const res = await client.request<unknown>("GET", "/users");
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(2);
     } finally {

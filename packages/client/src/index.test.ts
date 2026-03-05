@@ -208,7 +208,10 @@ describe("createClient", () => {
       baseUrl: "http://localhost:3000",
       headers: { "x-api-key": "secret123" },
     });
-    await client.get("/users", { query: {}, headers: { "x-request-id": "req-1" } });
+    await client.get("/users", {
+      query: {},
+      headers: { "x-request-id": "req-1" },
+    });
 
     expect(fetchCalls[0].init?.headers?.["x-api-key"]).toBe("secret123");
     expect(fetchCalls[0].init?.headers?.["x-request-id"]).toBe("req-1");

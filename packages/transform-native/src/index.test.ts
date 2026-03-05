@@ -521,17 +521,14 @@ interface Post {
 
       expect(inputs.length).toBe(2);
       // Should be alphabetically sorted
-      const postInput = inputs.find(
-        (i) => i.name === "Post",
-      );
-      const userInput = inputs.find(
-        (i) => i.name === "User",
-      );
+      const postInput = inputs.find((i) => i.name === "Post");
+      const userInput = inputs.find((i) => i.name === "User");
       expect(postInput).toBeDefined();
       expect(userInput).toBeDefined();
       expect(
         Object.keys(
-          (userInput as unknown as Record<string, Record<string, unknown>>).properties,
+          (userInput as unknown as Record<string, Record<string, unknown>>)
+            .properties,
         ).length,
       ).toBe(3);
     } finally {

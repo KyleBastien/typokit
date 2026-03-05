@@ -21,7 +21,7 @@ interface CreateUserInput {
 }
 
 interface UsersRoutes {
-  [key: string]: RouteContract<any, any, any, any>;
+  [key: string]: RouteContract<unknown, unknown, unknown, unknown>;
   "GET /users": RouteContract<
     void,
     { page?: number; pageSize?: number },
@@ -267,7 +267,7 @@ describe("defineHandlers", () => {
 
 describe("defineHandlers with single-route contract", () => {
   interface SingleRoute {
-    [key: string]: RouteContract<any, any, any, any>;
+    [key: string]: RouteContract<unknown, unknown, unknown, unknown>;
     "DELETE /items/:id": RouteContract<
       { id: string },
       void,
@@ -309,7 +309,7 @@ describe("defineHandlers with complex types", () => {
   }
 
   interface ComplexRoutes {
-    [key: string]: RouteContract<any, any, any, any>;
+    [key: string]: RouteContract<unknown, unknown, unknown, unknown>;
     "POST /items": RouteContract<void, void, ComplexBody, ComplexResponse>;
     "GET /items/:id": RouteContract<
       { id: string },
