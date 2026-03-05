@@ -57,7 +57,9 @@ export interface TestRequestOptions {
 }
 
 /** Type-safe request options using a RouteContract */
-export interface TypedRequestOptions<TContract extends RouteContract> {
+export interface TypedRequestOptions<
+  TContract extends RouteContract<unknown, unknown, unknown, unknown>,
+> {
   body?: TContract["body"] extends void ? never : TContract["body"];
   query?: TContract["query"] extends void ? never : TContract["query"];
   headers?: Record<string, string>;
@@ -98,7 +100,7 @@ export interface TestClient {
   ): Promise<TestResponse<TResponse>>;
 
   /** Send a contract-typed request */
-  request<TContract extends RouteContract>(
+  request<TContract extends RouteContract<unknown, unknown, unknown, unknown>>(
     method: string,
     path: string,
     options?: TypedRequestOptions<TContract>,
@@ -258,7 +260,9 @@ export async function createTestClient(app: TypoKitApp): Promise<TestClient> {
       return executeRequest<TResponse>(baseUrl, "DELETE", path, options);
     },
 
-    request<TContract extends RouteContract>(
+    request<
+      TContract extends RouteContract<unknown, unknown, unknown, unknown>,
+    >(
       method: string,
       path: string,
       options?: TypedRequestOptions<TContract>,

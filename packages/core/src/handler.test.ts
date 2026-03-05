@@ -20,7 +20,7 @@ interface CreateUserInput {
   email: string;
 }
 
-interface UsersRoutes {
+type UsersRoutes = {
   "GET /users": RouteContract<
     void,
     { page?: number; pageSize?: number },
@@ -31,7 +31,7 @@ interface UsersRoutes {
   "POST /users": RouteContract<void, void, CreateUserInput, TestUser>;
 
   "GET /users/:id": RouteContract<{ id: string }, void, void, TestUser>;
-}
+};
 
 // ─── Tests ───────────────────────────────────────────────────
 
@@ -265,14 +265,14 @@ describe("defineHandlers", () => {
 });
 
 describe("defineHandlers with single-route contract", () => {
-  interface SingleRoute {
+  type SingleRoute = {
     "DELETE /items/:id": RouteContract<
       { id: string },
       void,
       void,
       { deleted: boolean }
     >;
-  }
+  };
 
   it("works with a single route contract", async () => {
     const handlers = defineHandlers<SingleRoute>({
@@ -306,7 +306,7 @@ describe("defineHandlers with complex types", () => {
     createdAt: string;
   }
 
-  interface ComplexRoutes {
+  type ComplexRoutes = {
     "POST /items": RouteContract<void, void, ComplexBody, ComplexResponse>;
     "GET /items/:id": RouteContract<
       { id: string },
@@ -314,7 +314,7 @@ describe("defineHandlers with complex types", () => {
       void,
       ComplexResponse
     >;
-  }
+  };
 
   it("handles complex body and response types", async () => {
     const handlers = defineHandlers<ComplexRoutes>({
