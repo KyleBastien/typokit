@@ -7,6 +7,8 @@ on:
       - "packages/docs/**"
       - "packages/*/src/**"
       - "typokit-arch.md"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:
