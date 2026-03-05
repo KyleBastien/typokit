@@ -169,3 +169,6 @@ jobs:
           # TODO: Remove NODE_AUTH_TOKEN after first release and switching to npm Trusted Publishing
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+
+      - name: Push release tag
+        run: git push origin --tags
