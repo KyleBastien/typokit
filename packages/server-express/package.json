@@ -25,5 +25,10 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/server-express"
   }
 }

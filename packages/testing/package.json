@@ -25,5 +25,10 @@
     "@types/node": "^22.0.0",
     "@typokit/server-native": "workspace:*",
     "@typokit/platform-node": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/testing"
   }
 }
