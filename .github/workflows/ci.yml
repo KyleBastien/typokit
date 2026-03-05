@@ -10,7 +10,7 @@ on:
 
 jobs:
   lint-pr-title:
-    if: github.event_name == 'pull_request_target'
+    if: github.event_name == 'pull_request_target' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
