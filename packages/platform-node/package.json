@@ -22,5 +22,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/platform-node"
   }
 }

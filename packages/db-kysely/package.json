@@ -20,5 +20,10 @@
   "dependencies": {
     "@typokit/types": "workspace:*",
     "@typokit/core": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/db-kysely"
   }
 }

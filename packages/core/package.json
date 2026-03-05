@@ -20,5 +20,10 @@
   "dependencies": {
     "@typokit/errors": "workspace:*",
     "@typokit/types": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/core"
   }
 }

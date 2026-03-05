@@ -33,5 +33,10 @@
       "aarch64-unknown-linux-gnu",
       "x86_64-unknown-linux-musl"
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/transform-native"
   }
 }

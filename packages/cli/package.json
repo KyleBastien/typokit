@@ -24,5 +24,10 @@
     "@typokit/core": "workspace:*",
     "@typokit/types": "workspace:*",
     "@typokit/transform-native": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/cli"
   }
 }
