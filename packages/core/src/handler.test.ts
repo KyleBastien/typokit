@@ -21,7 +21,8 @@ interface CreateUserInput {
 }
 
 interface UsersRoutes {
-  [key: string]: RouteContract<unknown, unknown, unknown, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: RouteContract<any, any, any, any>;
   "GET /users": RouteContract<
     void,
     { page?: number; pageSize?: number },
@@ -267,7 +268,8 @@ describe("defineHandlers", () => {
 
 describe("defineHandlers with single-route contract", () => {
   interface SingleRoute {
-    [key: string]: RouteContract<unknown, unknown, unknown, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: RouteContract<any, any, any, any>;
     "DELETE /items/:id": RouteContract<
       { id: string },
       void,
@@ -309,7 +311,8 @@ describe("defineHandlers with complex types", () => {
   }
 
   interface ComplexRoutes {
-    [key: string]: RouteContract<unknown, unknown, unknown, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: RouteContract<any, any, any, any>;
     "POST /items": RouteContract<void, void, ComplexBody, ComplexResponse>;
     "GET /items/:id": RouteContract<
       { id: string },
