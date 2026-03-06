@@ -39,6 +39,12 @@ interface JsPipelineResult {
   validatorInputs: JsTypeValidatorInput[];
 }
 
+interface JsRustGeneratedOutput {
+  path: string;
+  content: string;
+  overwrite: boolean;
+}
+
 interface NativeBindings {
   parseAndExtractTypes(filePaths: string[]): Record<string, JsTypeMetadata>;
   compileRoutes(filePaths: string[]): string;
@@ -56,6 +62,10 @@ interface NativeBindings {
     typeFilePaths: string[],
     routeFilePaths: string[],
   ): JsPipelineResult;
+  generateRustCodegen(
+    typeFilePaths: string[],
+    routeFilePaths: string[],
+  ): JsRustGeneratedOutput[];
 }
 
 /** Options for the output pipeline */
@@ -83,6 +93,28 @@ export interface PipelineOutput {
   /** Extracted type metadata */
   types: SchemaTypeMap;
   /** Files written to outputDir */
+  filesWritten: string[];
+}
+
+/** Options for the Rust codegen pipeline */
+export interface RustPipelineOptions {
+  /** Paths to TypeScript files containing type definitions */
+  typeFiles: string[];
+  /** Paths to TypeScript files containing route contracts */
+  routeFiles: string[];
+  /** Output directory for the generated Rust project (defaults to current directory) */
+  outDir?: string;
+  /** Path to cache hash file (defaults to ".typokit/.cache-hash" within outDir) */
+  cacheFile?: string;
+}
+
+/** Result of the Rust codegen pipeline */
+export interface RustPipelineOutput {
+  /** Whether outputs were regenerated (false = cache hit) */
+  regenerated: boolean;
+  /** Content hash of source files */
+  contentHash: string;
+  /** Files written to outDir */
   filesWritten: string[];
 }
 
@@ -434,4 +466,105 @@ function schemaTypeMapToJs(
     }
   }
   return result;
+}
+
+/**
+ * Generate Rust (Axum) server code from TypeScript schema types and route contracts.
+ *
+ * Parses type definitions and route contracts, then generates a complete Axum server:
+ * structs, router, sqlx DB layer, handlers, services, middleware, and project scaffold.
+ *
+ * @param typeFilePaths - Array of file paths containing type definitions
+ * @param routeFilePaths - Array of file paths containing route contracts
+ * @returns Array of generated output objects with path, content, and overwrite flag
+ */
+export async function generateRustCodegen(
+  typeFilePaths: string[],
+  routeFilePaths: string[],
+): Promise<Array<{ path: string; content: string; overwrite: boolean }>> {
+  const native = await getNative();
+  return native.generateRustCodegen(typeFilePaths, routeFilePaths);
+}
+
+/**
+ * Run the Rust codegen pipeline with content-hash caching.
+ *
+ * Orchestrates the Rust code generation pipeline: parses TypeScript schemas
+ * and route contracts, generates a complete Axum server project, and writes
+ * all output files to the specified directory.
+ *
+ * Content-hash caching: If the hash of all source files matches the cached
+ * hash, no outputs are regenerated. Delete `.typokit/.cache-hash` to force rebuild.
+ *
+ * @param options - Rust pipeline configuration
+ * @returns Pipeline output with metadata about what was generated
+ */
+export async function buildRustPipeline(
+  options: RustPipelineOptions,
+): Promise<RustPipelineOutput> {
+  const { join, dirname } = (await import(/* @vite-ignore */ "path")) as {
+    join: (...args: string[]) => string;
+    dirname: (p: string) => string;
+  };
+  const nodeFs = (await import(/* @vite-ignore */ "fs")) as {
+    existsSync: (p: string) => boolean;
+    mkdirSync: (p: string, opts?: { recursive?: boolean }) => void;
+    readFileSync: (p: string, encoding: string) => string;
+    writeFileSync: (p: string, data: string, encoding?: string) => void;
+  };
+
+  const native = await getNative();
+  const outDir = options.outDir ?? ".";
+  const cacheFile =
+    options.cacheFile ?? join(outDir, ".typokit", ".cache-hash");
+
+  // 1. Compute content hash of all input files
+  const allPaths = [...options.typeFiles, ...options.routeFiles];
+  const contentHash = native.computeContentHash(allPaths);
+
+  // 2. Check cache
+  if (nodeFs.existsSync(cacheFile)) {
+    const cachedHash = nodeFs.readFileSync(cacheFile, "utf-8").trim();
+    if (cachedHash === contentHash) {
+      return {
+        regenerated: false,
+        contentHash,
+        filesWritten: [],
+      };
+    }
+  }
+
+  // 3. Generate Rust codegen outputs
+  const outputs = native.generateRustCodegen(
+    options.typeFiles,
+    options.routeFiles,
+  );
+
+  const filesWritten: string[] = [];
+
+  // 4. Write generated files
+  for (const output of outputs) {
+    const fullPath = join(outDir, output.path);
+    const dir = dirname(fullPath);
+    nodeFs.mkdirSync(dir, { recursive: true });
+
+    // Respect overwrite flag: skip existing files when overwrite is false
+    if (!output.overwrite && nodeFs.existsSync(fullPath)) {
+      continue;
+    }
+
+    nodeFs.writeFileSync(fullPath, output.content, "utf-8");
+    filesWritten.push(fullPath);
+  }
+
+  // 5. Write cache hash
+  nodeFs.mkdirSync(dirname(cacheFile), { recursive: true });
+  nodeFs.writeFileSync(cacheFile, contentHash, "utf-8");
+  filesWritten.push(cacheFile);
+
+  return {
+    regenerated: true,
+    contentHash,
+    filesWritten,
+  };
 }

@@ -20,6 +20,12 @@ export interface BuildCommandOptions {
   verbose: boolean;
   /** Plugins to register with the build pipeline */
   plugins?: TypoKitPlugin[];
+  /** Build target: 'typescript' (default) or 'rust' */
+  target?: "typescript" | "rust";
+  /** Database adapter for Rust target (only 'sqlx' supported) */
+  db?: string;
+  /** Output directory for generated code (Rust target: project root) */
+  outDir?: string;
 }
 
 /** Structured build error with source context */
@@ -267,6 +273,191 @@ async function runCompiler(
  * 9. Return structured BuildResult
  */
 export async function executeBuild(
+  options: BuildCommandOptions,
+): Promise<BuildResult & { pipeline?: BuildPipelineInstance }> {
+  const target = options.target ?? "typescript";
+
+  // Validate --db flag for Rust target
+  if (target === "rust" && options.db && options.db !== "sqlx") {
+    options.logger.error(
+      `Unsupported database adapter '${options.db}' for Rust target. Only 'sqlx' is currently supported.`,
+    );
+    return {
+      success: false,
+      outputs: [],
+      duration: 0,
+      errors: [
+        `Unsupported database adapter '${options.db}'. Only 'sqlx' is supported.`,
+      ],
+    };
+  }
+
+  // Delegate to target-specific build
+  if (target === "rust") {
+    return executeRustBuild(options);
+  }
+
+  return executeTypeScriptBuild(options);
+}
+
+/**
+ * Execute the Rust codegen build.
+ *
+ * 1. Resolve type and route files from config patterns
+ * 2. Create build pipeline and let plugins register taps via onBuild()
+ * 3. Fire beforeTransform, afterTypeParse, afterRouteTable hooks
+ * 4. Fire emit hook — invoke Rust codegen pipeline with caching
+ * 5. Fire done hook
+ * 6. Return structured BuildResult (no TS compiler step)
+ */
+async function executeRustBuild(
+  options: BuildCommandOptions,
+): Promise<BuildResult & { pipeline?: BuildPipelineInstance }> {
+  const { createBuildPipeline } = (await import(
+    /* @vite-ignore */ "@typokit/core"
+  )) as {
+    createBuildPipeline: () => BuildPipelineInstance;
+  };
+
+  const startTime = Date.now();
+  const { config, rootDir, logger, verbose, plugins = [] } = options;
+  const errors: string[] = [];
+  const outputs: GeneratedOutput[] = [];
+
+  const pipeline = createBuildPipeline();
+  for (const plugin of plugins) {
+    if (plugin.onBuild) {
+      plugin.onBuild(pipeline);
+      if (verbose) {
+        logger.verbose(`Plugin "${plugin.name}" registered build hooks`);
+      }
+    }
+  }
+
+  const outDir = options.outDir ?? rootDir;
+  const buildCtx: BuildContext = {
+    rootDir,
+    outDir: config.outputDir,
+    dev: false,
+    outputs,
+  };
+
+  // Step 1: Resolve file patterns
+  logger.step("build", "Resolving source files...");
+  const typeFiles = await resolveFilePatterns(rootDir, config.typeFiles);
+  const routeFiles = await resolveFilePatterns(rootDir, config.routeFiles);
+
+  if (verbose) {
+    logger.verbose(`Type files: ${typeFiles.length} found`);
+    for (const f of typeFiles) logger.verbose(`  ${f}`);
+    logger.verbose(`Route files: ${routeFiles.length} found`);
+    for (const f of routeFiles) logger.verbose(`  ${f}`);
+  }
+
+  if (typeFiles.length === 0 && routeFiles.length === 0) {
+    logger.info("No type or route files found — nothing to generate");
+    return {
+      success: true,
+      outputs,
+      duration: Date.now() - startTime,
+      errors: [],
+    };
+  }
+
+  // Step 2: Fire beforeTransform hook
+  await pipeline.hooks.beforeTransform.call(buildCtx);
+
+  // Step 3: Fire afterTypeParse and afterRouteTable hooks
+  await pipeline.hooks.afterTypeParse.call({}, buildCtx);
+  await pipeline.hooks.afterRouteTable.call(
+    { segment: "", children: {}, handlers: {} },
+    buildCtx,
+  );
+
+  // Step 4: Fire emit hook — invoke Rust codegen pipeline
+  logger.step("transform", "Generating Rust (Axum) server code...");
+
+  try {
+    const { buildRustPipeline } = (await import(
+      /* @vite-ignore */ "@typokit/transform-native"
+    )) as {
+      buildRustPipeline: (opts: {
+        typeFiles: string[];
+        routeFiles: string[];
+        outDir?: string;
+        cacheFile?: string;
+      }) => Promise<{
+        regenerated: boolean;
+        contentHash: string;
+        filesWritten: string[];
+      }>;
+    };
+
+    const result = await buildRustPipeline({
+      typeFiles,
+      routeFiles,
+      outDir,
+    });
+
+    if (result.regenerated) {
+      logger.success(
+        `Rust codegen complete — ${result.filesWritten.length} files written`,
+      );
+      for (const f of result.filesWritten) {
+        outputs.push({ filePath: f, content: "", overwrite: true });
+      }
+    } else {
+      logger.success("Rust codegen skipped — cache hit");
+    }
+
+    if (verbose) {
+      logger.verbose(`Content hash: ${result.contentHash}`);
+      for (const f of result.filesWritten) logger.verbose(`  wrote: ${f}`);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Rust codegen failed: ${message}`);
+    errors.push(`Rust codegen error: ${message}`);
+    return {
+      success: false,
+      outputs,
+      duration: Date.now() - startTime,
+      errors,
+    };
+  }
+
+  await pipeline.hooks.emit.call(outputs, buildCtx);
+
+  const duration = Date.now() - startTime;
+  logger.success(`Rust build finished in ${duration}ms`);
+
+  const buildResult: BuildResult = {
+    success: true,
+    outputs,
+    duration,
+    errors: [],
+  };
+
+  // Step 5: Fire done hook
+  await pipeline.hooks.done.call(buildResult);
+
+  return { ...buildResult, pipeline };
+}
+
+/**
+ * Execute the TypeScript build (existing behavior).
+ *
+ * 1. Resolve type and route files from config patterns
+ * 2. Create build pipeline and let plugins register taps via onBuild()
+ * 3. Fire beforeTransform hook
+ * 4. Run the Rust native transform pipeline (buildPipeline)
+ * 5. Fire afterTypeParse, afterValidators, afterRouteTable hooks
+ * 6. Fire emit hook (plugins can add outputs)
+ * 7. Run the TypeScript compiler
+ * 8. Fire done hook
+ * 9. Return structured BuildResult
+ */
+async function executeTypeScriptBuild(
   options: BuildCommandOptions,
 ): Promise<BuildResult & { pipeline?: BuildPipelineInstance }> {
   const { createBuildPipeline } = (await import(
