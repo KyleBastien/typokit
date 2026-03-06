@@ -6,6 +6,7 @@ mod schema_differ;
 mod test_stub_generator;
 mod typia_bridge;
 mod output_pipeline;
+mod rust_codegen;
 
 use std::collections::HashMap;
 use napi::bindgen_prelude::*;
