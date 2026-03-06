@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::type_extractor::TypeMetadata;
+use typokit_transform_native::type_extractor::TypeMetadata;
 use super::GeneratedOutput;
 
 /// Generate per-entity service stub files and a services/mod.rs.
@@ -240,7 +240,7 @@ fn to_snake_case(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::type_extractor::PropertyMetadata;
+    use typokit_transform_native::type_extractor::PropertyMetadata;
 
     fn make_table_entity(name: &str) -> TypeMetadata {
         let mut jsdoc = HashMap::new();

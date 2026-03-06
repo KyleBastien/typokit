@@ -142,13 +142,6 @@ export async function run(argv: string[]): Promise<number> {
     logger.info("");
     logger.info("Commands:");
     logger.info("  build              Run the full build pipeline");
-    logger.info(
-      "    --target <target>   Build target: typescript (default), rust",
-    );
-    logger.info(
-      "    --db <adapter>      Database adapter for Rust target (default: sqlx)",
-    );
-    logger.info("    --out <dir>         Output directory for generated code");
     logger.info("  dev                Start dev server with watch mode");
     logger.info("  generate:<sub>     Generate specific artifacts");
     logger.info("    generate:db      Generate DB schema from types");
@@ -200,14 +193,6 @@ export async function run(argv: string[]): Promise<number> {
     const rootDir =
       typeof flags["root"] === "string" ? resolve(flags["root"]) : cwd;
 
-    const target =
-      typeof flags["target"] === "string"
-        ? (flags["target"] as "typescript" | "rust")
-        : undefined;
-    const db = typeof flags["db"] === "string" ? flags["db"] : undefined;
-    const outDir =
-      typeof flags["out"] === "string" ? resolve(flags["out"]) : undefined;
-
     const { loadConfig: loadConf } = await import("./config.js");
     const config = await loadConf(rootDir);
 
@@ -217,9 +202,6 @@ export async function run(argv: string[]): Promise<number> {
       config,
       logger,
       verbose,
-      target,
-      db,
-      outDir,
     });
 
     return result.success ? 0 : 1;

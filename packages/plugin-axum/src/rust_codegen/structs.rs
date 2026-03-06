@@ -1,5 +1,5 @@
 use std::collections::{HashMap, BTreeMap};
-use crate::type_extractor::{TypeMetadata, PropertyMetadata};
+use typokit_transform_native::type_extractor::{TypeMetadata, PropertyMetadata};
 use super::GeneratedOutput;
 
 /// Generate Rust struct files from a SchemaTypeMap.
@@ -693,7 +693,7 @@ fn to_screaming_snake_case(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::type_extractor::{PropertyMetadata, TypeMetadata};
+    use typokit_transform_native::type_extractor::{PropertyMetadata, TypeMetadata};
 
     fn make_type(name: &str, props: Vec<(&str, &str, bool)>) -> TypeMetadata {
         let mut properties = HashMap::new();

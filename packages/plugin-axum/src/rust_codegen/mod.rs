@@ -12,8 +12,8 @@ pub mod services;
 pub mod structs;
 
 use std::collections::HashMap;
-use crate::route_compiler::RouteEntry;
-use crate::type_extractor::TypeMetadata;
+use typokit_transform_native::route_compiler::RouteEntry;
+use typokit_transform_native::type_extractor::TypeMetadata;
 
 /// A single generated output file
 #[derive(Debug, Clone)]
@@ -51,7 +51,7 @@ pub fn generate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::type_extractor::PropertyMetadata;
+    use typokit_transform_native::type_extractor::PropertyMetadata;
 
     #[test]
     fn test_generate_returns_outputs() {

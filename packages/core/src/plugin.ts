@@ -4,6 +4,7 @@ import type {
   BuildContext,
   BuildResult,
   CompiledRouteTable,
+  CompileContext,
   GeneratedOutput,
   RequestContext,
   SchemaChange,
@@ -38,6 +39,11 @@ export interface BuildPipeline {
 
     /** Runs after all generation — plugins emit their own artifacts */
     emit: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
+
+    /** Runs before the default compiler step — plugins can handle compilation
+     *  themselves (e.g., run cargo build instead of tsc).
+     *  If a plugin sets compileCtx.handled = true, the default compiler is skipped. */
+    compile: AsyncSeriesHook<[CompileContext, BuildContext]>;
 
     /** Runs after build completes — cleanup, reporting */
     done: AsyncSeriesHook<[BuildResult]>;

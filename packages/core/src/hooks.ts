@@ -4,6 +4,7 @@ import type {
   BuildContext,
   BuildResult,
   CompiledRouteTable,
+  CompileContext,
   GeneratedOutput,
   SchemaTypeMap,
 } from "@typokit/types";
@@ -38,7 +39,7 @@ export class AsyncSeriesHookImpl<T extends unknown[]> {
 
 // ─── Build Pipeline Implementation ──────────────────────────
 
-/** Concrete build pipeline with all 6 hook phases */
+/** Concrete build pipeline with all 7 hook phases */
 export interface BuildPipelineInstance {
   hooks: {
     beforeTransform: AsyncSeriesHookImpl<[BuildContext]>;
@@ -46,12 +47,13 @@ export interface BuildPipelineInstance {
     afterValidators: AsyncSeriesHookImpl<[GeneratedOutput[], BuildContext]>;
     afterRouteTable: AsyncSeriesHookImpl<[CompiledRouteTable, BuildContext]>;
     emit: AsyncSeriesHookImpl<[GeneratedOutput[], BuildContext]>;
+    compile: AsyncSeriesHookImpl<[CompileContext, BuildContext]>;
     done: AsyncSeriesHookImpl<[BuildResult]>;
   };
 }
 
 /**
- * Create a new build pipeline with empty hooks for all 6 phases.
+ * Create a new build pipeline with empty hooks for all 7 phases.
  * Plugins call `onBuild(pipeline)` to tap into specific phases.
  */
 export function createBuildPipeline(): BuildPipelineInstance {
@@ -66,6 +68,7 @@ export function createBuildPipeline(): BuildPipelineInstance {
         [CompiledRouteTable, BuildContext]
       >(),
       emit: new AsyncSeriesHookImpl<[GeneratedOutput[], BuildContext]>(),
+      compile: new AsyncSeriesHookImpl<[CompileContext, BuildContext]>(),
       done: new AsyncSeriesHookImpl<[BuildResult]>(),
     },
   };
@@ -78,6 +81,7 @@ export const BUILD_HOOK_PHASES = [
   "afterValidators",
   "afterRouteTable",
   "emit",
+  "compile",
   "done",
 ] as const;
 

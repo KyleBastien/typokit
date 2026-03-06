@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use crate::route_compiler::{PathSegment, RouteEntry};
-use crate::type_extractor::TypeMetadata;
+use typokit_transform_native::route_compiler::{PathSegment, RouteEntry};
+use typokit_transform_native::type_extractor::TypeMetadata;
 use super::GeneratedOutput;
 
 /// Info about a handler action derived from a route.
@@ -512,8 +512,8 @@ fn to_snake_case(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::route_compiler::{PathSegment, RouteEntry, RouteTypeInfo};
-    use crate::type_extractor::PropertyMetadata;
+    use typokit_transform_native::route_compiler::{PathSegment, RouteEntry, RouteTypeInfo};
+    use typokit_transform_native::type_extractor::PropertyMetadata;
 
     fn make_route(method: &str, path: &str, handler_ref: &str) -> RouteEntry {
         let segments = path

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::route_compiler::RouteEntry;
+use typokit_transform_native::route_compiler::RouteEntry;
 use super::GeneratedOutput;
 
 /// Generate the Axum router file from compiled route entries.
@@ -168,7 +168,7 @@ fn derive_handler_fn(route: &RouteEntry) -> String {
 /// - DELETE /entities/:id → delete
 fn derive_action_name(route: &RouteEntry) -> String {
     let has_param = route.segments.iter().any(|s| {
-        matches!(s, crate::route_compiler::PathSegment::Param(_))
+        matches!(s, typokit_transform_native::route_compiler::PathSegment::Param(_))
     });
 
     match (route.method.as_str(), has_param) {
@@ -210,7 +210,7 @@ fn to_snake_case(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::route_compiler::{PathSegment, RouteEntry, RouteTypeInfo};
+    use typokit_transform_native::route_compiler::{PathSegment, RouteEntry, RouteTypeInfo};
 
     fn make_route(method: &str, path: &str, handler_ref: &str) -> RouteEntry {
         let segments = path

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::type_extractor::{PropertyMetadata, TypeMetadata};
+use typokit_transform_native::type_extractor::{PropertyMetadata, TypeMetadata};
 use super::GeneratedOutput;
 
 /// Generate the sqlx database layer from @table-annotated entities.
@@ -538,7 +538,7 @@ fn to_snake_case(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::type_extractor::{PropertyMetadata, TypeMetadata};
+    use typokit_transform_native::type_extractor::{PropertyMetadata, TypeMetadata};
 
     fn make_table_type(
         name: &str,

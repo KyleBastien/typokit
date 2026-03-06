@@ -1,10 +1,10 @@
 # @typokit/example-todo-server-axum
 
-A complete reference application demonstrating the TypoKit **Rust codegen target**.
+A complete reference application demonstrating the TypoKit **Rust codegen** via `@typokit/plugin-axum`.
 
 TypeScript schemas from `@typokit/example-todo-schema` are compiled via
-`typokit build --target rust` into a fully working **Axum** web server backed by
-**PostgreSQL** and **sqlx**.
+`typokit build` (with the Axum plugin configured in `typokit.config.ts`) into a
+fully working **Axum** web server backed by **PostgreSQL** and **sqlx**.
 
 ## Architecture
 
@@ -123,8 +123,9 @@ curl -X DELETE http://localhost:3000/todos/TODO_ID
 To regenerate the `.typokit/` directory from TypeScript sources:
 
 ```bash
-npx typokit build --target rust --out packages/example-todo-server-axum
+npx typokit build
 ```
 
 This reads the route contracts and entity types from `@typokit/example-todo-schema`
-and emits all files under `.typokit/`. User code in `src/` is never overwritten.
+and emits all files under `.typokit/`. The Axum plugin is configured in
+`typokit.config.ts`. User code in `src/` is never overwritten.
