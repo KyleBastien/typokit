@@ -74,8 +74,8 @@ Files in `.typokit/` and project scaffolding (`main.rs`, `lib.rs`, `Cargo.toml`)
 
 - [Plugins — @typokit/plugin-axum](https://kylebastien.github.io/typokit/core-concepts/plugins/) — Official plugin documentation
 - [Building a Rust/Axum Server](https://kylebastien.github.io/typokit/guides/rust-axum-server/) — Step-by-step guide
-- [Example: Todo Server (Axum)](../example-todo-server-axum/) — Complete reference application
+- [Example: Todo Server (Axum)](https://github.com/KyleBastien/typokit/tree/main/packages/example-todo-server-axum) — Complete reference application
 
 ## License
 
-[MIT](../../LICENSE)
+[MIT](https://github.com/KyleBastien/typokit/blob/main/LICENSE)
