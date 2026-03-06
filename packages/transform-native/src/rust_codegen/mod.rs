@@ -3,6 +3,7 @@
 //! Generates a complete Axum server (structs, router, sqlx DB layer, handlers)
 //! from TypeScript schemas extracted by the TypoKit build pipeline.
 
+pub mod database;
 pub mod router;
 pub mod structs;
 
@@ -23,15 +24,16 @@ pub struct GeneratedOutput {
 
 /// Generate all Rust code from the extracted TypeScript schema types and routes.
 ///
-/// Generates Rust struct files with serde derives and an Axum router file
-/// with typed handler registrations. Future stories will add database layer,
-/// handlers, and project scaffold generation.
+/// Generates Rust struct files with serde derives, an Axum router file
+/// with typed handler registrations, and a sqlx database layer with
+/// CRUD repository functions and SQL migrations.
 pub fn generate(
     type_map: &HashMap<String, TypeMetadata>,
     routes: &[RouteEntry],
 ) -> Vec<GeneratedOutput> {
     let mut outputs = structs::generate_structs(type_map);
     outputs.extend(router::generate_router(routes));
+    outputs.extend(database::generate_database(type_map));
     outputs
 }
 
