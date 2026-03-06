@@ -1,0 +1,6 @@
+{
+  "name": "@typokit/example-todo-server-axum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypoKit Rust/Axum reference application — generated via typokit build --target rust from @typokit/example-todo-schema"
+}
