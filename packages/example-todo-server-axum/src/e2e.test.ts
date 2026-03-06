@@ -163,26 +163,38 @@ describe("E2E: Axum server full lifecycle with PostgreSQL", () => {
 
   beforeAll(async () => {
     try {
-      // Clean up stale data from previous runs
-      const dataDir = "./data/axum-e2e-db";
-      if (existsSync(dataDir)) {
-        rmSync(dataDir, { recursive: true, force: true });
-      }
+      if (process.env.DATABASE_URL) {
+        // CI: create an isolated database on the provided PostgreSQL service
+        const baseUrl = new URL(process.env.DATABASE_URL);
+        baseUrl.pathname = "/postgres";
+        const admin = new Client({ connectionString: baseUrl.toString() });
+        await admin.connect();
+        await admin.query("DROP DATABASE IF EXISTS typokit_e2e_axum");
+        await admin.query("CREATE DATABASE typokit_e2e_axum");
+        await admin.end();
+        baseUrl.pathname = "/typokit_e2e_axum";
+        DATABASE_URL = baseUrl.toString();
+      } else {
+        // Local: spin up embedded PostgreSQL
+        const dataDir = "./data/axum-e2e-db";
+        if (existsSync(dataDir)) {
+          rmSync(dataDir, { recursive: true, force: true });
+        }
 
-      // Start embedded PostgreSQL
-      embeddedPg = new EmbeddedPostgres({
-        databaseDir: "./data/axum-e2e-db",
-        user: PG_USER,
-        password: PG_PASSWORD,
-        port: PG_PORT,
-        persistent: false,
-        onLog: () => {},
-        onError: () => {},
-      });
-      await embeddedPg.initialise();
-      await embeddedPg.start();
-      await embeddedPg.createDatabase(PG_DATABASE);
-      DATABASE_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${PG_PORT}/${PG_DATABASE}`;
+        embeddedPg = new EmbeddedPostgres({
+          databaseDir: "./data/axum-e2e-db",
+          user: PG_USER,
+          password: PG_PASSWORD,
+          port: PG_PORT,
+          persistent: false,
+          onLog: () => {},
+          onError: () => {},
+        });
+        await embeddedPg.initialise();
+        await embeddedPg.start();
+        await embeddedPg.createDatabase(PG_DATABASE);
+        DATABASE_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${PG_PORT}/${PG_DATABASE}`;
+      }
 
       // Run migrations
       const migrationClient = new Client({ connectionString: DATABASE_URL });
@@ -207,7 +219,9 @@ describe("E2E: Axum server full lifecycle with PostgreSQL", () => {
     if (serverProcess) {
       serverProcess.kill();
     }
-    await embeddedPg?.stop();
+    if (embeddedPg) {
+      await embeddedPg.stop();
+    }
   }, 15_000);
 
   it("full lifecycle: create user → create todo → list → update → mark complete → delete", async () => {
