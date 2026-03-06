@@ -18,11 +18,14 @@ async fn main() {
     let state = AppState { pool };
     let app = create_router().with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .expect("Failed to bind to 0.0.0.0:3000");
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
 
-    tracing::info!("Server listening on 0.0.0.0:3000");
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|_| panic!("Failed to bind to {}", addr));
+
+    tracing::info!("Server listening on {}", addr);
 
     axum::serve(listener, app)
         .await

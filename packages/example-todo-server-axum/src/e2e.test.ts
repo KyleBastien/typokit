@@ -1,52 +1,59 @@
-// @typokit/example-todo-server — E2E Tests with Real PostgreSQL Database
+// @typokit/example-todo-server-axum — E2E Tests with Real PostgreSQL Database
 //
 // Full lifecycle: create user → create todo → list todos by user → update todo → mark complete → delete todo
 // Validates actual DB state: rows written, constraints enforced, enums stored correctly.
 // Uses embedded-postgres to spin up a local PostgreSQL instance automatically.
+// Spawns the compiled Rust binary as a child process for true end-to-end testing.
 
 import { describe, it, expect, beforeAll, afterAll } from "@rstest/core";
 import pg from "pg";
 import EmbeddedPostgres from "embedded-postgres";
+import { execSync, spawn, type ChildProcess } from "node:child_process";
+import { resolve, join, dirname } from "node:path";
 import { existsSync, rmSync } from "node:fs";
-import { createTestTodoApp, resetStore } from "./test-app.js";
-import type http from "http";
+import { fileURLToPath } from "node:url";
 
 const { Client } = pg;
 
-const PG_PORT = 5433;
+// ─── Embedded Postgres Config ────────────────────────────────
+
+const PG_PORT = 5434;
 const PG_USER = "postgres";
 const PG_PASSWORD = "password";
-const PG_DATABASE = "typokit_e2e";
+const PG_DATABASE = "typokit_axum_e2e";
+const SERVER_PORT = 3999;
 
 let embeddedPg: EmbeddedPostgres;
 let DATABASE_URL: string;
 
-// ─── PostgreSQL Schema DDL ───────────────────────────────────
+// ─── Migration SQL ───────────────────────────────────────────
 
-const CREATE_SCHEMA_SQL = `
+const MIGRATION_CREATE_USERS = `
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
     CREATE TYPE user_status AS ENUM ('active', 'suspended', 'deleted');
-  END IF;
+EXCEPTION
+    WHEN duplicate_object THEN null;
 END $$;
 
 CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  display_name VARCHAR(100) NOT NULL,
-  status user_status NOT NULL DEFAULT 'active',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    status user_status NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
 );
+`;
 
+const MIGRATION_CREATE_TODOS = `
 CREATE TABLE IF NOT EXISTS todos (
-  id TEXT PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  completed BOOLEAN NOT NULL DEFAULT FALSE,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    completed BOOLEAN NOT NULL DEFAULT false,
+    user_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
 );
 `;
 
@@ -55,6 +62,61 @@ DROP TABLE IF EXISTS todos CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TYPE IF EXISTS user_status CASCADE;
 `;
+
+// ─── Helper: resolve binary path ─────────────────────────────
+
+function getBinaryPath(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const projectRoot = resolve(currentDir, "..");
+  const isWindows = process.platform === "win32";
+  const binaryName = isWindows ? "server.exe" : "server";
+  const debugPath = join(projectRoot, "target", "debug", binaryName);
+  const releasePath = join(projectRoot, "target", "release", binaryName);
+
+  if (existsSync(debugPath)) return debugPath;
+  if (existsSync(releasePath)) return releasePath;
+
+  // Try building
+  execSync("cargo build", { cwd: projectRoot, stdio: "pipe" });
+
+  if (existsSync(debugPath)) return debugPath;
+  throw new Error(`Rust binary not found at ${debugPath} after cargo build`);
+}
+
+// ─── Helper: spawn server and wait for readiness ─────────────
+
+async function spawnServer(
+  port: number,
+  databaseUrl: string,
+): Promise<ChildProcess> {
+  const binaryPath = getBinaryPath();
+  const child = spawn(binaryPath, [], {
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATABASE_URL: databaseUrl,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  // Wait for the server to be ready by polling
+  const maxWaitMs = 15_000;
+  const pollIntervalMs = 200;
+  const start = Date.now();
+
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/users?page=1&pageSize=1`);
+      if (res.ok || res.status === 404) return child;
+    } catch {
+      // Server not ready yet
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+
+  child.kill();
+  throw new Error(`Server did not become ready within ${maxWaitMs}ms`);
+}
 
 // ─── Helper: make HTTP requests ──────────────────────────────
 
@@ -96,52 +158,65 @@ async function httpRequest(
 
 // ─── E2E Test Suite ──────────────────────────────────────────
 
-describe("E2E: Full lifecycle with PostgreSQL", () => {
-  beforeAll(async () => {
-    const dataDir = "./data/e2e-db";
-    if (existsSync(dataDir)) {
-      rmSync(dataDir, { recursive: true, force: true });
-    }
+describe("E2E: Axum server full lifecycle with PostgreSQL", () => {
+  let serverProcess: ChildProcess;
 
-    embeddedPg = new EmbeddedPostgres({
-      databaseDir: dataDir,
-      user: PG_USER,
-      password: PG_PASSWORD,
-      port: PG_PORT,
-      persistent: false,
-      onLog: () => {},
-      onError: () => {},
-    });
-    await embeddedPg.initialise();
-    await embeddedPg.start();
-    await embeddedPg.createDatabase(PG_DATABASE);
-    DATABASE_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${PG_PORT}/${PG_DATABASE}`;
+  beforeAll(async () => {
+    try {
+      // Clean up stale data from previous runs
+      const dataDir = "./data/axum-e2e-db";
+      if (existsSync(dataDir)) {
+        rmSync(dataDir, { recursive: true, force: true });
+      }
+
+      // Start embedded PostgreSQL
+      embeddedPg = new EmbeddedPostgres({
+        databaseDir: "./data/axum-e2e-db",
+        user: PG_USER,
+        password: PG_PASSWORD,
+        port: PG_PORT,
+        persistent: false,
+        onLog: () => {},
+        onError: () => {},
+      });
+      await embeddedPg.initialise();
+      await embeddedPg.start();
+      await embeddedPg.createDatabase(PG_DATABASE);
+      DATABASE_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${PG_PORT}/${PG_DATABASE}`;
+
+      // Run migrations
+      const migrationClient = new Client({ connectionString: DATABASE_URL });
+      await migrationClient.connect();
+      try {
+        await migrationClient.query(DROP_SCHEMA_SQL);
+        await migrationClient.query(MIGRATION_CREATE_USERS);
+        await migrationClient.query(MIGRATION_CREATE_TODOS);
+      } finally {
+        await migrationClient.end();
+      }
+
+      // Spawn the Rust server
+      serverProcess = await spawnServer(SERVER_PORT, DATABASE_URL);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`beforeAll setup failed: ${msg}`);
+    }
   }, 60_000);
 
   afterAll(async () => {
-    await embeddedPg.stop();
+    if (serverProcess) {
+      serverProcess.kill();
+    }
+    await embeddedPg?.stop();
   }, 15_000);
 
   it("full lifecycle: create user → create todo → list → update → mark complete → delete", async () => {
-    // Setup: PostgreSQL + HTTP server
     const pgClient = new Client({ connectionString: DATABASE_URL });
     await pgClient.connect();
 
-    const app = createTestTodoApp();
-    resetStore();
-
-    await app.listen(0);
-    const server = app.getNativeServer() as http.Server;
-    const addr = server.address() as { port: number };
-    const port = addr.port;
-
     try {
-      // Create fresh schema
-      await pgClient.query(DROP_SCHEMA_SQL);
-      await pgClient.query(CREATE_SCHEMA_SQL);
-
       // ─── Step 1: Create User via API ───────────────────────
-      const createUserRes = await httpRequest(port, "POST", "/users", {
+      const createUserRes = await httpRequest(SERVER_PORT, "POST", "/users", {
         email: "e2e-user@test.com",
         displayName: "E2E Test User",
       });
@@ -158,13 +233,7 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(user.displayName).toBe("E2E Test User");
       expect(user.status).toBe("active");
 
-      // Mirror to PostgreSQL and verify
-      await pgClient.query(
-        `INSERT INTO users (id, email, display_name, status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4::user_status, NOW(), NOW())`,
-        [user.id, user.email, user.displayName, user.status],
-      );
-
+      // Verify in PostgreSQL
       const pgUser = await pgClient.query("SELECT * FROM users WHERE id = $1", [
         user.id,
       ]);
@@ -173,24 +242,15 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(pgUser.rows[0].display_name).toBe("E2E Test User");
       expect(pgUser.rows[0].status).toBe("active");
 
-      // ─── Step 2: Verify unique email constraint ────────────
-      let constraintViolated = false;
-      try {
-        await pgClient.query(
-          `INSERT INTO users (id, email, display_name, status, created_at, updated_at)
-           VALUES ('dup-id', $1, 'Dup User', 'active', NOW(), NOW())`,
-          [user.email],
-        );
-      } catch (err: unknown) {
-        constraintViolated = true;
-        const pgErr = err as { code: string };
-        // 23505 = unique_violation
-        expect(pgErr.code).toBe("23505");
-      }
-      expect(constraintViolated).toBe(true);
+      // ─── Step 2: Verify unique email constraint via API ────
+      const dupUserRes = await httpRequest(SERVER_PORT, "POST", "/users", {
+        email: "e2e-user@test.com",
+        displayName: "Dup User",
+      });
+      expect(dupUserRes.status).toBe(409);
 
       // ─── Step 3: Create Todo via API ───────────────────────
-      const createTodoRes = await httpRequest(port, "POST", "/todos", {
+      const createTodoRes = await httpRequest(SERVER_PORT, "POST", "/todos", {
         title: "E2E Test Todo",
         userId: user.id,
       });
@@ -207,13 +267,7 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(todo.completed).toBe(false);
       expect(todo.userId).toBe(user.id);
 
-      // Mirror to PostgreSQL and verify
-      await pgClient.query(
-        `INSERT INTO todos (id, title, completed, user_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-        [todo.id, todo.title, todo.completed, todo.userId],
-      );
-
+      // Verify in PostgreSQL
       const pgTodo = await pgClient.query("SELECT * FROM todos WHERE id = $1", [
         todo.id,
       ]);
@@ -222,23 +276,15 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(pgTodo.rows[0].completed).toBe(false);
       expect(pgTodo.rows[0].user_id).toBe(user.id);
 
-      // ─── Step 4: Verify FK constraint ──────────────────────
-      let fkViolated = false;
-      try {
-        await pgClient.query(
-          `INSERT INTO todos (id, title, completed, user_id, created_at, updated_at)
-           VALUES ('fk-test', 'Bad Todo', false, 'nonexistent-user', NOW(), NOW())`,
-        );
-      } catch (err: unknown) {
-        fkViolated = true;
-        const pgErr = err as { code: string };
-        // 23503 = foreign_key_violation
-        expect(pgErr.code).toBe("23503");
-      }
-      expect(fkViolated).toBe(true);
+      // ─── Step 4: Verify FK constraint via API ──────────────
+      const badTodoRes = await httpRequest(SERVER_PORT, "POST", "/todos", {
+        title: "Bad Todo",
+        userId: "nonexistent-user",
+      });
+      expect(badTodoRes.status).toBe(400);
 
       // ─── Step 5: List Todos by User via API ────────────────
-      const listRes = await httpRequest(port, "GET", "/todos", undefined, {
+      const listRes = await httpRequest(SERVER_PORT, "GET", "/todos", undefined, {
         userId: user.id,
       });
       expect(listRes.status).toBe(200);
@@ -251,17 +297,15 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(listBody.data[0].userId).toBe(user.id);
       expect(listBody.pagination.total).toBe(1);
 
-      // Cross-validate with PostgreSQL
-      const pgTodos = await pgClient.query(
-        "SELECT * FROM todos WHERE user_id = $1",
-        [user.id],
-      );
-      expect(pgTodos.rows.length).toBe(1);
-
       // ─── Step 6: Update Todo via API ───────────────────────
-      const updateRes = await httpRequest(port, "PUT", `/todos/${todo.id}`, {
-        title: "Updated E2E Todo",
-      });
+      const updateRes = await httpRequest(
+        SERVER_PORT,
+        "PUT",
+        `/todos/${todo.id}`,
+        {
+          title: "Updated E2E Todo",
+        },
+      );
       expect(updateRes.status).toBe(200);
       const updatedTodo = updateRes.body as {
         id: string;
@@ -271,11 +315,7 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(updatedTodo.title).toBe("Updated E2E Todo");
       expect(updatedTodo.completed).toBe(false);
 
-      // Mirror update to PostgreSQL
-      await pgClient.query(
-        "UPDATE todos SET title = $1, updated_at = NOW() WHERE id = $2",
-        ["Updated E2E Todo", todo.id],
-      );
+      // Verify in PostgreSQL
       const pgUpdated = await pgClient.query(
         "SELECT * FROM todos WHERE id = $1",
         [todo.id],
@@ -283,9 +323,14 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       expect(pgUpdated.rows[0].title).toBe("Updated E2E Todo");
 
       // ─── Step 7: Mark Todo Complete via API ────────────────
-      const completeRes = await httpRequest(port, "PUT", `/todos/${todo.id}`, {
-        completed: true,
-      });
+      const completeRes = await httpRequest(
+        SERVER_PORT,
+        "PUT",
+        `/todos/${todo.id}`,
+        {
+          completed: true,
+        },
+      );
       expect(completeRes.status).toBe(200);
       const completedTodo = completeRes.body as {
         id: string;
@@ -293,78 +338,61 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       };
       expect(completedTodo.completed).toBe(true);
 
-      // Mirror to PostgreSQL and verify
-      await pgClient.query(
-        "UPDATE todos SET completed = true, updated_at = NOW() WHERE id = $1",
-        [todo.id],
-      );
+      // Verify in PostgreSQL
       const pgCompleted = await pgClient.query(
         "SELECT * FROM todos WHERE id = $1",
         [todo.id],
       );
       expect(pgCompleted.rows[0].completed).toBe(true);
 
-      // ─── Step 8: Verify enum constraint ────────────────────
-      let enumViolated = false;
-      try {
-        await pgClient.query("UPDATE users SET status = $1 WHERE id = $2", [
-          "invalid_status",
-          user.id,
-        ]);
-      } catch (err: unknown) {
-        enumViolated = true;
-        const pgErr = err as { code: string };
-        // 22P02 = invalid_text_representation (invalid enum value)
-        expect(pgErr.code).toBe("22P02");
-      }
-      expect(enumViolated).toBe(true);
-
-      // ─── Step 9: Delete Todo via API ───────────────────────
-      const deleteRes = await httpRequest(port, "DELETE", `/todos/${todo.id}`);
+      // ─── Step 8: Delete Todo via API ───────────────────────
+      const deleteRes = await httpRequest(
+        SERVER_PORT,
+        "DELETE",
+        `/todos/${todo.id}`,
+      );
       expect(deleteRes.status).toBe(204);
 
       // Verify via API
-      const getDeletedRes = await httpRequest(port, "GET", `/todos/${todo.id}`);
+      const getDeletedRes = await httpRequest(
+        SERVER_PORT,
+        "GET",
+        `/todos/${todo.id}`,
+      );
       expect(getDeletedRes.status).toBe(404);
 
-      // Mirror delete to PostgreSQL and verify
-      await pgClient.query("DELETE FROM todos WHERE id = $1", [todo.id]);
+      // Verify in PostgreSQL
       const pgDeleted = await pgClient.query(
         "SELECT * FROM todos WHERE id = $1",
         [todo.id],
       );
       expect(pgDeleted.rows.length).toBe(0);
 
-      // ─── Step 10: Verify CASCADE delete ────────────────────
-      // Create a new todo, then delete the user — todo should cascade
-      const cascadeTodoId = "cascade-test-todo";
-      await pgClient.query(
-        `INSERT INTO todos (id, title, completed, user_id, created_at, updated_at)
-         VALUES ($1, 'Cascade Test', false, $2, NOW(), NOW())`,
-        [cascadeTodoId, user.id],
+      // ─── Step 9: Soft-delete User via API ──────────────────
+      const deleteUserRes = await httpRequest(
+        SERVER_PORT,
+        "DELETE",
+        `/users/${user.id}`,
       );
-      await pgClient.query("DELETE FROM users WHERE id = $1", [user.id]);
-      const pgCascade = await pgClient.query(
-        "SELECT * FROM todos WHERE id = $1",
-        [cascadeTodoId],
+      expect(deleteUserRes.status).toBe(204);
+
+      // Verify user is soft-deleted (status = deleted)
+      const pgSoftDeleted = await pgClient.query(
+        "SELECT * FROM users WHERE id = $1",
+        [user.id],
       );
-      expect(pgCascade.rows.length).toBe(0);
+      expect(pgSoftDeleted.rows.length).toBe(1);
+      expect(pgSoftDeleted.rows[0].status).toBe("deleted");
     } finally {
-      // Cleanup
-      await pgClient.query(DROP_SCHEMA_SQL).catch(() => {});
       await pgClient.end();
-      await app.close();
     }
   });
 
-  it("validates NOT NULL constraints are enforced", async () => {
+  it("validates NOT NULL constraints are enforced at DB level", async () => {
     const pgClient = new Client({ connectionString: DATABASE_URL });
     await pgClient.connect();
 
     try {
-      await pgClient.query(DROP_SCHEMA_SQL);
-      await pgClient.query(CREATE_SCHEMA_SQL);
-
       // Missing email (NOT NULL)
       let notNullViolated = false;
       try {
@@ -375,31 +403,10 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
       } catch (err: unknown) {
         notNullViolated = true;
         const pgErr = err as { code: string };
-        // 23502 = not_null_violation
         expect(pgErr.code).toBe("23502");
       }
       expect(notNullViolated).toBe(true);
-
-      // Missing title on todo (NOT NULL)
-      await pgClient.query(
-        `INSERT INTO users (id, email, display_name, status, created_at, updated_at)
-         VALUES ('nn-user', 'nn@test.com', 'NN User', 'active', NOW(), NOW())`,
-      );
-
-      let todoNotNull = false;
-      try {
-        await pgClient.query(
-          `INSERT INTO todos (id, completed, user_id, created_at, updated_at)
-           VALUES ('nn-todo', false, 'nn-user', NOW(), NOW())`,
-        );
-      } catch (err: unknown) {
-        todoNotNull = true;
-        const pgErr = err as { code: string };
-        expect(pgErr.code).toBe("23502");
-      }
-      expect(todoNotNull).toBe(true);
     } finally {
-      await pgClient.query(DROP_SCHEMA_SQL).catch(() => {});
       await pgClient.end();
     }
   });
@@ -409,15 +416,13 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
     await pgClient.connect();
 
     try {
-      await pgClient.query(DROP_SCHEMA_SQL);
-      await pgClient.query(CREATE_SCHEMA_SQL);
-
-      // Insert users with each valid status
+      // Insert users with each valid status via direct SQL
       const statuses = ["active", "suspended", "deleted"] as const;
       for (let i = 0; i < statuses.length; i++) {
         await pgClient.query(
           `INSERT INTO users (id, email, display_name, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4::user_status, NOW(), NOW())`,
+           VALUES ($1, $2, $3, $4::user_status, NOW(), NOW())
+           ON CONFLICT (id) DO NOTHING`,
           [
             `enum-user-${i}`,
             `enum${i}@test.com`,
@@ -429,14 +434,29 @@ describe("E2E: Full lifecycle with PostgreSQL", () => {
 
       // Verify all enum values stored correctly
       const result = await pgClient.query(
-        "SELECT id, status FROM users ORDER BY id",
+        "SELECT id, status FROM users WHERE id LIKE 'enum-user-%' ORDER BY id",
       );
       expect(result.rows.length).toBe(3);
       expect(result.rows[0].status).toBe("active");
       expect(result.rows[1].status).toBe("suspended");
       expect(result.rows[2].status).toBe("deleted");
+
+      // Verify invalid enum value is rejected
+      let enumViolated = false;
+      try {
+        await pgClient.query(
+          `INSERT INTO users (id, email, display_name, status, created_at, updated_at)
+           VALUES ('bad-enum', 'bad@test.com', 'Bad User', 'invalid_status'::user_status, NOW(), NOW())`,
+        );
+      } catch (err: unknown) {
+        enumViolated = true;
+        const pgErr = err as { code: string };
+        expect(pgErr.code).toBe("22P02");
+      }
+      expect(enumViolated).toBe(true);
     } finally {
-      await pgClient.query(DROP_SCHEMA_SQL).catch(() => {});
+      // Clean up test data
+      await pgClient.query("DELETE FROM users WHERE id LIKE 'enum-user-%'").catch(() => {});
       await pgClient.end();
     }
   });

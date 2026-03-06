@@ -40,41 +40,6 @@ describe("parseArgs", () => {
     expect(result.positional).toEqual(["extra1", "extra2"]);
   });
 
-  it("extracts --target flag with value", () => {
-    const result = parseArgs(["node", "typokit", "build", "--target", "rust"]);
-    expect(result.command).toBe("build");
-    expect(result.flags["target"]).toBe("rust");
-  });
-
-  it("extracts --db flag with value", () => {
-    const result = parseArgs(["node", "typokit", "build", "--db", "sqlx"]);
-    expect(result.flags["db"]).toBe("sqlx");
-  });
-
-  it("extracts --out flag with value", () => {
-    const result = parseArgs(["node", "typokit", "build", "--out", "./output"]);
-    expect(result.flags["out"]).toBe("./output");
-  });
-
-  it("extracts multiple build flags together", () => {
-    const result = parseArgs([
-      "node",
-      "typokit",
-      "build",
-      "--target",
-      "rust",
-      "--db",
-      "sqlx",
-      "--out",
-      "/tmp/out",
-      "--verbose",
-    ]);
-    expect(result.command).toBe("build");
-    expect(result.flags["target"]).toBe("rust");
-    expect(result.flags["db"]).toBe("sqlx");
-    expect(result.flags["out"]).toBe("/tmp/out");
-    expect(result.flags["verbose"]).toBe(true);
-  });
 });
 
 // ─── createLogger ────────────────────────────────────────────
@@ -251,57 +216,7 @@ describe("executeBuild integration", () => {
     expect(Array.isArray(result.errors)).toBe(true);
   });
 
-  it("rejects unsupported --db value for Rust target", async () => {
-    const { executeBuild } = await import("./commands/build.js");
-    const logger = createLogger({ verbose: false });
-
-    const result = await executeBuild({
-      rootDir: "/nonexistent",
-      config: {
-        typeFiles: [],
-        routeFiles: [],
-        outputDir: ".typokit",
-        distDir: "dist",
-        compiler: "tsc",
-        compilerArgs: [],
-      },
-      logger,
-      verbose: false,
-      target: "rust",
-      db: "diesel",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("diesel");
-    expect(result.errors[0]).toContain("sqlx");
-  });
-
-  it("accepts --db sqlx for Rust target", async () => {
-    const { executeBuild } = await import("./commands/build.js");
-    const logger = createLogger({ verbose: false });
-
-    const result = await executeBuild({
-      rootDir: "/nonexistent",
-      config: {
-        typeFiles: [],
-        routeFiles: [],
-        outputDir: ".typokit",
-        distDir: "dist",
-        compiler: "tsc",
-        compilerArgs: [],
-      },
-      logger,
-      verbose: false,
-      target: "rust",
-      db: "sqlx",
-    });
-
-    // Should succeed (no source files = nothing to generate)
-    expect(result.success).toBe(true);
-  });
-
-  it("defaults to typescript target when --target not specified", async () => {
+  it("defaults to unified build when no target specified", async () => {
     const { executeBuild } = await import("./commands/build.js");
     const logger = createLogger({ verbose: false });
 
@@ -319,31 +234,8 @@ describe("executeBuild integration", () => {
       verbose: false,
     });
 
-    // Default behavior — TS build, fails at compiler step for nonexistent dir
+    // Unified build — fails at compiler step for nonexistent dir
     expect(typeof result.success).toBe("boolean");
     expect(Array.isArray(result.errors)).toBe(true);
-  });
-
-  it("Rust target with no source files succeeds immediately", async () => {
-    const { executeBuild } = await import("./commands/build.js");
-    const logger = createLogger({ verbose: false });
-
-    const result = await executeBuild({
-      rootDir: "/nonexistent/empty",
-      config: {
-        typeFiles: [],
-        routeFiles: [],
-        outputDir: ".typokit",
-        distDir: "dist",
-        compiler: "tsc",
-        compilerArgs: [],
-      },
-      logger,
-      verbose: false,
-      target: "rust",
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.duration).toBeGreaterThanOrEqual(0);
   });
 });

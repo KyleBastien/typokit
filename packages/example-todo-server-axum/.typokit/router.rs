@@ -13,14 +13,14 @@ pub fn create_router() -> Router<AppState> {
     Router::new()
         .route("/todos", get(todos::list).post(todos::create))
         .route(
-            "/todos/:id",
+            "/todos/{id}",
             get(todos::get_by_id)
                 .put(todos::update)
                 .delete(todos::delete),
         )
         .route("/users", get(users::list).post(users::create))
         .route(
-            "/users/:id",
+            "/users/{id}",
             get(users::get_by_id)
                 .put(users::update)
                 .delete(users::delete),
