@@ -79,7 +79,7 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (references model types for query results). Use sqlx::query_as::<_, Entity>() for runtime-checked queries as default. PostgreSQL only — map string→TEXT, number→DOUBLE PRECISION or BIGINT, boolean→BOOLEAN, Date→TIMESTAMPTZ."
     },
     {
@@ -101,7 +101,7 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (model types), US-003 (router references these handlers), US-004 (handlers call repository functions). Handlers follow the same pattern as TypeScript example-todo-server: extract → validate → call service/repo → respond."
     },
     {

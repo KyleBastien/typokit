@@ -4,6 +4,8 @@ Started: 03/05/2026 20:38:23
 
 ## Codebase Patterns
 - Existing generators (openapi_generator.rs, test_stub_generator.rs) use string-based code generation, returning String directly
+- Handler entity files (src/handlers/{entity}.rs) use overwrite: false; mod.rs files use overwrite: true
+- Entity name resolution: strip "Routes" suffix from handler_ref, then try singular forms (strip 's', 'ies'→'y') to match type_map keys
 - TypeMetadata from type_extractor.rs contains `jsdoc: Option<HashMap<String, String>>` for JSDoc tags like @table, @id, @generated, @format, @unique, etc.
 - PropertyMetadata contains `type_str` (stringified TS type), `optional`, and `jsdoc` for per-property annotations
 - HashMap keys in type_map are type names, values are TypeMetadata. Properties within are also HashMap-keyed by property name
@@ -15,6 +17,11 @@ Started: 03/05/2026 20:38:23
 - Use BTreeMap for collecting resolved types to ensure deterministic iteration order
 - rust_codegen::generate() accepts both type_map AND routes — sub-modules should accept the inputs they need
 - Handler refs follow "EntityRoutes#METHOD /path" format — derive entity module by stripping "Routes" suffix and snake_casing
+- @table entities have jsdoc.contains_key("table"); the value is the SQL table name (fall back to snake_case + "s")
+- @generated properties: value "uuid" → Uuid::new_v4(), value "now" → Utc::now(); these are excluded from user input in INSERT
+- @id property found by jsdoc "id" key or by property name "id"; used as PRIMARY KEY in migrations
+- @unique fields get UNIQUE constraint in migration SQL; use collect on jsdoc.contains_key("unique")
+- TS→PostgreSQL type mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
 
 ## 2026-03-06T04:39 - US-001
 - Implemented rust_codegen module with GeneratedOutput struct and struct generation
@@ -58,4 +65,38 @@ Started: 03/05/2026 20:38:23
   - Routes with same path should be grouped with method chaining in Axum (get(handler).post(handler))
   - Axum uses same :param path syntax as Express — no path conversion needed
   - BTreeMap used for all route grouping/sorting to ensure deterministic output
+---
+
+## 2026-03-06T04:57 - US-004
+- Implemented sqlx database layer: connection pool, CRUD repository, and SQL migrations
+- Files changed:
+  - packages/transform-native/src/rust_codegen/database.rs (new — ~900 lines)
+  - packages/transform-native/src/rust_codegen/mod.rs (added database module, wired into generate())
+- **Learnings for future iterations:**
+  - @table entities: jsdoc has "table" key; value is the SQL table name (empty string falls back to snake_case + "s")
+  - @generated properties: value "uuid" → Uuid::new_v4().to_string(), value "now" → Utc::now(); excluded from user-supplied INSERT input
+  - @id property: found by jsdoc "id" key OR by property name "id"; becomes PRIMARY KEY in migrations
+  - @unique fields get UNIQUE constraint; checked via jsdoc.contains_key("unique")
+  - TS→PostgreSQL mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
+  - Repository uses sqlx::query_as::<_, Entity>() pattern with parameterized SQL ($1, $2...)
+  - CREATE functions use RETURNING * to get the full entity back after INSERT
+  - Input struct for create/update is named EntityWithoutId (matches Omit<Entity, "id"> utility type from structs.rs)
+  - Migration files use sequential timestamps (000000000001, 000000000002...) for deterministic ordering
+  - 20 tests added covering all CRUD operations, migration DDL, type mappings, and edge cases
+---
+
+## 2026-03-06T05:05 - US-005
+- Implemented per-entity Axum handler file generation wired to repository CRUD functions
+- Files changed:
+  - packages/transform-native/src/rust_codegen/handlers.rs (new — ~510 lines code + ~510 lines tests)
+  - packages/transform-native/src/rust_codegen/mod.rs (added handlers module, wired into generate())
+- **Learnings for future iterations:**
+  - Handler entity files use overwrite: false (user-owned code), handlers/mod.rs uses overwrite: true (stays in sync)
+  - Entity name resolution from handler_ref: "UsersRoutes" → strip "Routes" → "Users" → look up "User" in type_map by stripping trailing 's'
+  - Also handles "ies" → "y" pluralization (e.g., "Categories" → "Category")
+  - PUT and PATCH both map to "update" action — deduplication via BTreeSet avoids generating duplicate handler functions
+  - Handler stubs for @table entities call repository functions directly; non-table entities get TODO placeholders
+  - Each handler file gets a ListQuery struct with page/page_size for list endpoints rather than referencing models
+  - ID type in Path<T> extractor derives from @id property type_str: "string" → String, "number" → i64
+  - 26 tests added covering all CRUD handlers, overwrite flags, entity resolution, dedup, determinism, and edge cases
 ---
