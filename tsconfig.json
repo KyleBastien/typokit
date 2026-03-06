@@ -95,11 +95,7 @@
       ]
     }
   },
-  "references": [
-    {
-      "path": "./packages/example-todo-server-axum"
-    }
-  ],
+  "references": [],
   "files": [],
   "include": []
 }
