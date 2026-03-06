@@ -4,6 +4,7 @@
 //! from TypeScript schemas extracted by the TypoKit build pipeline.
 
 pub mod database;
+pub mod handlers;
 pub mod router;
 pub mod structs;
 
@@ -25,8 +26,9 @@ pub struct GeneratedOutput {
 /// Generate all Rust code from the extracted TypeScript schema types and routes.
 ///
 /// Generates Rust struct files with serde derives, an Axum router file
-/// with typed handler registrations, and a sqlx database layer with
-/// CRUD repository functions and SQL migrations.
+/// with typed handler registrations, a sqlx database layer with
+/// CRUD repository functions and SQL migrations, and per-entity
+/// Axum handler files wired to repository functions.
 pub fn generate(
     type_map: &HashMap<String, TypeMetadata>,
     routes: &[RouteEntry],
@@ -34,6 +36,7 @@ pub fn generate(
     let mut outputs = structs::generate_structs(type_map);
     outputs.extend(router::generate_router(routes));
     outputs.extend(database::generate_database(type_map));
+    outputs.extend(handlers::generate_handlers(type_map, routes));
     outputs
 }
 
