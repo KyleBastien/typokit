@@ -118,7 +118,7 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (model types for service signatures). Service stubs follow the TypeScript pattern: exported named functions (not classes). Middleware stub uses tower/axum middleware pattern with async fn auth(req, next) -> Response."
     },
     {
@@ -138,7 +138,7 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 through US-006 (needs to know all modules and dependencies). The scaffold ties everything together. src/lib.rs uses #[path] attributes to bridge .typokit/ into the Rust module system — same .typokit/ convention as TypeScript projects."
     },
     {
@@ -157,7 +157,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 through US-007. The CLI hooks into tapable build pipeline: afterTypeParse + afterRouteTable + emit. The rust_codegen module is called from the napi-rs bridge."
     },
     {
@@ -177,7 +177,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-008 (needs CLI --target rust). This is the showpiece: TS schema → typokit build --target rust → cargo run → working Axum API. @typokit/client works against this server identically to the TypeScript server."
     },
     {
@@ -195,7 +195,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009. Documentation-only story — no code changes except markdown files."
     }
   ]

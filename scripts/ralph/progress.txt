@@ -5,7 +5,13 @@ Started: 03/05/2026 20:38:23
 ## Codebase Patterns
 - Existing generators (openapi_generator.rs, test_stub_generator.rs) use string-based code generation, returning String directly
 - Handler entity files (src/handlers/{entity}.rs) use overwrite: false; mod.rs files use overwrite: true
+- Service stubs follow same pattern: src/services/{entity}.rs (overwrite: false), src/services/mod.rs (overwrite: true)
+- Middleware stubs: src/middleware/auth.rs (overwrite: false), src/middleware/mod.rs (overwrite: true)
 - Entity name resolution: strip "Routes" suffix from handler_ref, then try singular forms (strip 's', 'ies'→'y') to match type_map keys
+- Root .gitignore ignores .typokit/ — use `git add -f` to check in generated files for example/demo packages
+- Axum 0.8 router: only import `get` from `axum::routing`; post/put/delete are chained as methods on MethodRouter
+- sqlx enum support: derive sqlx::Type with `#[sqlx(type_name = "pg_enum_name", rename_all = "snake_case")]` for PostgreSQL custom enums
+- Example packages need `"private": true` in package.json and `publish = false` in Cargo.toml; excluded from nx release via `!packages/example-*`
 - TypeMetadata from type_extractor.rs contains `jsdoc: Option<HashMap<String, String>>` for JSDoc tags like @table, @id, @generated, @format, @unique, etc.
 - PropertyMetadata contains `type_str` (stringified TS type), `optional`, and `jsdoc` for per-property annotations
 - HashMap keys in type_map are type names, values are TypeMetadata. Properties within are also HashMap-keyed by property name
@@ -22,6 +28,11 @@ Started: 03/05/2026 20:38:23
 - @id property found by jsdoc "id" key or by property name "id"; used as PRIMARY KEY in migrations
 - @unique fields get UNIQUE constraint in migration SQL; use collect on jsdoc.contains_key("unique")
 - TS→PostgreSQL type mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
+- Project scaffold files (Cargo.toml, src/main.rs, src/lib.rs, .typokit/app.rs, .typokit/error.rs) all use overwrite: true
+- src/lib.rs uses #[path = "../.typokit/..."] to bridge .typokit/ modules into the Rust module tree (paths relative to src/ dir)
+- CLI build command uses executeBuild (router) → executeRustBuild or executeTypeScriptBuild based on --target flag
+- Napi bridge for rust_codegen: generate_rust_codegen() takes type/route file paths, returns JsRustGeneratedOutput[]
+- buildRustPipeline in transform-native handles caching + file writing for Rust target (same .cache-hash mechanism as TS pipeline)
 
 ## 2026-03-06T04:39 - US-001
 - Implemented rust_codegen module with GeneratedOutput struct and struct generation
@@ -99,4 +110,85 @@ Started: 03/05/2026 20:38:23
   - Each handler file gets a ListQuery struct with page/page_size for list endpoints rather than referencing models
   - ID type in Path<T> extractor derives from @id property type_str: "string" → String, "number" → i64
   - 26 tests added covering all CRUD handlers, overwrite flags, entity resolution, dedup, determinism, and edge cases
+---
+
+## 2026-03-06T05:10 - US-006
+- Implemented service-layer and middleware stub generation
+- Files changed:
+  - packages/transform-native/src/rust_codegen/services.rs (new — ~235 lines code + ~200 lines tests)
+  - packages/transform-native/src/rust_codegen/middleware.rs (new — ~75 lines code + ~75 lines tests)
+  - packages/transform-native/src/rust_codegen/mod.rs (added services + middleware modules, wired into generate())
+- **Learnings for future iterations:**
+  - Services are generated only for @table entities (non-table entities have no CRUD repository to call)
+  - Service functions take &PgPool directly (not AppState) — service layer is decoupled from Axum
+  - Service function signatures match repository signatures: list returns Vec, get_by_id returns Option, create returns entity, update/delete return Option
+  - Middleware uses Axum middleware::from_fn pattern: async fn(Request, Next) -> Result<Response, StatusCode>
+  - Auth middleware stub passes all requests through by default — users edit the stub to add real auth
+  - All unused params prefixed with _ to avoid dead_code warnings in stubs
+  - 22 new tests across services (13) and middleware (9) — all 118 rust_codegen tests pass
+---
+
+## 2026-03-06T05:14 - US-007
+- Implemented complete Rust project scaffold generation in rust_codegen/project.rs
+- Generates 5 files: Cargo.toml, src/main.rs, src/lib.rs, .typokit/app.rs, .typokit/error.rs
+- Files changed:
+  - packages/transform-native/src/rust_codegen/project.rs (new — ~370 lines code + ~220 lines tests)
+  - packages/transform-native/src/rust_codegen/mod.rs (added project module, wired into generate())
+- **Learnings for future iterations:**
+  - src/lib.rs uses #[path = "../.typokit/..."] attributes to bridge .typokit/ into the Rust module tree (relative to src/ directory)
+  - Cargo.toml uses edition = "2024" and name = "server" as defaults; binary references lib crate via `use server::{module}`
+  - AppError enum variants match exactly what handlers.rs generates: `AppError::NotFound(String)` etc.
+  - AppError also implements Display and has convenience constructors (not_found, bad_request, etc.) for user-written code
+  - Generated error.rs returns JSON bodies with { error: status_code, message: string } format
+  - All 5 project scaffold files use overwrite: true since they're framework-managed
+  - 31 new tests added — all 157 rust_codegen tests pass
+---
+
+## 2026-03-06T05:19 - US-008
+- Implemented --target rust CLI flag for typokit build command
+- Files changed:
+  - packages/transform-native/src/lib.rs (added generate_rust_codegen napi function)
+  - packages/transform-native/src/index.ts (added generateRustCodegen, buildRustPipeline with caching)
+  - packages/cli/src/commands/build.ts (added target/db/outDir options, Rust build execution path)
+  - packages/cli/src/index.ts (parse --target, --db, --out flags, updated help text)
+  - packages/cli/src/index.test.ts (8 new tests for flag parsing and build target routing)
+- **Learnings for future iterations:**
+  - The CLI's executeBuild was refactored into executeBuild (router), executeRustBuild, and executeTypeScriptBuild for clean separation
+  - Rust target skips the TypeScript compiler step entirely — only runs transform + emit
+  - buildRustPipeline in transform-native handles content-hash caching identically to buildPipeline (same .typokit/.cache-hash mechanism)
+  - The napi function generate_rust_codegen reuses parser::parse_and_extract_types and route_compiler::extract_route_contracts internally
+  - --db flag only supports 'sqlx' currently — error validation happens early in executeBuild before any work
+  - --out defaults to rootDir for Rust target, not '.' — this matches user expectation of generating in-place
+  - 214 Rust tests + 156 CLI tests all pass (8 new CLI tests added)
+---
+
+## 2026-03-06T05:28 - US-009
+- Created complete example-todo-server-axum reference application (32 files)
+- Files changed:
+  - packages/example-todo-server-axum/ (new package — 32 files total)
+  - .typokit/ — 18 generated Rust files (models, db, router, migrations, app, error)
+  - src/ — 10 user-written files (handlers, services, middleware, main.rs, lib.rs)
+  - Cargo.toml, package.json, README.md, .gitignore
+- **Learnings for future iterations:**
+  - Root .gitignore blocks `.typokit/` — must use `git add -f` for example packages that check in generated files
+  - Axum 0.8 routing: `get(handler).post(handler)` chains — only `get` needs to be imported from `axum::routing`, the rest are MethodRouter methods
+  - For sqlx::FromRow with enum fields, use `#[derive(sqlx::Type)]` with `#[sqlx(type_name = "pg_enum_name")]` and create corresponding PostgreSQL ENUM type in migration
+  - Union literal types shared across multiple structs (e.g., UserStatus in User, CreateUserInput, PublicUser) — practical approach: define enum in the primary entity module and import via `super::` in others
+  - Cargo.toml `name = "server"` is used by main.rs imports (`use server::...`) — changing the crate name requires updating all `use` statements
+  - sqlx features must include `chrono` and `uuid` for DateTime<Utc> and Uuid column support (codegen Cargo.toml doesn't include these)
+  - cargo build/check works fine for standalone Rust projects within the pnpm monorepo
+  - Pre-existing lint failure in transform-native (no-undef `window`) is unrelated to new code
+---
+
+## 2026-03-06T05:43 - US-010
+- Updated project documentation to reflect the new Rust codegen target
+- Files changed:
+  - typokit-arch.md (added Section 12.13 Rust Codegen Target, updated Sections 6.5, 12.1, 12.11, 14.1)
+  - AGENTS.md (updated transform-native description to include rust_codegen module)
+- **Learnings for future iterations:**
+  - Documentation-only stories still require typecheck pass — run `pnpm nx affected -t typecheck` even for markdown changes
+  - The architecture doc uses numbered sections (1-16+) — new codegen subsections fit under Section 12 (Build Pipeline)
+  - Server adapter compatibility matrix in Section 6.5 is the right place for Axum's native target entry
+  - CLI commands in Section 14.1 should document all flags including --target, --db, --out
+  - When many unrelated changes exist in the working tree, use selective `git add` to commit only relevant files
 ---
