@@ -538,6 +538,14 @@ packages/
 | **Express** | ✅ | ✅ (via compat) | ❌ |
 | **Community (e.g. Rust/hyper via napi-rs)** | ✅ | ❌ | ❌ |
 
+**Rust-native targets** (via `--target rust` codegen — see Section 12.13):
+
+| Target | Server | Database | Runtime |
+|--------|--------|----------|---------|
+| **Axum** | Axum 0.8 (Tokio) | sqlx 0.8 (PostgreSQL) | Native Rust binary |
+
+When using `--target rust`, TypoKit generates a standalone Rust project instead of TypeScript runtime code. The generated Axum server consumes the same TypeScript schema but produces a native binary — no Node.js required at runtime.
+
 ### 6.6 Usage Examples
 
 **Default — TypoKit's native server:**
@@ -1156,8 +1164,8 @@ Build Time (Rust via napi-rs)              Runtime (TypeScript)
   ├── OpenAPI spec generation                ├── Error handling (AppError)
   ├── Schema diffing (migrations)            ├── ctx.log
   ├── Test stub generation                   └── Plugin lifecycle
-  └── Validator codegen (Typia callback)
-                                           @typokit/server-native (TS)
+  ├── Validator codegen (Typia callback)
+  └── Rust codegen (Axum/sqlx target)      @typokit/server-native (TS)
 @typokit/cli (calls native transform)     @typokit/server-fastify (TS)
                                            @typokit/server-hono (TS)
                                            
@@ -1465,6 +1473,7 @@ packages/
 
   # Build & Transform (Rust + TS bridge)
   transform-native/              # @typokit/transform-native — Rust AST transform (napi-rs)
+                                 #   includes rust_codegen/ module for Axum/sqlx target
   transform-typia/               # @typokit/transform-typia — Typia validation bridge (TS)
 
   # Server Adapters (TS)
@@ -1503,6 +1512,9 @@ packages/
   # Shared (TS)
   types/                         # @typokit/types — shared type definitions
   errors/                        # @typokit/errors — structured error class hierarchy
+
+  # Example Applications
+  example-todo-server-axum/      # Rust codegen reference app (Axum + sqlx + PostgreSQL)
 ```
 
 ### 12.12 Plugin Architecture
@@ -1625,6 +1637,138 @@ export default defineWsHandlers<WsChannels>({
   },
 });
 ```
+
+### 12.13 Rust Codegen Target
+
+TypoKit's build pipeline can emit a complete, standalone **Rust project** instead of TypeScript runtime code. Running `typokit build --target rust` generates an Axum web server backed by sqlx and PostgreSQL — from the same TypeScript schemas used for TypeScript targets.
+
+#### Architecture & Adapter Pattern
+
+The Rust codegen target follows the same adapter philosophy as the TypeScript server and database adapters (Sections 6 and 7). TypoKit owns the schema, validation rules, and route contracts. The Rust codegen module (`transform-native/src/rust_codegen/`) translates these into idiomatic Rust code:
+
+```
+TypeScript Schema Source                 Generated Rust Project
+──────────────────────                   ──────────────────────
+
+@app/schema/                             .typokit/          ← Regenerated (overwrite: true)
+  entities/user.ts        ──build──→       models/           ← Structs + serde + validator
+  entities/todo.ts                         db/               ← PgPool + CRUD repository
+  contracts/users.ts                       router.rs         ← Axum Router
+  contracts/todos.ts                       app.rs            ← AppState
+                                           error.rs          ← AppError enum
+                                           migrations/       ← SQL DDL
+
+                                         src/               ← User-owned (overwrite: false)
+                                           handlers/         ← Axum handler functions
+                                           services/         ← Business logic stubs
+                                           middleware/       ← Auth middleware stub
+                                           main.rs           ← Tokio entrypoint
+                                           lib.rs            ← Module bridge
+                                         Cargo.toml         ← Dependencies
+```
+
+The generated project splits into two ownership zones:
+
+| Directory | Owner | `overwrite` | Purpose |
+|-----------|-------|-------------|---------|
+| `.typokit/` | Framework | `true` | Regenerated on every build — models, DB layer, router, migrations |
+| `src/handlers/` | Developer | `false` | Handler stubs generated once, then user-maintained |
+| `src/services/` | Developer | `false` | Service layer stubs — business logic lives here |
+| `src/middleware/` | Developer | `false` | Auth middleware stub — customize for real auth |
+| `src/main.rs` | Framework | `true` | Tokio entrypoint with tracing + DB pool init |
+| `src/lib.rs` | Framework | `true` | Module bridge using `#[path]` to reference `.typokit/` |
+| `Cargo.toml` | Framework | `true` | Dependencies: axum, tokio, serde, sqlx, validator, etc. |
+
+#### Codegen Sub-Modules
+
+The `rust_codegen` module is organized into focused sub-modules inside `transform-native/src/rust_codegen/`:
+
+| Module | Output Files | Responsibility |
+|--------|-------------|----------------|
+| `structs.rs` | `.typokit/models/*.rs` | Entity structs, validation annotations, utility type resolution, union enums |
+| `router.rs` | `.typokit/router.rs` | Axum `Router<AppState>` with typed route registrations |
+| `database.rs` | `.typokit/db/*.rs`, `.typokit/migrations/*.sql` | PgPool setup, CRUD repository functions, SQL migrations |
+| `handlers.rs` | `src/handlers/*.rs` | Per-entity handler stubs wired to repository calls |
+| `services.rs` | `src/services/*.rs` | Service-layer stubs with CRUD function signatures |
+| `middleware.rs` | `src/middleware/*.rs` | Auth middleware stub using `axum::middleware::from_fn` |
+| `project.rs` | `Cargo.toml`, `src/main.rs`, `src/lib.rs`, `.typokit/app.rs`, `.typokit/error.rs` | Project scaffold tying everything together |
+
+#### TypeScript → Rust Type Mapping
+
+| TypeScript Type | Rust Type | Notes |
+|----------------|-----------|-------|
+| `string` | `String` | |
+| `number` | `f64` | Default for general numbers |
+| `number` (with `@integer`) | `i64` | JSDoc override for integer context |
+| `number` (pagination params) | `u32` | Inferred from context (page, pageSize) |
+| `boolean` | `bool` | |
+| `Date` | `chrono::DateTime<Utc>` | Requires `chrono` crate with serde feature |
+| `T[]` / `Array<T>` | `Vec<T>` | |
+| `T \| undefined` / optional | `Option<T>` | |
+| `"a" \| "b" \| "c"` (union literals) | `enum` with `#[serde(rename)]` | Generates Rust enum with per-variant renames |
+| `Omit<T, K>` | Concrete struct (fields removed) | Resolved at codegen time |
+| `Partial<T>` | Concrete struct (all `Option<T>`) | Resolved at codegen time |
+| `Pick<T, K>` | Concrete struct (only picked fields) | Resolved at codegen time |
+
+#### TypeScript → PostgreSQL Column Type Mapping
+
+| TypeScript Type | PostgreSQL Type | Notes |
+|----------------|----------------|-------|
+| `string` | `TEXT` | |
+| `number` | `DOUBLE PRECISION` | Default numeric type |
+| `number` (with `@integer`) | `BIGINT` | |
+| `boolean` | `BOOLEAN` | |
+| `Date` | `TIMESTAMPTZ` | Timestamp with timezone |
+| `T[]` / `Array<T>` | `JSONB` | Stored as JSON |
+| `"a" \| "b"` (union literals) | `TEXT` | Stored as text, validated in application |
+
+#### JSDoc Annotation → Rust Attribute Mapping
+
+**Validation annotations** (validator crate v0.19):
+
+| JSDoc Tag | Rust Attribute | Example |
+|-----------|---------------|---------|
+| `@minLength N` | `#[validate(length(min = N))]` | `@minLength 2` → `#[validate(length(min = 2))]` |
+| `@maxLength N` | `#[validate(length(max = N))]` | `@maxLength 100` → `#[validate(length(max = 100))]` |
+| `@format email` | `#[validate(email)]` | |
+| `@pattern regex` | `#[validate(regex(path = "RE_..."))]` | Generates `Lazy<Regex>` static |
+| `@minimum N` | `#[validate(range(min = N))]` | `@minimum 0` → `#[validate(range(min = 0))]` |
+| `@maximum N` | `#[validate(range(max = N))]` | `@maximum 999` → `#[validate(range(max = 999))]` |
+
+Structs with any validation annotations automatically receive `#[derive(Validate)]`.
+
+**Entity and database annotations** (sqlx):
+
+| JSDoc Tag | Rust / SQL Effect |
+|-----------|-------------------|
+| `@table name` | `#[derive(sqlx::FromRow)]` on struct; `CREATE TABLE name` in migration |
+| `@id` | Property used as `PRIMARY KEY` in migration |
+| `@generated uuid` | `uuid::Uuid::new_v4().to_string()` in INSERT (excluded from input struct) |
+| `@generated now` | `chrono::Utc::now()` in INSERT (excluded from input struct) |
+| `@unique` | `UNIQUE` constraint on column in migration |
+
+#### CLI Usage
+
+```bash
+# Generate Rust project from TypeScript schemas
+typokit build --target rust
+
+# Specify output directory
+typokit build --target rust --out ./my-server
+
+# Specify database adapter (only sqlx supported currently)
+typokit build --target rust --db sqlx
+
+# Default TypeScript target (unchanged behavior)
+typokit build
+typokit build --target typescript
+```
+
+Content-hash caching (`.typokit/.cache-hash`) applies to Rust codegen — unchanged schemas skip regeneration.
+
+#### Reference Implementation
+
+See `packages/example-todo-server-axum/` for a complete working example that demonstrates the Rust codegen target end-to-end. It reuses `@typokit/example-todo-schema` as the TypeScript type source, producing a fully functional Axum API server with the same endpoints as the TypeScript `example-todo-server`.
 
 ---
 
@@ -1765,6 +1909,12 @@ When using Fastify or Hono adapters, runtime performance is determined by those 
 typokit init                          # New project from template
 typokit add route users               # Scaffold route module
 typokit add service auth              # Scaffold service
+
+# Build
+typokit build                         # Build TypeScript target (default)
+typokit build --target rust           # Generate Rust/Axum project from TS schemas
+typokit build --target rust --out dir # Specify output directory
+typokit build --target rust --db sqlx # Specify DB adapter (sqlx only, currently)
 
 # Code Generation
 typokit generate:db                   # Generate DB schema from types
