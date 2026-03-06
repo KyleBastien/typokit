@@ -24,6 +24,9 @@
     "@typokit/core": "workspace:*",
     "@typokit/types": "workspace:*"
   },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  },
   "napi": {
     "binaryName": "index",
     "targets": [
