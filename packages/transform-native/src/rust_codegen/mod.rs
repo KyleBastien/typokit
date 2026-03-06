@@ -6,6 +6,7 @@
 pub mod database;
 pub mod handlers;
 pub mod middleware;
+pub mod project;
 pub mod router;
 pub mod services;
 pub mod structs;
@@ -31,7 +32,8 @@ pub struct GeneratedOutput {
 /// with typed handler registrations, a sqlx database layer with
 /// CRUD repository functions and SQL migrations, per-entity
 /// Axum handler files wired to repository functions, service-layer
-/// stubs, and middleware stubs.
+/// stubs, middleware stubs, and the complete project scaffold
+/// (Cargo.toml, main.rs, lib.rs, app.rs, error.rs).
 pub fn generate(
     type_map: &HashMap<String, TypeMetadata>,
     routes: &[RouteEntry],
@@ -42,6 +44,7 @@ pub fn generate(
     outputs.extend(handlers::generate_handlers(type_map, routes));
     outputs.extend(services::generate_services(type_map));
     outputs.extend(middleware::generate_middleware());
+    outputs.extend(project::generate_project());
     outputs
 }
 
