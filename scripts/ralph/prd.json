@@ -58,7 +58,7 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (references generated model types). Walk the compiled radix tree from route_compiler.rs and emit Router::new().route(...) chains. Axum uses /:id syntax same as Express."
     },
     {

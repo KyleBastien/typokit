@@ -13,6 +13,8 @@ Started: 03/05/2026 20:38:23
 - Type extractor only processes interfaces (TsInterfaceDecl), NOT type aliases — utility types (Omit/Partial/Pick) are not in type_map
 - Union literal types in properties are stored as `"active" | "inactive"` (with quote chars around each variant)
 - Use BTreeMap for collecting resolved types to ensure deterministic iteration order
+- rust_codegen::generate() accepts both type_map AND routes — sub-modules should accept the inputs they need
+- Handler refs follow "EntityRoutes#METHOD /path" format — derive entity module by stripping "Routes" suffix and snake_casing
 
 ## 2026-03-06T04:39 - US-001
 - Implemented rust_codegen module with GeneratedOutput struct and struct generation
@@ -42,4 +44,18 @@ Started: 03/05/2026 20:38:23
   - Validator crate v0.19 requires Lazy<Regex> statics for pattern validation — generate them at file top
   - Common types (PaginatedResponse<T>, ErrorResponse) are always generated in common.rs with the "common" module
   - mod.rs generation must now track both module names and type exports separately for proper re-exports
+---
+
+## 2026-03-06T04:52 - US-003
+- Implemented Axum router generation from RouteEntry[] in rust_codegen/router.rs
+- Files changed:
+  - packages/transform-native/src/rust_codegen/router.rs (new — ~310 lines)
+  - packages/transform-native/src/rust_codegen/mod.rs (updated generate() signature, added router module)
+- **Learnings for future iterations:**
+  - The generate() function in mod.rs now takes both type_map AND routes — future sub-modules must match this pattern
+  - Handler refs follow "EntityRoutes#METHOD /path" pattern — derive module name by stripping "Routes" suffix and snake_casing
+  - Action name derivation uses REST conventions: GET collection=list, GET :id=get_by_id, POST=create, PUT/PATCH :id=update, DELETE :id=delete
+  - Routes with same path should be grouped with method chaining in Axum (get(handler).post(handler))
+  - Axum uses same :param path syntax as Express — no path conversion needed
+  - BTreeMap used for all route grouping/sorting to ensure deterministic output
 ---
