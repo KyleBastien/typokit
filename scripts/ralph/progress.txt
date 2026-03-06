@@ -1,4 +1,45 @@
 # Ralph Progress Log
-Started: 03/05/2026 17:53:27
+Started: 03/05/2026 20:38:23
 ---
 
+## Codebase Patterns
+- Existing generators (openapi_generator.rs, test_stub_generator.rs) use string-based code generation, returning String directly
+- TypeMetadata from type_extractor.rs contains `jsdoc: Option<HashMap<String, String>>` for JSDoc tags like @table, @id, @generated, @format, @unique, etc.
+- PropertyMetadata contains `type_str` (stringified TS type), `optional`, and `jsdoc` for per-property annotations
+- HashMap keys in type_map are type names, values are TypeMetadata. Properties within are also HashMap-keyed by property name
+- All generators sort output deterministically (BTreeMap or sorted Vec) for reproducible codegen
+- cargo check and cargo test both work from packages/transform-native directory
+- Tests use internal parser::parse_typescript() to create test data from TS source strings
+- Type extractor only processes interfaces (TsInterfaceDecl), NOT type aliases — utility types (Omit/Partial/Pick) are not in type_map
+- Union literal types in properties are stored as `"active" | "inactive"` (with quote chars around each variant)
+- Use BTreeMap for collecting resolved types to ensure deterministic iteration order
+
+## 2026-03-06T04:39 - US-001
+- Implemented rust_codegen module with GeneratedOutput struct and struct generation
+- Files changed:
+  - packages/transform-native/src/rust_codegen/mod.rs (new)
+  - packages/transform-native/src/rust_codegen/structs.rs (new)
+  - packages/transform-native/src/lib.rs (added `mod rust_codegen;`)
+- **Learnings for future iterations:**
+  - The crate is a napi cdylib — `cargo check`/`cargo test` work but `cargo build` needs napi tooling
+  - Existing generators don't return GeneratedOutput — they return plain Strings. The GeneratedOutput struct is new for rust_codegen
+  - TypeMetadata.jsdoc contains JSDoc tags as HashMap<String, String> — check for `@table` via `jsdoc.contains_key("table")`
+  - Property jsdoc tags like @id, @generated, @format, @unique, @minLength, @maxLength are available per-property
+  - camelCase→snake_case conversion and serde rename attributes are needed for Rust field names
+  - `dead_code` warnings appear for non-napi-exported functions — this is expected until napi bridge functions are added
+---
+
+## 2026-03-06T04:42 - US-002
+- Implemented validation annotations, utility type resolution, union literal enums, common types, and integer inference
+- Files changed:
+  - packages/transform-native/src/rust_codegen/structs.rs (major update — +975 lines)
+- **Learnings for future iterations:**
+  - Type extractor only handles interfaces, not type aliases — utility type resolution must happen in rust_codegen
+  - Utility types (Omit/Partial/Pick) can appear as property type_str values even though they don't exist as top-level types in the type_map
+  - Union literal type_str values contain escaped quotes: `"active" | "inactive"` — detect via split on ` | ` and check for quote wrapping
+  - For serde rename on enum variants, compare PascalCase to original (not to_lowercase) — "Active" != "active" triggers rename
+  - Use BTreeMap for resolved utility types to ensure deterministic output ordering
+  - Validator crate v0.19 requires Lazy<Regex> statics for pattern validation — generate them at file top
+  - Common types (PaginatedResponse<T>, ErrorResponse) are always generated in common.rs with the "common" module
+  - mod.rs generation must now track both module names and type exports separately for proper re-exports
+---

@@ -19,10 +19,9 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "This is the foundational module — all other rust codegen stories depend on it. The module lives at transform-native/src/rust_codegen/ alongside existing generators (openapi_generator.rs, test_stub_generator.rs). Use string-based code generation (not a Rust AST library), matching the pattern used by existing TypeScript codegen."
     },
-    {
       "id": "US-002",
       "title": "Add validation annotations and utility type resolution to struct codegen",
       "description": "As a developer, I need the struct generator to map JSDoc validation annotations to validator crate attributes, resolve utility types (Omit/Partial/Pick) to concrete structs, and generate enums from union literals.",
@@ -40,7 +39,7 @@
         "Typecheck passes (cargo check in transform-native)"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Extends US-001's struct generator. The validator crate (v0.19) is the standard Rust validation library. Reference the existing type_extractor.rs SchemaTypeMap which already contains validation rules parsed from JSDoc annotations."
     },
     {

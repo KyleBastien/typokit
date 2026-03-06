@@ -3,9 +3,11 @@
 //! Generates a complete Axum server (structs, router, sqlx DB layer, handlers)
 //! from TypeScript schemas extracted by the TypoKit build pipeline.
 
+pub mod router;
 pub mod structs;
 
 use std::collections::HashMap;
+use crate::route_compiler::RouteEntry;
 use crate::type_extractor::TypeMetadata;
 
 /// A single generated output file
@@ -19,12 +21,18 @@ pub struct GeneratedOutput {
     pub overwrite: bool,
 }
 
-/// Generate all Rust code from the extracted TypeScript schema types.
+/// Generate all Rust code from the extracted TypeScript schema types and routes.
 ///
-/// Currently generates Rust struct files with serde derives. Future stories
-/// will add router, database layer, handlers, and project scaffold generation.
-pub fn generate(type_map: &HashMap<String, TypeMetadata>) -> Vec<GeneratedOutput> {
-    structs::generate_structs(type_map)
+/// Generates Rust struct files with serde derives and an Axum router file
+/// with typed handler registrations. Future stories will add database layer,
+/// handlers, and project scaffold generation.
+pub fn generate(
+    type_map: &HashMap<String, TypeMetadata>,
+    routes: &[RouteEntry],
+) -> Vec<GeneratedOutput> {
+    let mut outputs = structs::generate_structs(type_map);
+    outputs.extend(router::generate_router(routes));
+    outputs
 }
 
 #[cfg(test)]
@@ -53,9 +61,18 @@ mod tests {
             },
         );
 
-        let outputs = generate(&type_map);
+        let routes = vec![];
+        let outputs = generate(&type_map, &routes);
         assert!(!outputs.is_empty());
         assert!(outputs.iter().any(|o| o.path.contains("user.rs")));
         assert!(outputs.iter().any(|o| o.path.ends_with("mod.rs")));
+    }
+
+    #[test]
+    fn test_generate_includes_router_output() {
+        let type_map = HashMap::new();
+        let routes = vec![];
+        let outputs = generate(&type_map, &routes);
+        assert!(outputs.iter().any(|o| o.path == ".typokit/router.rs"));
     }
 }
