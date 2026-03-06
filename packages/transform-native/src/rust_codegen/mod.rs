@@ -5,7 +5,9 @@
 
 pub mod database;
 pub mod handlers;
+pub mod middleware;
 pub mod router;
+pub mod services;
 pub mod structs;
 
 use std::collections::HashMap;
@@ -27,8 +29,9 @@ pub struct GeneratedOutput {
 ///
 /// Generates Rust struct files with serde derives, an Axum router file
 /// with typed handler registrations, a sqlx database layer with
-/// CRUD repository functions and SQL migrations, and per-entity
-/// Axum handler files wired to repository functions.
+/// CRUD repository functions and SQL migrations, per-entity
+/// Axum handler files wired to repository functions, service-layer
+/// stubs, and middleware stubs.
 pub fn generate(
     type_map: &HashMap<String, TypeMetadata>,
     routes: &[RouteEntry],
@@ -37,6 +40,8 @@ pub fn generate(
     outputs.extend(router::generate_router(routes));
     outputs.extend(database::generate_database(type_map));
     outputs.extend(handlers::generate_handlers(type_map, routes));
+    outputs.extend(services::generate_services(type_map));
+    outputs.extend(middleware::generate_middleware());
     outputs
 }
 
