@@ -196,20 +196,24 @@ export interface BuildPipeline {
     /** Runs after all generation — plugins emit their own artifacts */
     emit: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
 
+    /** Override or extend the compilation step */
+    compile: AsyncSeriesHook<[CompileContext, BuildContext]>;
+
     /** Runs after build completes — cleanup, reporting */
     done: AsyncSeriesHook<[BuildResult]>;
   };
 }
 ```
 
-The six phases execute in order:
+The seven phases execute in order:
 
 1. **`beforeTransform`** — Pre-processing, setup, register additional type sources
 2. **`afterTypeParse`** — Type metadata extracted and available for inspection or modification
 3. **`afterValidators`** — Compiled validators generated, plugins can add custom validators
 4. **`afterRouteTable`** — Radix tree route table compiled
 5. **`emit`** — All artifacts ready, plugins emit their own files to `.typokit/`
-6. **`done`** — Build complete, cleanup and reporting
+6. **`compile`** — Compilation step. By default runs `tsc`, but plugins can override this (e.g., `plugin-axum` runs `cargo build` instead). The `CompileContext.handled` flag prevents the default compiler from running.
+7. **`done`** — Build complete, cleanup and reporting
 
 ### Plugin Hook Example
 
@@ -246,6 +250,40 @@ export const wsPlugin: TypoKitPlugin = {
 
 <Aside type="tip">
 Plugin authors write TypeScript, not Rust. The Rust transform drives overall pipeline execution and calls plugin hooks via napi-rs at each phase. The native boundary is invisible to plugin code.
+</Aside>
+
+### The CompileContext Interface
+
+The `compile` hook receives a `CompileContext` that plugins use to override or extend the default TypeScript compilation:
+
+```typescript
+export interface CompileContext {
+  /** Set to true if your plugin handled compilation — skips the default tsc step */
+  handled: boolean;
+  /** Which compiler ran (e.g., "tsc", "cargo") */
+  compiler?: string;
+  /** Compilation result */
+  result?: { success: boolean; errors: string[] };
+}
+```
+
+For example, `@typokit/plugin-axum` uses the `compile` hook to run `cargo build` instead of `tsc`:
+
+```typescript
+pipeline.hooks.compile.tap("plugin-axum", async (compileCtx, ctx) => {
+  const result = spawnSync("cargo", ["build"], { cwd: ctx.rootDir });
+  
+  compileCtx.handled = true;    // Skip default tsc
+  compileCtx.compiler = "cargo";
+  compileCtx.result = {
+    success: result.status === 0,
+    errors: result.status !== 0 ? [result.stderr] : [],
+  };
+});
+```
+
+<Aside type="tip">
+If no plugin sets `compileCtx.handled = true`, the default TypeScript compiler (`tsc`) runs as usual. This means the `compile` hook is fully backwards-compatible — existing plugins that don't use it are unaffected.
 </Aside>
 
 ### Why Tapable Hooks?
@@ -326,3 +364,4 @@ The Nx executor and Turborepo integration are thin wrappers that call `typokit b
 - [Compiled Router](/typokit/architecture/compiled-router/) — Radix tree route matching internals
 - [Plugins](/typokit/core-concepts/plugins/) — How to write plugins that tap into the build pipeline
 - [Custom Plugin Development](/typokit/guides/custom-plugin/) — Step-by-step plugin creation guide
+- [Building a Rust/Axum Server](/typokit/guides/rust-axum-server/) — Generate a complete Rust server from TypeScript schemas

@@ -240,9 +240,9 @@ typokit build
 
 1. **Resolve files** — Finds all type files and route files from `typokit.config.ts` globs
 2. **Rust transform** — Parses TypeScript AST to extract type metadata, JSDoc tags, and route contracts
-3. **Plugin hooks** — Runs build pipeline hooks (`beforeTransform` → `afterTypeParse` → `afterValidators` → `afterRouteTable` → `emit` → `done`)
+3. **Plugin hooks** — Runs build pipeline hooks (`beforeTransform` → `afterTypeParse` → `afterValidators` → `afterRouteTable` → `emit` → `compile` → `done`)
 4. **Emit artifacts** — Generates validators, database schemas, OpenAPI spec, client code, and contract tests to the output directory (default: `.typokit/`)
-5. **TypeScript compile** — Compiles the project with `tsc`
+5. **Compile** — Runs the `compile` hook, then the default TypeScript compiler (`tsc`). Plugins like `@typokit/plugin-axum` can override this step to run their own compiler (e.g., `cargo build`)
 
 **Example**
 

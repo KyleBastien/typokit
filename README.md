@@ -80,6 +80,7 @@ TypoKit is a modular monorepo. Use only what you need.
 | `@typokit/otel`               | OpenTelemetry integration (tracing, metrics, log bridge)                               |
 | `@typokit/plugin-debug`       | Debug sidecar with introspection endpoints                                             |
 | `@typokit/plugin-ws`          | WebSocket support                                                                      |
+| `@typokit/plugin-axum`        | Rust/Axum server code generation from TypeScript schemas                               |
 | `@typokit/testing`            | Test utilities — factories, integration suites, contract generators                    |
 
 ## Bring Your Own Server

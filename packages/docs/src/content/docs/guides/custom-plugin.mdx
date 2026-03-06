@@ -657,6 +657,71 @@ export function timingPlugin(options: TimingPluginOptions = {}): TypoKitPlugin {
 
 7. **Naming conventions** — Official plugins prefix services with `_` (e.g., `_debug`, `_ws`). Custom plugins should use unprefixed names.
 
+## The Compile Hook
+
+The `compile` hook is a specialized build hook that lets plugins override or extend the default TypeScript compilation step. Most plugins won't need this — it's designed for plugins that target a different language or build system entirely.
+
+### CompileContext
+
+The `compile` hook receives a `CompileContext` alongside the standard `BuildContext`:
+
+```typescript
+export interface CompileContext {
+  /** Set to true if your plugin handled compilation */
+  handled: boolean;
+  /** Which compiler ran (e.g., "tsc", "cargo", "go") */
+  compiler?: string;
+  /** Compilation result */
+  result?: { success: boolean; errors: string[] };
+}
+```
+
+### When to Use Compile
+
+Use the `compile` hook when your plugin:
+
+- **Generates non-TypeScript code** that needs its own compiler (e.g., Rust, Go, Java)
+- **Needs to replace `tsc`** with a faster or specialized compiler
+- **Wants to run additional compilation** alongside the default `tsc` step
+
+If `compileCtx.handled` is set to `true` by any plugin, the default TypeScript compiler is skipped entirely. If no plugin handles compilation, `tsc` runs as usual.
+
+### Real-World Example: @typokit/plugin-axum
+
+The `@typokit/plugin-axum` plugin is the canonical example of using the `compile` hook. It generates a complete Rust/Axum web server from TypeScript types, then compiles it with `cargo build`:
+
+```typescript
+export function axumPlugin(options = {}): TypoKitPlugin {
+  return {
+    name: "plugin-axum",
+
+    onBuild(pipeline) {
+      // Generate Rust source files during emit
+      pipeline.hooks.emit.tap("plugin-axum", async (outputs, ctx) => {
+        const rustOutputs = native.generateRustCodegen(typeFiles, routeFiles);
+        for (const output of rustOutputs) {
+          writeFile(output.path, output.content);
+          outputs.push(output);
+        }
+      });
+
+      // Compile with cargo instead of tsc
+      pipeline.hooks.compile.tap("plugin-axum", async (compileCtx, ctx) => {
+        const result = spawnSync("cargo", ["build"], { cwd: ctx.rootDir });
+        compileCtx.handled = true;
+        compileCtx.compiler = "cargo";
+        compileCtx.result = {
+          success: result.status === 0,
+          errors: result.status !== 0 ? [result.stderr] : [],
+        };
+      });
+    },
+  };
+}
+```
+
+See the [Plugins concept page](/typokit/core-concepts/plugins/) for the full list of official plugins, including `plugin-axum`'s complete documentation.
+
 ## Next Steps
 
 - Read the [Plugins concept page](/typokit/core-concepts/plugins/) for the full interface reference and official plugin details

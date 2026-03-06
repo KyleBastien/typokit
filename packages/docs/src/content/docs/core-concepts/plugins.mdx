@@ -48,10 +48,10 @@ All hooks are optional — implement only the ones you need.
 
 ## Build-Time Hooks: The Tapable Pipeline
 
-The `onBuild` hook receives a `BuildPipeline` with six async series hooks. Each hook fires sequentially, and every registered tap completes before the next phase begins:
+The `onBuild` hook receives a `BuildPipeline` with seven async series hooks. Each hook fires sequentially, and every registered tap completes before the next phase begins:
 
 ```
-beforeTransform → afterTypeParse → afterValidators → afterRouteTable → emit → done
+beforeTransform → afterTypeParse → afterValidators → afterRouteTable → emit → compile → done
 ```
 
 ```typescript
@@ -71,6 +71,9 @@ export interface BuildPipeline {
 
     /** Emit generated artifacts (validators, clients, etc.) */
     emit: AsyncSeriesHook<[GeneratedOutput[], BuildContext]>;
+
+    /** Override or extend the compilation step (e.g., cargo build) */
+    compile: AsyncSeriesHook<[CompileContext, BuildContext]>;
 
     /** Cleanup and reporting */
     done: AsyncSeriesHook<[BuildResult]>;
@@ -286,6 +289,54 @@ Client connects → handleWsUpgrade() → onConnect
 ```
 
 Messages are validated against the channel's schema before dispatch. Invalid messages are rejected with a structured error frame. A heartbeat timer (default 30s) keeps connections alive and detects stale clients.
+
+### @typokit/plugin-axum
+
+A Rust code generation plugin that compiles TypeScript schema types and route contracts into a complete, production-ready **Axum** web server backed by **PostgreSQL** and **sqlx**. This plugin hooks into both the `emit` and `compile` build phases.
+
+```typescript
+import { axumPlugin } from "@typokit/plugin-axum";
+
+createApp({
+  plugins: [
+    axumPlugin({
+      db: "sqlx",       // Database adapter (default: 'sqlx')
+      outDir: ".",       // Output directory (default: project root)
+    }),
+  ],
+});
+```
+
+**What it generates:**
+
+| Directory | Contents | Overwrite |
+|-----------|----------|-----------|
+| `.typokit/models/` | Rust structs with `serde`, `validator`, and `sqlx` derives | ✅ Always |
+| `.typokit/db/` | `PgPool` connection setup and typed CRUD repository functions | ✅ Always |
+| `.typokit/router.rs` | Axum `Router` with typed route registrations | ✅ Always |
+| `.typokit/app.rs` | `AppState` struct (shared `PgPool`) | ✅ Always |
+| `.typokit/error.rs` | `AppError` enum → HTTP status code mapping | ✅ Always |
+| `.typokit/migrations/` | SQL `CREATE TABLE` migration files | ✅ Always |
+| `src/handlers/` | Per-entity handler stubs (extract → service → respond) | ❌ Never |
+| `src/services/` | Business logic layer stubs | ❌ Never |
+| `src/middleware/` | Auth/logging middleware stubs | ❌ Never |
+| `src/main.rs` | Tokio async entrypoint | ✅ Always |
+| `src/lib.rs` | Module bridge (`#[path]` to `.typokit/`) | ✅ Always |
+| `Cargo.toml` | Project manifest with all dependencies | ✅ Always |
+
+<Aside type="note">
+Files in `.typokit/` and project scaffolding (`main.rs`, `lib.rs`, `Cargo.toml`) are regenerated on every build. Handler, service, and middleware files under `src/` are generated once and **never overwritten** — this is where your application logic lives.
+</Aside>
+
+**Hooks used:** `emit` (generate Rust source files from parsed type metadata and route contracts), `compile` (run `cargo build` instead of the default TypeScript compiler, setting `compileCtx.handled = true` to skip `tsc`).
+
+**Prerequisites:**
+
+- [Rust](https://rustup.rs/) (1.85+ for edition 2024)
+- [PostgreSQL](https://www.postgresql.org/) 16+
+- The `sqlx` CLI (optional, for running migrations): `cargo install sqlx-cli --no-default-features --features postgres`
+
+See the [Building a Rust/Axum Server](/typokit/guides/rust-axum-server/) guide for a step-by-step walkthrough.
 
 ## Writing Your Own Plugin
 

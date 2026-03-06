@@ -1,0 +1,369 @@
+---
+title: Building a Rust/Axum Server
+description: Generate a complete Rust/Axum web server from TypeScript schemas — from type definitions to a running PostgreSQL-backed API.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+TypoKit's `@typokit/plugin-axum` generates a complete, production-ready **Rust/Axum** web server from your TypeScript schema types and route contracts. The same type definitions that drive your Node.js API can produce a high-performance Rust backend — no manual translation required.
+
+<Aside type="tip">
+  This guide assumes familiarity with TypoKit's [schema-first types](/typokit/core-concepts/schema-first-types/) and [routing contracts](/typokit/core-concepts/routing-and-handlers/). If you're new to TypoKit, start with the [Quickstart](/typokit/getting-started/quickstart/) first.
+</Aside>
+
+## What You'll Build
+
+A Todo API server written in Rust with:
+
+- **Axum** for HTTP routing and handler dispatch
+- **sqlx** for type-safe PostgreSQL queries
+- **serde** for JSON serialization/deserialization
+- **validator** for request body validation
+- Auto-generated models, router, database layer, and migrations — all from TypeScript types
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Node.js** | 24+ | TypoKit CLI and build pipeline |
+| **pnpm** | Latest | Package manager |
+| **Rust** | 1.85+ | Compilation target (edition 2024) |
+| **PostgreSQL** | 16+ | Database backend |
+
+Optional but recommended:
+
+```bash
+# sqlx CLI for running migrations
+cargo install sqlx-cli --no-default-features --features postgres
+```
+
+## Step 1 — Define Your Schema Types
+
+Start with your TypeScript type definitions. These are the single source of truth for the entire Rust server.
+
+<Steps>
+
+1. **Create a types directory** with your entity interfaces:
+
+   ```typescript
+   // types/user.ts
+
+   /** @table users */
+   export interface User {
+     /** @id @generated uuid */
+     id: string;
+
+     /** @format email @unique @maxLength 255 */
+     email: string;
+
+     /** @minLength 2 @maxLength 100 */
+     displayName: string;
+
+     /** @default "active" */
+     status: "active" | "suspended" | "deleted";
+
+     /** @generated now */
+     createdAt: Date;
+
+     /** @generated now */
+     updatedAt: Date;
+   }
+
+   export type CreateUserInput = Omit<User, "id" | "createdAt" | "updatedAt">;
+   export type UpdateUserInput = Partial<CreateUserInput>;
+   ```
+
+   ```typescript
+   // types/todo.ts
+
+   /** @table todos */
+   export interface Todo {
+     /** @id @generated uuid */
+     id: string;
+
+     /** @minLength 1 @maxLength 200 */
+     title: string;
+
+     completed: boolean;
+
+     /** References User.id */
+     userId: string;
+
+     /** @generated now */
+     createdAt: Date;
+
+     /** @generated now */
+     updatedAt: Date;
+   }
+
+   export type CreateTodoInput = Omit<Todo, "id" | "createdAt" | "updatedAt">;
+   export type UpdateTodoInput = Partial<Omit<CreateTodoInput, "userId">>;
+   ```
+
+2. **Create route contracts** that define your API surface:
+
+   ```typescript
+   // routes/users.ts
+   import type { RouteContract } from "@typokit/types";
+   import type { User, CreateUserInput, UpdateUserInput } from "../types/user";
+
+   export interface UserRoutes {
+     "GET /users": RouteContract<void, void, void, User[]>;
+     "POST /users": RouteContract<void, void, CreateUserInput, User>;
+     "GET /users/:id": RouteContract<{ id: string }, void, void, User>;
+     "PUT /users/:id": RouteContract<{ id: string }, void, UpdateUserInput, User>;
+     "DELETE /users/:id": RouteContract<{ id: string }, void, void, void>;
+   }
+   ```
+
+   ```typescript
+   // routes/todos.ts
+   import type { RouteContract } from "@typokit/types";
+   import type { Todo, CreateTodoInput, UpdateTodoInput } from "../types/todo";
+
+   export interface TodoRoutes {
+     "GET /todos": RouteContract<void, void, void, Todo[]>;
+     "POST /todos": RouteContract<void, void, CreateTodoInput, Todo>;
+     "GET /todos/:id": RouteContract<{ id: string }, void, void, Todo>;
+     "PUT /todos/:id": RouteContract<{ id: string }, void, UpdateTodoInput, Todo>;
+     "DELETE /todos/:id": RouteContract<{ id: string }, void, void, void>;
+   }
+   ```
+
+</Steps>
+
+## Step 2 — Configure the Axum Plugin
+
+Install the plugin and configure it in your project:
+
+<Steps>
+
+1. **Install the plugin:**
+
+   ```bash
+   pnpm add @typokit/plugin-axum
+   ```
+
+2. **Create or update `typokit.config.ts`:**
+
+   ```typescript
+   import { axumPlugin } from "@typokit/plugin-axum";
+
+   export default {
+     plugins: [axumPlugin({ db: "sqlx" })],
+   };
+   ```
+
+</Steps>
+
+## Step 3 — Generate the Rust Server
+
+Run the TypoKit build to generate all Rust source files:
+
+```bash
+typokit build
+```
+
+You should see output like:
+
+```
+● Resolving type files...      2 files found
+● Resolving route files...     2 files found
+● Running transform...         done in 98ms
+● Plugin: emit (plugin-axum)   18 files generated
+● Plugin: compile (plugin-axum)
+  Running: cargo build
+  Compiling todo-server v0.1.0
+● Build complete (12.4s)
+```
+
+## Step 4 — Understand the Generated Output
+
+After the build, your project has this structure:
+
+```
+.typokit/                  ← Auto-generated (always overwritten)
+  models/
+    user.rs                ← User struct with serde + validator + sqlx derives
+    todo.rs                ← Todo struct
+    mod.rs                 ← Module re-exports
+  db/
+    mod.rs                 ← PgPool connection + CRUD functions for all entities
+  router.rs                ← Axum Router with all route registrations
+  app.rs                   ← AppState struct (shared PgPool)
+  error.rs                 ← AppError enum → HTTP status code mapping
+  migrations/
+    000000000001_create_users.sql
+    000000000002_create_todos.sql
+
+src/                       ← User code (never overwritten)
+  handlers/
+    users.rs               ← Handler stubs for User routes
+    todos.rs               ← Handler stubs for Todo routes
+    mod.rs                 ← Module re-exports
+  services/
+    users.rs               ← Business logic stubs
+    todos.rs
+    mod.rs
+  middleware/
+    mod.rs                 ← Auth middleware stub
+  main.rs                  ← Tokio async entrypoint
+  lib.rs                   ← Module bridge (#[path] to .typokit/)
+
+Cargo.toml                 ← Project manifest
+```
+
+<Aside type="caution">
+  Files in `.typokit/` are regenerated on every `typokit build`. **Never edit them directly** — your changes will be lost. All your application logic belongs in `src/`.
+</Aside>
+
+### The Overwrite Model
+
+Understanding which files are safe to edit is critical:
+
+| Location | Overwrite Behavior | What To Do |
+|----------|-------------------|------------|
+| `.typokit/**` | ✅ Always overwritten | Never edit — modify your TypeScript types instead |
+| `src/handlers/**` | ❌ Never overwritten | Write your handler implementations here |
+| `src/services/**` | ❌ Never overwritten | Write your business logic here |
+| `src/middleware/**` | ❌ Never overwritten | Write your middleware here |
+| `src/main.rs` | ✅ Overwritten | Customize startup in `src/lib.rs` instead |
+| `src/lib.rs` | ✅ Overwritten | Module bridge — auto-managed |
+| `Cargo.toml` | ✅ Overwritten | Add extra deps after initial generation |
+
+## Step 5 — Set Up the Database
+
+<Steps>
+
+1. **Create the PostgreSQL database:**
+
+   ```bash
+   createdb typokit_todo
+   ```
+
+2. **Set the connection string:**
+
+   ```bash
+   export DATABASE_URL=postgresql://localhost/typokit_todo
+   ```
+
+   Or create a `.env` file:
+
+   ```
+   DATABASE_URL=postgresql://localhost/typokit_todo
+   ```
+
+3. **Run the generated migrations:**
+
+   ```bash
+   psql $DATABASE_URL -f .typokit/migrations/000000000001_create_users.sql
+   psql $DATABASE_URL -f .typokit/migrations/000000000002_create_todos.sql
+   ```
+
+   Or with sqlx-cli:
+
+   ```bash
+   sqlx migrate run --source .typokit/migrations
+   ```
+
+</Steps>
+
+## Step 6 — Implement Your Handlers
+
+The generated handler stubs in `src/handlers/` contain TODO placeholders. Fill them in with your application logic:
+
+```rust
+// src/handlers/users.rs
+use axum::{extract::{Path, State}, Json};
+use uuid::Uuid;
+
+use crate::app::AppState;
+use crate::error::AppError;
+use crate::models::user::{CreateUserInput, User};
+use crate::services;
+
+pub async fn list_users(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<User>>, AppError> {
+    let users = services::users::list(&state.pool).await?;
+    Ok(Json(users))
+}
+
+pub async fn create_user(
+    State(state): State<AppState>,
+    Json(input): Json<CreateUserInput>,
+) -> Result<Json<User>, AppError> {
+    let user = services::users::create(&state.pool, input).await?;
+    Ok(Json(user))
+}
+
+pub async fn get_user(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<User>, AppError> {
+    let user = services::users::find_by_id(&state.pool, id).await?;
+    Ok(Json(user))
+}
+```
+
+## Step 7 — Build and Run
+
+```bash
+cargo build
+cargo run
+```
+
+The server starts on `http://localhost:3000`. Test it:
+
+```bash
+# Create a user
+curl -X POST http://localhost:3000/users \
+  -H "Content-Type: application/json" \
+  -d '{"email": "alice@example.com", "displayName": "Alice", "status": "active"}'
+
+# List users
+curl http://localhost:3000/users
+
+# Get a user by ID
+curl http://localhost:3000/users/<id>
+```
+
+## How It Works Under the Hood
+
+The `@typokit/plugin-axum` plugin hooks into two phases of the TypoKit build pipeline:
+
+1. **`emit` hook** — The plugin's native Rust addon parses your TypeScript types and route contracts, then generates Rust source files. This uses the same `@typokit/transform-native` AST parser that powers the standard TypeScript pipeline.
+
+2. **`compile` hook** — Instead of running `tsc`, the plugin runs `cargo build`. It sets `compileCtx.handled = true` so the default TypeScript compiler is skipped entirely.
+
+```
+TypeScript Types + Route Contracts
+         │
+         ▼
+┌────────────────────────┐
+│  TypoKit Build Pipeline │
+│                         │
+│  1. Parse TS ASTs       │  ← Rust (swc via napi-rs)
+│  2. Extract metadata    │
+│  3. Route compilation   │
+│  4. Plugin: emit        │  ← plugin-axum generates Rust files
+│  5. Plugin: compile     │  ← plugin-axum runs `cargo build`
+└────────────────────────┘
+         │
+         ▼
+   Running Axum Server
+```
+
+## Content-Hash Caching
+
+The plugin uses SHA-256 content hashing for incremental builds. If your type and route files haven't changed since the last build, the Rust code generation step is skipped entirely. The cache hash is stored at `.typokit/.cache-hash`.
+
+## Reference Example
+
+For a complete, working implementation, see the [`example-todo-server-axum`](https://github.com/KyleBastien/typokit/tree/main/packages/example-todo-server-axum) package in the TypoKit monorepo.
+
+## Next Steps
+
+- [**Plugins — @typokit/plugin-axum**](/typokit/core-concepts/plugins/) — Full plugin documentation and configuration reference
+- [**Build Pipeline**](/typokit/architecture/build-pipeline/) — How the build pipeline and `compile` hook work
+- [**Custom Plugin Development**](/typokit/guides/custom-plugin/) — Build your own plugin that targets a different language

@@ -106,6 +106,7 @@ Server adapters and platform adapters are **orthogonal** — any server adapter 
 |---------|-------------|
 | `@typokit/plugin-debug` | Debug sidecar exposing inspection endpoints on a separate port |
 | `@typokit/plugin-ws` | WebSocket support — build-time codegen + runtime connection management |
+| `@typokit/plugin-axum` | Rust/Axum server code generation from TypeScript schemas |
 
 ### Client Generation
 
@@ -142,26 +143,31 @@ flowchart LR
     G --> J
     H --> J
     I --> J
-    J --> K["TS Compile<br/>(tsc/tsup/SWC)"]
-    K --> L["dist/"]
+    J --> |"compile hook"| K2["Compile<br/>(tsc or cargo)"]
+    K2 --> L["dist/ or target/"]
 ```
 
 ### Pipeline Phases
 
-The build pipeline uses **AsyncSeriesHook** (tapable pattern) with six phases that plugins can hook into:
+The build pipeline uses **AsyncSeriesHook** (tapable pattern) with seven phases that plugins can hook into:
 
 1. **beforeTransform** — Pre-processing, setup
 2. **afterTypeParse** — Type metadata extracted, available for inspection
 3. **afterValidators** — Compiled validators generated
 4. **afterRouteTable** — Radix tree route table compiled
 5. **emit** — All artifacts written to `.typokit/`
-6. **done** — Build complete, cleanup
+6. **compile** — Compilation step (default: `tsc`, overridable by plugins like `plugin-axum`)
+7. **done** — Build complete, cleanup
 
 <Aside type="note">
 The Rust transform generates **plain TypeScript files** in `.typokit/`. Standard TS compilers (tsc, tsup, SWC) then compile them to `dist/`. This avoids TypeScript compiler plugin fragility and keeps all generated code inspectable.
 </Aside>
 
 See the [Build Pipeline deep dive](/typokit/architecture/build-pipeline/) for implementation details.
+
+<Aside type="tip">
+While the default pipeline generates TypeScript artifacts compiled by `tsc`, plugins can target other languages entirely. The `@typokit/plugin-axum` plugin generates a complete Rust/Axum server from the same TypeScript schema types, using the `compile` hook to run `cargo build` instead of `tsc`. See the [Building a Rust/Axum Server](/typokit/guides/rust-axum-server/) guide for details.
+</Aside>
 
 ## Request Processing Order
 

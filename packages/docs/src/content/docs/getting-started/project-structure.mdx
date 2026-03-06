@@ -219,6 +219,43 @@ Understanding which files you own and which are generated is critical:
   **Rule of thumb:** Write your types once in `src/types.ts`. Everything else either flows from those types automatically or is your application logic (handlers, middleware, services).
 </Aside>
 
+## Rust/Axum Project Structure
+
+When using the `@typokit/plugin-axum` plugin, the project structure differs significantly — it's a **Rust project** rather than a TypeScript one:
+
+```
+my-axum-app/
+├── typokit.config.ts            # TypoKit configuration (with axumPlugin)
+├── Cargo.toml                   # Rust project manifest (auto-generated)
+├── types/                       # TypeScript schema types (your source of truth)
+│   ├── user.ts
+│   └── todo.ts
+├── routes/                      # TypeScript route contracts
+│   ├── users.ts
+│   └── todos.ts
+│
+├── .typokit/                    # Auto-generated Rust code (always overwritten)
+│   ├── models/                  # Rust structs with serde + validator + sqlx
+│   ├── db/                      # PgPool connection & CRUD functions
+│   ├── router.rs                # Axum Router
+│   ├── app.rs                   # AppState
+│   ├── error.rs                 # AppError enum
+│   └── migrations/              # SQL migrations
+│
+└── src/                         # Your Rust application code (never overwritten)
+    ├── main.rs                  # Tokio entrypoint
+    ├── lib.rs                   # Module bridge
+    ├── handlers/                # Your handler implementations
+    ├── services/                # Your business logic
+    └── middleware/              # Your middleware
+```
+
+The key difference: you still define your **types in TypeScript** (the single source of truth), but the build output is **Rust code** instead of TypeScript. The same overwrite model applies — `.typokit/` is always regenerated, while `src/handlers/`, `src/services/`, and `src/middleware/` are your code and never overwritten.
+
+<Aside type="tip">
+  See the [Building a Rust/Axum Server](/typokit/guides/rust-axum-server/) guide for a step-by-step walkthrough of setting up and using this project structure.
+</Aside>
+
 ## Next Steps
 
 Now that you understand the project layout:
