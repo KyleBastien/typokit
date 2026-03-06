@@ -13,5 +13,10 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    {
+      "path": "../types/tsconfig.lib.json"
+    }
   ]
 }

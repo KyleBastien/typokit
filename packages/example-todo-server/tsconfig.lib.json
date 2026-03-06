@@ -13,5 +13,31 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    {
+      "path": "../types/tsconfig.lib.json"
+    },
+    {
+      "path": "../plugin-debug/tsconfig.lib.json"
+    },
+    {
+      "path": "../example-todo-schema/tsconfig.lib.json"
+    },
+    {
+      "path": "../errors/tsconfig.lib.json"
+    },
+    {
+      "path": "../core/tsconfig.lib.json"
+    },
+    {
+      "path": "../testing/tsconfig.lib.json"
+    },
+    {
+      "path": "../server-native/tsconfig.lib.json"
+    },
+    {
+      "path": "../platform-node/tsconfig.lib.json"
+    }
   ]
 }

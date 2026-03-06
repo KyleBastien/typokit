@@ -8,30 +8,6 @@
     },
     {
       "path": "./tsconfig.spec.json"
-    },
-    {
-      "path": "../types"
-    },
-    {
-      "path": "../errors"
-    },
-    {
-      "path": "../core"
-    },
-    {
-      "path": "../example-todo-schema"
-    },
-    {
-      "path": "../server-native"
-    },
-    {
-      "path": "../testing"
-    },
-    {
-      "path": "../platform-node"
-    },
-    {
-      "path": "../plugin-debug"
     }
   ]
 }

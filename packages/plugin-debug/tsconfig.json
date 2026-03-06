@@ -8,21 +8,6 @@
     },
     {
       "path": "./tsconfig.spec.json"
-    },
-    {
-      "path": "../core"
-    },
-    {
-      "path": "../types"
-    },
-    {
-      "path": "../errors"
-    },
-    {
-      "path": "../otel"
-    },
-    {
-      "path": "../platform-node"
     }
   ]
 }
