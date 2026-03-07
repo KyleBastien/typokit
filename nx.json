@@ -84,16 +84,23 @@
   "release": {
     "projects": ["packages/*", "!packages/docs", "!packages/example-*"],
     "version": {
-      "conventionalCommits": true
+      "conventionalCommits": true,
+      "git": {
+        "commit": true,
+        "commitMessage": "chore(release): {version} [skip ci]",
+        "tag": true
+      }
     },
     "changelog": {
       "workspaceChangelog": {
         "createRelease": "github",
         "file": false
+      },
+      "git": {
+        "commit": true,
+        "commitMessage": "chore(release): {version} [skip ci]",
+        "tag": false
       }
-    },
-    "git": {
-      "commitMessage": "chore(release): {version} [skip ci]"
     }
   }
 }
