@@ -1,0 +1,22 @@
+{
+  "name": "@typokit/transform-native-linux-arm64-gnu",
+  "version": "0.2.0",
+  "cpu": [
+    "arm64"
+  ],
+  "main": "index.linux-arm64-gnu.node",
+  "files": [
+    "index.linux-arm64-gnu.node"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/transform-native"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@typokit/transform-native-linux-x64-musl",
+  "version": "0.2.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "index.linux-x64-musl.node",
+  "files": [
+    "index.linux-x64-musl.node"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/transform-native"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "musl"
+  ]
+}

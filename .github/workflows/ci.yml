@@ -114,8 +114,94 @@ jobs:
           DATABASE_URL: postgresql://typokit:typokit@localhost:5432/typokit_e2e
         run: pnpm nx affected -t test:e2e
 
+  build-native:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.settings.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build: |
+              cd packages/transform-native && npx napi build --platform --release --target x86_64-unknown-linux-gnu && cd ../..
+              cd packages/plugin-axum && npx napi build --platform --release --target x86_64-unknown-linux-gnu && cd ../..
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            build: |
+              cd packages/transform-native && npx napi build --platform --release --target aarch64-unknown-linux-gnu && cd ../..
+              cd packages/plugin-axum && npx napi build --platform --release --target aarch64-unknown-linux-gnu && cd ../..
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            build: |
+              cd packages/transform-native && npx napi build --platform --release --target x86_64-unknown-linux-musl && cd ../..
+              cd packages/plugin-axum && npx napi build --platform --release --target x86_64-unknown-linux-musl && cd ../..
+          - host: macos-13
+            target: x86_64-apple-darwin
+            build: |
+              cd packages/transform-native && npx napi build --platform --release --target x86_64-apple-darwin && cd ../..
+              cd packages/plugin-axum && npx napi build --platform --release --target x86_64-apple-darwin && cd ../..
+          - host: macos-14
+            target: aarch64-apple-darwin
+            build: |
+              cd packages/transform-native && npx napi build --platform --release --target aarch64-apple-darwin && cd ../..
+              cd packages/plugin-axum && npx napi build --platform --release --target aarch64-apple-darwin && cd ../..
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: |
+              cd packages/transform-native && npx napi build --platform --release --target x86_64-pc-windows-msvc && cd ../..
+              cd packages/plugin-axum && npx napi build --platform --release --target x86_64-pc-windows-msvc && cd ../..
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Install cross-compilation tools (aarch64-linux)
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Install cross-compilation tools (musl)
+        if: matrix.settings.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native modules
+        run: ${{ matrix.settings.build }}
+
+      - name: Upload transform-native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: transform-native-${{ matrix.settings.target }}
+          path: packages/transform-native/*.node
+          if-no-files-found: error
+
+      - name: Upload plugin-axum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-axum-${{ matrix.settings.target }}
+          path: packages/plugin-axum/*.node
+          if-no-files-found: error
+
   release:
-    needs: [build-and-test, e2e]
+    needs: [build-and-test, e2e, build-native]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
@@ -151,13 +237,71 @@ jobs:
       - name: Build all packages
         run: pnpm nx run-many -t build
 
+      - name: Download all native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: native-artifacts
+
+      - name: Move native artifacts to package directories
+        run: |
+          # Move transform-native artifacts
+          for dir in native-artifacts/transform-native-*; do
+            cp "$dir"/*.node packages/transform-native/ 2>/dev/null || true
+          done
+          # Move plugin-axum artifacts
+          for dir in native-artifacts/plugin-axum-*; do
+            cp "$dir"/*.node packages/plugin-axum/ 2>/dev/null || true
+          done
+          echo "=== transform-native .node files ==="
+          ls -la packages/transform-native/*.node
+          echo "=== plugin-axum .node files ==="
+          ls -la packages/plugin-axum/*.node
+
+      - name: Organize native artifacts for publishing
+        run: |
+          cd packages/transform-native && npx napi artifacts --npm-dir npm && cd ../..
+          cd packages/plugin-axum && npx napi artifacts --npm-dir npm && cd ../..
+
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Release
-        run: pnpm nx release --yes
+      # Nx release broken into sub-commands so native platform packages
+      # can be versioned and published in lock-step with the main packages.
+
+      - name: "Release: Version"
+        run: pnpm nx release version --yes
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: "Release: Sync native platform versions"
+        run: node scripts/sync-native-versions.mjs
+
+      - name: "Release: Publish native platform packages"
+        run: |
+          for dir in packages/transform-native/npm/*/; do
+            if [ -f "$dir/package.json" ] && ls "$dir"/*.node 1>/dev/null 2>&1; then
+              echo "Publishing $(basename $dir) for transform-native..."
+              (cd "$dir" && npm publish --access public --provenance) || true
+            fi
+          done
+          for dir in packages/plugin-axum/npm/*/; do
+            if [ -f "$dir/package.json" ] && ls "$dir"/*.node 1>/dev/null 2>&1; then
+              echo "Publishing $(basename $dir) for plugin-axum..."
+              (cd "$dir" && npm publish --access public --provenance) || true
+            fi
+          done
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: "Release: Changelog"
+        run: pnpm nx release changelog --yes
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: "Release: Publish"
+        run: pnpm nx release publish --yes
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: true
