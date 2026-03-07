@@ -24,14 +24,6 @@
     "@typokit/core": "workspace:*",
     "@typokit/types": "workspace:*"
   },
-  "optionalDependencies": {
-    "@typokit/plugin-axum-win32-x64-msvc": "0.2.0",
-    "@typokit/plugin-axum-darwin-x64": "0.2.0",
-    "@typokit/plugin-axum-darwin-arm64": "0.2.0",
-    "@typokit/plugin-axum-linux-x64-gnu": "0.2.0",
-    "@typokit/plugin-axum-linux-arm64-gnu": "0.2.0",
-    "@typokit/plugin-axum-linux-x64-musl": "0.2.0"
-  },
   "devDependencies": {
     "@types/node": "^22.0.0"
   },

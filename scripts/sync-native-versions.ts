@@ -29,17 +29,10 @@ for (const pkgDir of NAPI_PACKAGES) {
 
   console.log(`Syncing ${mainPkg.name} platform packages to v${version}`);
 
-  // Update optionalDependencies in the main package.json
-  if (mainPkg.optionalDependencies) {
-    for (const dep of Object.keys(mainPkg.optionalDependencies)) {
-      mainPkg.optionalDependencies[dep] = version;
-    }
-    writeFileSync(mainPkgPath, JSON.stringify(mainPkg, null, 2) + "\n");
-    console.log(`  Updated optionalDependencies in ${mainPkgPath}`);
-  }
-
-  // Update each platform package version
   if (!existsSync(npmDir)) continue;
+
+  // Build optionalDependencies from platform package directories and update versions
+  const optionalDeps: Record<string, string> = {};
   for (const dir of readdirSync(npmDir, { withFileTypes: true })) {
     if (!dir.isDirectory()) continue;
     const platformPkgPath = join(npmDir, dir.name, "package.json");
@@ -53,8 +46,14 @@ for (const pkgDir of NAPI_PACKAGES) {
       platformPkgPath,
       JSON.stringify(platformPkg, null, 2) + "\n",
     );
+    optionalDeps[platformPkg.name] = version;
     console.log(`  ${platformPkg.name}@${version}`);
   }
+
+  // Inject optionalDependencies into the main package.json for publishing
+  mainPkg.optionalDependencies = optionalDeps;
+  writeFileSync(mainPkgPath, JSON.stringify(mainPkg, null, 2) + "\n");
+  console.log(`  Injected ${Object.keys(optionalDeps).length} optionalDependencies into ${mainPkgPath}`);
 }
 
 console.log("Native version sync complete.");
