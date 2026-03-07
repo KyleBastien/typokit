@@ -6,7 +6,7 @@
  * Usage: node --experimental-strip-types scripts/npm-publish.ts <dir> [--dry-run]
  *
  * Env vars:
- *   NPM_TOKEN - required for first-time publishes
+ *   NPM_ACCESS_TOKEN - required for first-time publishes
  */
 
 import { execSync } from "node:child_process";
@@ -49,9 +49,9 @@ if (exists) {
     stdio: "inherit",
   });
 } else {
-  const token = process.env.NPM_TOKEN;
+  const token = process.env.NPM_ACCESS_TOKEN;
   if (!token) {
-    console.error(`❌ ${pkg.name} is new but NPM_TOKEN is not set — cannot publish`);
+    console.error(`❌ ${pkg.name} is new but NPM_ACCESS_TOKEN is not set — cannot publish`);
     process.exit(1);
   }
   console.log(`🆕 ${pkg.name}@${pkg.version} — first publish, using NPM_TOKEN`);

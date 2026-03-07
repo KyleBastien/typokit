@@ -7,7 +7,7 @@
  * Usage: node --experimental-strip-types scripts/bootstrap-new-packages.ts [--dry-run]
  *
  * Env vars:
- *   NPM_TOKEN - required
+ *   NPM_ACCESS_TOKEN - required
  */
 
 import { execSync } from "node:child_process";
@@ -52,9 +52,9 @@ for (const dir of dirs) {
     continue;
   }
 
-  const token = process.env.NPM_TOKEN;
+  const token = process.env.NPM_ACCESS_TOKEN;
   if (!token) {
-    console.error(`❌ ${pkg.name} is new but NPM_TOKEN is not set`);
+    console.error(`❌ ${pkg.name} is new but NPM_ACCESS_TOKEN is not set`);
     process.exit(1);
   }
 

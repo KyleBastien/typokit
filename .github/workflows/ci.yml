@@ -316,7 +316,7 @@ jobs:
             fi
           done
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
 
       - name: "Release: Changelog"
         run: pnpm nx release changelog --yes
@@ -326,7 +326,7 @@ jobs:
       - name: "Release: Bootstrap new packages"
         run: node --experimental-strip-types scripts/bootstrap-new-packages.ts
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
 
       - name: "Release: Publish"
         run: pnpm nx release publish --yes
