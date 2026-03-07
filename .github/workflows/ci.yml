@@ -114,6 +114,31 @@ jobs:
           DATABASE_URL: postgresql://typokit:typokit@localhost:5432/typokit_e2e
         run: pnpm nx affected -t test:e2e
 
+  build-native-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native modules (smoke test)
+        run: |
+          cd packages/transform-native && npx napi build --platform --release --target x86_64-unknown-linux-gnu && cd ../..
+          cd packages/plugin-axum && npx napi build --platform --release --target x86_64-unknown-linux-gnu && cd ../..
+
   build-native:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ${{ matrix.settings.host }}
