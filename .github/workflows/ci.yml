@@ -307,23 +307,26 @@ jobs:
         run: |
           for dir in packages/transform-native/npm/*/; do
             if [ -f "$dir/package.json" ] && ls "$dir"/*.node 1>/dev/null 2>&1; then
-              echo "Publishing $(basename $dir) for transform-native..."
-              (cd "$dir" && npm publish --access public --provenance) || true
+              node --experimental-strip-types scripts/npm-publish.ts "$dir"
             fi
           done
           for dir in packages/plugin-axum/npm/*/; do
             if [ -f "$dir/package.json" ] && ls "$dir"/*.node 1>/dev/null 2>&1; then
-              echo "Publishing $(basename $dir) for plugin-axum..."
-              (cd "$dir" && npm publish --access public --provenance) || true
+              node --experimental-strip-types scripts/npm-publish.ts "$dir"
             fi
           done
         env:
-          NPM_CONFIG_PROVENANCE: true
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Release: Changelog"
         run: pnpm nx release changelog --yes
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: "Release: Bootstrap new packages"
+        run: node --experimental-strip-types scripts/bootstrap-new-packages.ts
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Release: Publish"
         run: pnpm nx release publish --yes
