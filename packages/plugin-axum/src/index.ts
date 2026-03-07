@@ -1,13 +1,7 @@
 // @typokit/plugin-axum — Axum Server Code Generation Plugin
 
-import type {
-  TypoKitPlugin,
-  BuildPipeline,
-} from "@typokit/core";
-import type {
-  CompileContext,
-  GeneratedOutput,
-} from "@typokit/types";
+import type { TypoKitPlugin, BuildPipeline } from "@typokit/core";
+import type { CompileContext } from "@typokit/types";
 
 // ─── Native Binding Types ────────────────────────────────────
 
@@ -134,19 +128,22 @@ export function axumPlugin(options: AxumPluginOptions = {}): TypoKitPlugin {
           readFileSync: (p: string, encoding: string) => string;
           writeFileSync: (p: string, data: string, encoding?: string) => void;
         };
-        const { readdirSync, statSync } = nodeFs as unknown as {
-          readdirSync: (p: string) => string[];
-          statSync: (p: string) => { isFile(): boolean; isDirectory(): boolean };
-        };
-
         const native = await getNative();
         const resolvedOutDir = outDir ?? ctx.rootDir;
         const resolvedCacheFile =
           cacheFile ?? join(resolvedOutDir, ".typokit", ".cache-hash");
 
         // Resolve type and route files from the build context
-        const typeFiles = resolveTypeFiles(ctx.rootDir, nodeFs as any, join);
-        const routeFiles = resolveRouteFiles(ctx.rootDir, nodeFs as any, join);
+        const fsAdapter = nodeFs as unknown as {
+          existsSync: (p: string) => boolean;
+          readdirSync: (p: string) => string[];
+          statSync: (p: string) => {
+            isFile(): boolean;
+            isDirectory(): boolean;
+          };
+        };
+        const typeFiles = resolveTypeFiles(ctx.rootDir, fsAdapter, join);
+        const routeFiles = resolveRouteFiles(ctx.rootDir, fsAdapter, join);
 
         if (typeFiles.length === 0 && routeFiles.length === 0) {
           return;
@@ -157,7 +154,9 @@ export function axumPlugin(options: AxumPluginOptions = {}): TypoKitPlugin {
         const contentHash = native.computeContentHash(allPaths);
 
         if (nodeFs.existsSync(resolvedCacheFile)) {
-          const cachedHash = nodeFs.readFileSync(resolvedCacheFile, "utf-8").trim();
+          const cachedHash = nodeFs
+            .readFileSync(resolvedCacheFile, "utf-8")
+            .trim();
           if (cachedHash === contentHash) {
             return;
           }
@@ -191,48 +190,54 @@ export function axumPlugin(options: AxumPluginOptions = {}): TypoKitPlugin {
       });
 
       // Tap the compile hook to run cargo build instead of the TypeScript compiler
-      pipeline.hooks.compile.tap("plugin-axum", async (compileCtx: CompileContext, ctx) => {
-        const { spawnSync } = (await import(/* @vite-ignore */ "child_process")) as {
-          spawnSync: (
-            cmd: string,
-            args: string[],
-            opts: { cwd?: string; encoding?: string },
-          ) => {
-            status: number | null;
-            stdout: string;
-            stderr: string;
-            error?: Error;
+      pipeline.hooks.compile.tap(
+        "plugin-axum",
+        async (compileCtx: CompileContext, ctx) => {
+          const { spawnSync } = (await import(
+            /* @vite-ignore */ "child_process"
+          )) as {
+            spawnSync: (
+              cmd: string,
+              args: string[],
+              opts: { cwd?: string; encoding?: string },
+            ) => {
+              status: number | null;
+              stdout: string;
+              stderr: string;
+              error?: Error;
+            };
           };
-        };
 
-        const resolvedOutDir = outDir ?? ctx.rootDir;
-        const result = spawnSync("cargo", ["build"], {
-          cwd: resolvedOutDir,
-          encoding: "utf-8",
-        });
+          const resolvedOutDir = outDir ?? ctx.rootDir;
+          const result = spawnSync("cargo", ["build"], {
+            cwd: resolvedOutDir,
+            encoding: "utf-8",
+          });
 
-        compileCtx.handled = true;
-        compileCtx.compiler = "cargo";
+          compileCtx.handled = true;
+          compileCtx.compiler = "cargo";
 
-        if (result.error) {
-          compileCtx.result = {
-            success: false,
-            errors: [result.error.message],
-          };
-          return;
-        }
+          if (result.error) {
+            compileCtx.result = {
+              success: false,
+              errors: [result.error.message],
+            };
+            return;
+          }
 
-        if (result.status !== 0) {
-          const errorOutput = result.stderr || result.stdout || "cargo build failed";
-          compileCtx.result = {
-            success: false,
-            errors: [errorOutput.trim()],
-          };
-          return;
-        }
+          if (result.status !== 0) {
+            const errorOutput =
+              result.stderr || result.stdout || "cargo build failed";
+            compileCtx.result = {
+              success: false,
+              errors: [errorOutput.trim()],
+            };
+            return;
+          }
 
-        compileCtx.result = { success: true, errors: [] };
-      });
+          compileCtx.result = { success: true, errors: [] };
+        },
+      );
     },
   };
 }

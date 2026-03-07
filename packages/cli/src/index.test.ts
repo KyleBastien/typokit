@@ -39,7 +39,6 @@ describe("parseArgs", () => {
     const result = parseArgs(["node", "typokit", "build", "extra1", "extra2"]);
     expect(result.positional).toEqual(["extra1", "extra2"]);
   });
-
 });
 
 // ─── createLogger ────────────────────────────────────────────

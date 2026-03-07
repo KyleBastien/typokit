@@ -106,7 +106,9 @@ async function spawnServer(
 
   while (Date.now() - start < maxWaitMs) {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/users?page=1&pageSize=1`);
+      const res = await fetch(
+        `http://127.0.0.1:${port}/users?page=1&pageSize=1`,
+      );
       if (res.ok || res.status === 404) return child;
     } catch {
       // Server not ready yet
@@ -298,9 +300,15 @@ describe("E2E: Axum server full lifecycle with PostgreSQL", () => {
       expect(badTodoRes.status).toBe(400);
 
       // ─── Step 5: List Todos by User via API ────────────────
-      const listRes = await httpRequest(SERVER_PORT, "GET", "/todos", undefined, {
-        userId: user.id,
-      });
+      const listRes = await httpRequest(
+        SERVER_PORT,
+        "GET",
+        "/todos",
+        undefined,
+        {
+          userId: user.id,
+        },
+      );
       expect(listRes.status).toBe(200);
       const listBody = listRes.body as {
         data: Array<{ id: string; userId: string }>;
@@ -470,7 +478,9 @@ describe("E2E: Axum server full lifecycle with PostgreSQL", () => {
       expect(enumViolated).toBe(true);
     } finally {
       // Clean up test data
-      await pgClient.query("DELETE FROM users WHERE id LIKE 'enum-user-%'").catch(() => {});
+      await pgClient
+        .query("DELETE FROM users WHERE id LIKE 'enum-user-%'")
+        .catch(() => {});
       await pgClient.end();
     }
   });
