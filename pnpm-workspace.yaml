@@ -2,5 +2,6 @@ packages:
   - packages/*
 
 onlyBuiltDependencies:
+  - '@embedded-postgres/windows-x64'
   - esbuild
   - sharp

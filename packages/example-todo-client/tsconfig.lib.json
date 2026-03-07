@@ -13,5 +13,13 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    {
+      "path": "../example-todo-schema/tsconfig.lib.json"
+    },
+    {
+      "path": "../client/tsconfig.lib.json"
+    }
   ]
 }

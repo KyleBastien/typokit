@@ -5,6 +5,7 @@ import type { TypoKitConfig } from "../config.js";
 import type {
   BuildResult,
   BuildContext,
+  CompileContext,
   GeneratedOutput,
 } from "@typokit/types";
 import type { TypoKitPlugin, BuildPipelineInstance } from "@typokit/core";
@@ -262,7 +263,7 @@ async function runCompiler(
  * 4. Run the Rust native transform pipeline (buildPipeline)
  * 5. Fire afterTypeParse, afterValidators, afterRouteTable hooks
  * 6. Fire emit hook (plugins can add outputs)
- * 7. Run the TypeScript compiler
+ * 7. Fire compile hook (plugins can handle compilation, default: TypeScript compiler)
  * 8. Fire done hook
  * 9. Return structured BuildResult
  */
@@ -388,30 +389,53 @@ export async function executeBuild(
   // Step 4: Fire emit hook — plugins can add their own outputs
   await pipeline.hooks.emit.call(outputs, buildCtx);
 
-  // Step 5: Run TypeScript compiler
-  logger.step("compile", "Compiling TypeScript...");
-  const compileResult = await runCompiler(options);
+  // Step 5: Fire compile hook — plugins can handle compilation (e.g., cargo build)
+  const compileCtx: CompileContext = { handled: false };
+  await pipeline.hooks.compile.call(compileCtx, buildCtx);
 
-  if (!compileResult.success) {
-    for (const buildErr of compileResult.errors) {
-      const parts = [buildErr.message];
-      if (buildErr.file)
-        parts.unshift(`${buildErr.file}:${buildErr.line ?? 0}`);
-      if (buildErr.errorType) parts.push(`(${buildErr.errorType})`);
-      const formatted = parts.join(" — ");
-      logger.error(formatted);
-      errors.push(formatted);
+  if (compileCtx.handled) {
+    // A plugin handled compilation (e.g., Axum plugin ran cargo build)
+    const compiler = compileCtx.compiler ?? "plugin";
+    if (compileCtx.result?.success) {
+      logger.success(`Compilation complete (${compiler})`);
+    } else {
+      for (const err of compileCtx.result?.errors ?? []) {
+        logger.error(err);
+        errors.push(err);
+      }
+      return {
+        success: false,
+        outputs,
+        duration: Date.now() - startTime,
+        errors,
+      };
+    }
+  } else {
+    // Default: run TypeScript compiler
+    logger.step("compile", "Compiling TypeScript...");
+    const compileResult = await runCompiler(options);
+
+    if (!compileResult.success) {
+      for (const buildErr of compileResult.errors) {
+        const parts = [buildErr.message];
+        if (buildErr.file)
+          parts.unshift(`${buildErr.file}:${buildErr.line ?? 0}`);
+        if (buildErr.errorType) parts.push(`(${buildErr.errorType})`);
+        const formatted = parts.join(" — ");
+        logger.error(formatted);
+        errors.push(formatted);
+      }
+
+      return {
+        success: false,
+        outputs,
+        duration: Date.now() - startTime,
+        errors,
+      };
     }
 
-    return {
-      success: false,
-      outputs,
-      duration: Date.now() - startTime,
-      errors,
-    };
+    logger.success("Compilation complete");
   }
-
-  logger.success("Compilation complete");
 
   const duration = Date.now() - startTime;
   logger.success(`Build finished in ${duration}ms`);

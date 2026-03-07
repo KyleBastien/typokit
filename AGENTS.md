@@ -55,7 +55,7 @@ TypoKit is an **AI-native Node.js framework** where plain TypeScript types are t
 
 **Transform** (Rust build pipeline):
 
-- `transform-native` — Rust via napi-rs: parses TS ASTs, generates validators/routes/OpenAPI/migrations/tests into `.typokit/` and `__generated__/` dirs
+- `transform-native` — Rust via napi-rs: parses TS ASTs, generates validators/routes/OpenAPI/migrations/tests into `.typokit/` and `__generated__/` dirs. Also contains the `rust_codegen` module for generating Axum/sqlx projects (structs, router, database, handlers, services, middleware, project scaffold)
 - `transform-typia` — JS wrapper for Typia validation codegen, called by transform-native via napi-rs callback
 
 **Server Adapters** (pluggable HTTP layer — TypoKit owns validation, middleware, error handling; adapter owns HTTP parsing):

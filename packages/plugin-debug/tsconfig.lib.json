@@ -13,5 +13,22 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    {
+      "path": "../platform-node/tsconfig.lib.json"
+    },
+    {
+      "path": "../otel/tsconfig.lib.json"
+    },
+    {
+      "path": "../errors/tsconfig.lib.json"
+    },
+    {
+      "path": "../types/tsconfig.lib.json"
+    },
+    {
+      "path": "../core/tsconfig.lib.json"
+    }
   ]
 }

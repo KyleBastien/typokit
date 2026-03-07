@@ -2,17 +2,24 @@
 //
 // Full lifecycle: create user → create todo → list todos by user → update todo → mark complete → delete todo
 // Validates actual DB state: rows written, constraints enforced, enums stored correctly.
-// Requires DATABASE_URL env var pointing to a running PostgreSQL instance.
+// Uses embedded-postgres to spin up a local PostgreSQL instance automatically.
 
-import { describe, it, expect } from "@rstest/core";
+import { describe, it, expect, beforeAll, afterAll } from "@rstest/core";
 import pg from "pg";
+import EmbeddedPostgres from "embedded-postgres";
+import { existsSync, rmSync } from "node:fs";
 import { createTestTodoApp, resetStore } from "./test-app.js";
 import type http from "http";
 
 const { Client } = pg;
 
-const DATABASE_URL = process.env.DATABASE_URL;
-const SKIP = !DATABASE_URL;
+const PG_PORT = 5433;
+const PG_USER = "postgres";
+const PG_PASSWORD = "password";
+const PG_DATABASE = "typokit_e2e";
+
+let embeddedPg: EmbeddedPostgres;
+let DATABASE_URL: string;
 
 // ─── PostgreSQL Schema DDL ───────────────────────────────────
 
@@ -90,12 +97,46 @@ async function httpRequest(
 // ─── E2E Test Suite ──────────────────────────────────────────
 
 describe("E2E: Full lifecycle with PostgreSQL", () => {
-  if (SKIP) {
-    it("skips E2E tests when DATABASE_URL is not set", () => {
-      expect(true).toBe(true);
-    });
-    return;
-  }
+  beforeAll(async () => {
+    if (process.env.DATABASE_URL) {
+      // CI: create an isolated database on the provided PostgreSQL service
+      const baseUrl = new URL(process.env.DATABASE_URL);
+      baseUrl.pathname = "/postgres";
+      const admin = new Client({ connectionString: baseUrl.toString() });
+      await admin.connect();
+      await admin.query("DROP DATABASE IF EXISTS typokit_e2e_server");
+      await admin.query("CREATE DATABASE typokit_e2e_server");
+      await admin.end();
+      baseUrl.pathname = "/typokit_e2e_server";
+      DATABASE_URL = baseUrl.toString();
+    } else {
+      // Local: spin up embedded PostgreSQL
+      const dataDir = "./data/e2e-db";
+      if (existsSync(dataDir)) {
+        rmSync(dataDir, { recursive: true, force: true });
+      }
+
+      embeddedPg = new EmbeddedPostgres({
+        databaseDir: dataDir,
+        user: PG_USER,
+        password: PG_PASSWORD,
+        port: PG_PORT,
+        persistent: false,
+        onLog: () => {},
+        onError: () => {},
+      });
+      await embeddedPg.initialise();
+      await embeddedPg.start();
+      await embeddedPg.createDatabase(PG_DATABASE);
+      DATABASE_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${PG_PORT}/${PG_DATABASE}`;
+    }
+  }, 60_000);
+
+  afterAll(async () => {
+    if (embeddedPg) {
+      await embeddedPg.stop();
+    }
+  }, 15_000);
 
   it("full lifecycle: create user → create todo → list → update → mark complete → delete", async () => {
     // Setup: PostgreSQL + HTTP server

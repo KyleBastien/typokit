@@ -399,13 +399,14 @@ describe("getPipelineTaps", () => {
 // ─── BUILD_HOOK_PHASES Tests ────────────────────────────────
 
 describe("BUILD_HOOK_PHASES", () => {
-  it("should list all 6 phases in execution order", () => {
+  it("should list all 7 phases in execution order", () => {
     expect(BUILD_HOOK_PHASES).toEqual([
       "beforeTransform",
       "afterTypeParse",
       "afterValidators",
       "afterRouteTable",
       "emit",
+      "compile",
       "done",
     ]);
   });

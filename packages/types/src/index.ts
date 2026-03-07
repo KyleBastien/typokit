@@ -253,3 +253,13 @@ export interface BuildResult {
   /** Errors encountered during build */
   errors: string[];
 }
+
+/** Context for the pluggable compile hook */
+export interface CompileContext {
+  /** Set to true by a plugin that has handled compilation (e.g., ran cargo build) */
+  handled: boolean;
+  /** The compiler that ran (for logging: "tsc", "cargo", etc.) */
+  compiler?: string;
+  /** Compilation result provided by the plugin */
+  result?: { success: boolean; errors: string[] };
+}

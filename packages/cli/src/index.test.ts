@@ -214,4 +214,27 @@ describe("executeBuild integration", () => {
     expect(Array.isArray(result.outputs)).toBe(true);
     expect(Array.isArray(result.errors)).toBe(true);
   });
+
+  it("defaults to unified build when no target specified", async () => {
+    const { executeBuild } = await import("./commands/build.js");
+    const logger = createLogger({ verbose: false });
+
+    const result = await executeBuild({
+      rootDir: "/nonexistent",
+      config: {
+        typeFiles: [],
+        routeFiles: [],
+        outputDir: ".typokit",
+        distDir: "dist",
+        compiler: "tsc",
+        compilerArgs: ["--noEmit"],
+      },
+      logger,
+      verbose: false,
+    });
+
+    // Unified build — fails at compiler step for nonexistent dir
+    expect(typeof result.success).toBe("boolean");
+    expect(Array.isArray(result.errors)).toBe(true);
+  });
 });

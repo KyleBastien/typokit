@@ -1,6 +1,6 @@
-mod parser;
-mod type_extractor;
-mod route_compiler;
+pub mod parser;
+pub mod type_extractor;
+pub mod route_compiler;
 mod openapi_generator;
 mod schema_differ;
 mod test_stub_generator;

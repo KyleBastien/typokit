@@ -1,0 +1,46 @@
+{
+  "scripts": {
+    "test": "rstest run --passWithNoTests",
+    "build:native": "napi build --platform --dts src/index.d.ts --js false",
+    "build:native:release": "napi build --platform --release --dts src/index.d.ts --js false"
+  },
+  "name": "@typokit/plugin-axum",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "version": "0.1.4",
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "*.node"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@typokit/core": "workspace:*",
+    "@typokit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  },
+  "napi": {
+    "binaryName": "index",
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/plugin-axum"
+  }
+}

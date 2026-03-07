@@ -1,537 +1,194 @@
 # Ralph Progress Log
-Started: 03/02/2026 09:17:20
+Started: 03/05/2026 20:38:23
 ---
 
 ## Codebase Patterns
-- Monorepo uses pnpm workspaces with packages in `packages/*`
-- Package naming: `@typokit/{package-name}`, version `0.1.0`, all `"private": true`
-- Nx handles build orchestration: `nx run-many --target={build|test|lint|typecheck}`
-- ESM modules throughout (`"type": "module"`)
-- Build scripts: each package uses `pnpm approve-builds` for native deps (esbuild, sharp)
-- `.astro/` is gitignored; generated types are auto-created by `astro sync` / `astro build`
-- Starlight social config uses array format `[{ icon: "github", label: "GitHub", href: "url" }]` (changed in v0.33)
-- Docs package needs `project.json` to override Nx target defaults (uses astro commands, not tsc)
-- Starlight sidebar slugs reference paths under `src/content/docs/` without extension; `index.mdx` uses directory path as slug
-- GitHub Pages for project repos need `base: "/repo-name"` in astro.config.mjs
-- CI workflow uses `pnpm nx build docs` to build the docs package (not `nx run docs:build`)
-- starlight-typedoc uses `entryPointStrategy: "packages"` for monorepo; each package dir is an entry point
-- Generated API reference files go to `api-reference/generated/` and are gitignored (regenerated on build)
-- Always clean `api-reference/generated/` before build to avoid 300+ duplicate ID warnings from stale files
-- Use `typeDocSidebarGroup` from starlight-typedoc to insert auto-generated sidebar; replaces manual API Reference section
-- Set `errorOnEmptyDocumentation: false` since some packages may lack full JSDoc coverage
-- Starlight UI components (Tabs, Steps, Aside, etc.) import from `@astrojs/starlight/components` in MDX files
-- Internal doc links require the `base` prefix for GitHub Pages (e.g., `/typokit/path/to/page/`)
-- CLI reference AC file paths may differ from existing sidebar slugs — always use the existing slug and file location
-- starlight-blog: blog posts go in `src/content/docs/blog/` as individual .mdx files (NOT index.mdx); requires docsLoader() + blogSchema in content.config.ts
-- @astrojs/starlight version must be >=0.33.0 for starlight-blog peer dependency
+- Existing generators (openapi_generator.rs, test_stub_generator.rs) use string-based code generation, returning String directly
+- Handler entity files (src/handlers/{entity}.rs) use overwrite: false; mod.rs files use overwrite: true
+- Service stubs follow same pattern: src/services/{entity}.rs (overwrite: false), src/services/mod.rs (overwrite: true)
+- Middleware stubs: src/middleware/auth.rs (overwrite: false), src/middleware/mod.rs (overwrite: true)
+- Entity name resolution: strip "Routes" suffix from handler_ref, then try singular forms (strip 's', 'ies'→'y') to match type_map keys
+- Root .gitignore ignores .typokit/ — use `git add -f` to check in generated files for example/demo packages
+- Axum 0.8 router: only import `get` from `axum::routing`; post/put/delete are chained as methods on MethodRouter
+- sqlx enum support: derive sqlx::Type with `#[sqlx(type_name = "pg_enum_name", rename_all = "snake_case")]` for PostgreSQL custom enums
+- Example packages need `"private": true` in package.json and `publish = false` in Cargo.toml; excluded from nx release via `!packages/example-*`
+- TypeMetadata from type_extractor.rs contains `jsdoc: Option<HashMap<String, String>>` for JSDoc tags like @table, @id, @generated, @format, @unique, etc.
+- PropertyMetadata contains `type_str` (stringified TS type), `optional`, and `jsdoc` for per-property annotations
+- HashMap keys in type_map are type names, values are TypeMetadata. Properties within are also HashMap-keyed by property name
+- All generators sort output deterministically (BTreeMap or sorted Vec) for reproducible codegen
+- cargo check and cargo test both work from packages/transform-native directory
+- Tests use internal parser::parse_typescript() to create test data from TS source strings
+- Type extractor only processes interfaces (TsInterfaceDecl), NOT type aliases — utility types (Omit/Partial/Pick) are not in type_map
+- Union literal types in properties are stored as `"active" | "inactive"` (with quote chars around each variant)
+- Use BTreeMap for collecting resolved types to ensure deterministic iteration order
+- rust_codegen::generate() accepts both type_map AND routes — sub-modules should accept the inputs they need
+- Handler refs follow "EntityRoutes#METHOD /path" format — derive entity module by stripping "Routes" suffix and snake_casing
+- @table entities have jsdoc.contains_key("table"); the value is the SQL table name (fall back to snake_case + "s")
+- @generated properties: value "uuid" → Uuid::new_v4(), value "now" → Utc::now(); these are excluded from user input in INSERT
+- @id property found by jsdoc "id" key or by property name "id"; used as PRIMARY KEY in migrations
+- @unique fields get UNIQUE constraint in migration SQL; use collect on jsdoc.contains_key("unique")
+- TS→PostgreSQL type mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
+- Project scaffold files (Cargo.toml, src/main.rs, src/lib.rs, .typokit/app.rs, .typokit/error.rs) all use overwrite: true
+- src/lib.rs uses #[path = "../.typokit/..."] to bridge .typokit/ modules into the Rust module tree (paths relative to src/ dir)
+- CLI build command uses executeBuild (router) → executeRustBuild or executeTypeScriptBuild based on --target flag
+- Napi bridge for rust_codegen: generate_rust_codegen() takes type/route file paths, returns JsRustGeneratedOutput[]
+- buildRustPipeline in transform-native handles caching + file writing for Rust target (same .cache-hash mechanism as TS pipeline)
 
-## 2026-03-02T17:23 - US-001
-- Initialized Starlight docs package at packages/docs/
-- Created: package.json, astro.config.mjs, tsconfig.json, src/content.config.ts, src/content/docs/index.mdx
-- Files changed: packages/docs/ (new), .gitignore, pnpm-lock.yaml
+## 2026-03-06T04:39 - US-001
+- Implemented rust_codegen module with GeneratedOutput struct and struct generation
+- Files changed:
+  - packages/transform-native/src/rust_codegen/mod.rs (new)
+  - packages/transform-native/src/rust_codegen/structs.rs (new)
+  - packages/transform-native/src/lib.rs (added `mod rust_codegen;`)
 - **Learnings for future iterations:**
-  - Starlight `social` config changed to object format in recent versions (not array)
-  - `@astrojs/check` + `typescript` must be installed separately for `astro check`
-  - `.astro/` dir contains generated types; gitignored, regenerated on build/sync
-  - Pagefind search is automatic during build, no config needed
-  - `site` option in astro.config.mjs is required for sitemap generation
----
-
-## 2026-03-02T17:28 - US-003
-- Configured full sidebar navigation in astro.config.mjs with 9 collapsible sections
-- Created 26 placeholder .mdx stub files for all planned docs pages
-- Sections: Getting Started, Core Concepts, Guides, CLI Reference, API Reference, Architecture, Contributing, AI Agents, Blog
-- Files changed: packages/docs/astro.config.mjs, 26 new .mdx files under packages/docs/src/content/docs/
-- **Learnings for future iterations:**
-  - Starlight sidebar uses `slug` property referencing paths under `src/content/docs/` (without extension)
-  - `collapsed: true` makes sidebar sections collapsible (collapsed by default); `collapsed: false` for expanded
-  - Starlight active page highlighting and mobile hamburger menu work automatically — no extra config needed
-  - Slug for `index.mdx` files uses the directory path (e.g., `api-reference` for `api-reference/index.mdx`)
-  - Empty slug `""` references the root `index.mdx`
----
-
-## 2026-03-02T17:25 - US-002
-- Created `packages/docs/project.json` with Nx targets overriding defaults
-- Targets: build (astro build), serve (astro dev), typecheck (astro check), lint/test (no-ops)
-- Files changed: packages/docs/project.json (new)
-- **Learnings for future iterations:**
-  - Nx target defaults in nx.json use `tsc`, but Astro packages need `astro build`/`astro check`
-  - Override targets via `project.json` in the package root, not via package.json nx config
-  - `nx serve docs` starts dev server on localhost:4321 automatically
-  - Lint and test targets need no-op overrides to prevent default tsc/rstest/eslint from running
+  - The crate is a napi cdylib — `cargo check`/`cargo test` work but `cargo build` needs napi tooling
+  - Existing generators don't return GeneratedOutput — they return plain Strings. The GeneratedOutput struct is new for rust_codegen
+  - TypeMetadata.jsdoc contains JSDoc tags as HashMap<String, String> — check for `@table` via `jsdoc.contains_key("table")`
+  - Property jsdoc tags like @id, @generated, @format, @unique, @minLength, @maxLength are available per-property
+  - camelCase→snake_case conversion and serde rename attributes are needed for Rust field names
+  - `dead_code` warnings appear for non-napi-exported functions — this is expected until napi bridge functions are added
 ---
 
-## 2026-03-02T17:31 - US-004
-- Created `.github/workflows/docs.yml` for GitHub Pages deployment
-- Workflow triggers on push to main (with paths filter) and workflow_dispatch
-- Paths filter: `packages/docs/**`, `packages/*/src/**`, `typokit-arch.md`
-- Installs deps with pnpm, builds with `pnpm nx build docs`
-- Deploys `packages/docs/dist/` using `actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4`
-- Updated `packages/docs/astro.config.mjs` with `base: "/typokit"` for GitHub Pages project site
-- Files changed: `.github/workflows/docs.yml` (new), `packages/docs/astro.config.mjs`
+## 2026-03-06T04:42 - US-002
+- Implemented validation annotations, utility type resolution, union literal enums, common types, and integer inference
+- Files changed:
+  - packages/transform-native/src/rust_codegen/structs.rs (major update — +975 lines)
 - **Learnings for future iterations:**
-  - GitHub Pages project repos (not `<user>.github.io`) need `base: "/repo-name"` in astro config
-  - Use `concurrency` group with `cancel-in-progress: false` for Pages deployments to avoid interrupted deploys
-  - Pages deployment requires `permissions: pages: write, id-token: write, contents: read`
-  - The `actions/configure-pages` step is optional when using `upload-pages-artifact` directly
+  - Type extractor only handles interfaces, not type aliases — utility type resolution must happen in rust_codegen
+  - Utility types (Omit/Partial/Pick) can appear as property type_str values even though they don't exist as top-level types in the type_map
+  - Union literal type_str values contain escaped quotes: `"active" | "inactive"` — detect via split on ` | ` and check for quote wrapping
+  - For serde rename on enum variants, compare PascalCase to original (not to_lowercase) — "Active" != "active" triggers rename
+  - Use BTreeMap for resolved utility types to ensure deterministic output ordering
+  - Validator crate v0.19 requires Lazy<Regex> statics for pattern validation — generate them at file top
+  - Common types (PaginatedResponse<T>, ErrorResponse) are always generated in common.rs with the "common" module
+  - mod.rs generation must now track both module names and type exports separately for proper re-exports
 ---
 
-## 2026-03-02T17:34 - US-005
-- Installed starlight-typedoc, typedoc, and typedoc-plugin-markdown in packages/docs
-- Configured starlight-typedoc plugin in astro.config.mjs with all 24 publishable @typokit/* packages
-- Used `entryPointStrategy: "packages"` for per-package API reference sections
-- Replaced manual "API Reference" sidebar item with `typeDocSidebarGroup` auto-generated sidebar
-- Added `api-reference/generated/` to .gitignore (regenerated on every build)
-- Set `errorOnEmptyDocumentation: false` for graceful handling of packages with minimal JSDoc
-- Updated api-reference/index.mdx stub with helpful description
-- Files changed: packages/docs/astro.config.mjs, packages/docs/package.json, .gitignore, packages/docs/src/content/docs/api-reference/index.mdx, pnpm-lock.yaml, pnpm-workspace.yaml
+## 2026-03-06T04:52 - US-003
+- Implemented Axum router generation from RouteEntry[] in rust_codegen/router.rs
+- Files changed:
+  - packages/transform-native/src/rust_codegen/router.rs (new — ~310 lines)
+  - packages/transform-native/src/rust_codegen/mod.rs (updated generate() signature, added router module)
 - **Learnings for future iterations:**
-  - starlight-typedoc requires `typedoc` and `typedoc-plugin-markdown` as peer deps (auto-installed by pnpm)
-  - For monorepos, use `entryPointStrategy: "packages"` in the `typeDoc` config; each entry point is a package directory containing package.json + tsconfig.json
-  - `typeDocSidebarGroup` is exported from `starlight-typedoc` and must be placed in the sidebar array to show generated API docs
-  - TypeDoc warnings about types "not included in the documentation" are normal for internal/unexported types referenced by public APIs
-  - Generated markdown files go to `src/content/docs/{output}/` where `output` is configured in the plugin
-  - The `tsconfig` option should point to root tsconfig.json for proper path resolution across packages
-  - Build generates 323 markdown files and 351 total pages with TypeDoc integration enabled
+  - The generate() function in mod.rs now takes both type_map AND routes — future sub-modules must match this pattern
+  - Handler refs follow "EntityRoutes#METHOD /path" pattern — derive module name by stripping "Routes" suffix and snake_casing
+  - Action name derivation uses REST conventions: GET collection=list, GET :id=get_by_id, POST=create, PUT/PATCH :id=update, DELETE :id=delete
+  - Routes with same path should be grouped with method chaining in Axum (get(handler).post(handler))
+  - Axum uses same :param path syntax as Express — no path conversion needed
+  - BTreeMap used for all route grouping/sorting to ensure deterministic output
 ---
 
-## 2026-03-02T17:41 - US-006
-- Wrote comprehensive quickstart guide at packages/docs/src/content/docs/getting-started/quickstart.mdx
-- Guide covers: prerequisites (Node.js 24+, pnpm/npm/yarn), scaffold init, project structure overview, defining types, creating routes with contracts+handlers, registering routes, starting dev server, testing with curl
-- Uses Starlight components: Tabs, TabItem, Steps, Aside for polished UX
-- Includes terminal command blocks with expected output at each step
-- Links to Core Concepts pages (schema-first-types, routing-and-handlers, middleware-and-context, error-handling) and guides
-- Files changed: packages/docs/src/content/docs/getting-started/quickstart.mdx
+## 2026-03-06T04:57 - US-004
+- Implemented sqlx database layer: connection pool, CRUD repository, and SQL migrations
+- Files changed:
+  - packages/transform-native/src/rust_codegen/database.rs (new — ~900 lines)
+  - packages/transform-native/src/rust_codegen/mod.rs (added database module, wired into generate())
 - **Learnings for future iterations:**
-  - Starlight `Tabs`, `TabItem`, `Steps`, and `Aside` components are imported from `@astrojs/starlight/components`
-  - MDX files support JSX components inline with markdown — no special config needed
-  - Internal links in Starlight docs need the `base` prefix (e.g., `/typokit/core-concepts/...`) for GitHub Pages deployment
-  - Typecheck and build both pass with MDX component imports; no additional dependencies needed
+  - @table entities: jsdoc has "table" key; value is the SQL table name (empty string falls back to snake_case + "s")
+  - @generated properties: value "uuid" → Uuid::new_v4().to_string(), value "now" → Utc::now(); excluded from user-supplied INSERT input
+  - @id property: found by jsdoc "id" key OR by property name "id"; becomes PRIMARY KEY in migrations
+  - @unique fields get UNIQUE constraint; checked via jsdoc.contains_key("unique")
+  - TS→PostgreSQL mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
+  - Repository uses sqlx::query_as::<_, Entity>() pattern with parameterized SQL ($1, $2...)
+  - CREATE functions use RETURNING * to get the full entity back after INSERT
+  - Input struct for create/update is named EntityWithoutId (matches Omit<Entity, "id"> utility type from structs.rs)
+  - Migration files use sequential timestamps (000000000001, 000000000002...) for deterministic ordering
+  - 20 tests added covering all CRUD operations, migration DDL, type mappings, and edge cases
 ---
 
-## 2026-03-02T17:49 - US-007
-- Wrote comprehensive project structure guide at packages/docs/src/content/docs/getting-started/project-structure.mdx
-- Covers: 4-package monorepo layout (@app/schema, @app/server, @app/db, @app/client), .typokit/ generated directory with all subdirectories explained, typokit.config.ts options, auto-generated vs user-maintained file table
-- Uses Starlight components: Aside (tip, caution), Tabs/TabItem for code examples
-- Includes file tree diagrams, dependency flow diagram, and configuration examples
-- Files changed: packages/docs/src/content/docs/getting-started/project-structure.mdx
+## 2026-03-06T05:05 - US-005
+- Implemented per-entity Axum handler file generation wired to repository CRUD functions
+- Files changed:
+  - packages/transform-native/src/rust_codegen/handlers.rs (new — ~510 lines code + ~510 lines tests)
+  - packages/transform-native/src/rust_codegen/mod.rs (added handlers module, wired into generate())
 - **Learnings for future iterations:**
-  - The explore agent is very effective for gathering codebase architecture info from typokit-arch.md and example packages
-  - Project structure docs should clearly mark which files are auto-generated vs user-maintained — this is a key TypoKit concept
-  - The .typokit/ directory has 5 subdirectories: validators/, routes/, schemas/, tests/, client/
-  - typokit.config.ts uses defineConfig() from @typokit/cli with typeFiles, routeFiles, outputDir, distDir, compiler options
-  - Build produces 351 pages total (same as before — no new pages since this replaced a stub)
+  - Handler entity files use overwrite: false (user-owned code), handlers/mod.rs uses overwrite: true (stays in sync)
+  - Entity name resolution from handler_ref: "UsersRoutes" → strip "Routes" → "Users" → look up "User" in type_map by stripping trailing 's'
+  - Also handles "ies" → "y" pluralization (e.g., "Categories" → "Category")
+  - PUT and PATCH both map to "update" action — deduplication via BTreeSet avoids generating duplicate handler functions
+  - Handler stubs for @table entities call repository functions directly; non-table entities get TODO placeholders
+  - Each handler file gets a ListQuery struct with page/page_size for list endpoints rather than referencing models
+  - ID type in Path<T> extractor derives from @id property type_str: "string" → String, "number" → i64
+  - 26 tests added covering all CRUD handlers, overwrite flags, entity resolution, dedup, determinism, and edge cases
 ---
 
-## 2026-03-02T17:54 - US-008
-- Wrote comprehensive Core Concept page for Schema-First Types at packages/docs/src/content/docs/core-concepts/schema-first-types.mdx
-- Covers: philosophy (single source of truth), complete entity type example with all JSDoc tags, JSDoc tag reference table, tag-to-output mapping, derived types (Omit/Partial/Pick), build artifacts (validators, DB schema, OpenAPI, client, tests, diff reports), "What NOT to Do" section
-- Uses Starlight components: Aside (tip, note, caution), Tabs/TabItem for database adapter examples
-- Includes cross-links to routing-and-handlers, middleware-and-context, error-handling, and building-first-api
-- Files changed: packages/docs/src/content/docs/core-concepts/schema-first-types.mdx
+## 2026-03-06T05:10 - US-006
+- Implemented service-layer and middleware stub generation
+- Files changed:
+  - packages/transform-native/src/rust_codegen/services.rs (new — ~235 lines code + ~200 lines tests)
+  - packages/transform-native/src/rust_codegen/middleware.rs (new — ~75 lines code + ~75 lines tests)
+  - packages/transform-native/src/rust_codegen/mod.rs (added services + middleware modules, wired into generate())
 - **Learnings for future iterations:**
-  - The explore agent provides excellent summaries of the architecture from typokit-arch.md and package source files — use it for gathering context before writing docs
-  - Schema-first types use JSDoc tags at both interface level (@table) and field level (@id, @generated, etc.)
-  - Derived types follow consistent patterns: Omit for create inputs, Partial for update inputs, Pick for summaries, Omit for public outputs
-  - The build pipeline has 6 artifact categories: validators, DB schema, OpenAPI, client, tests, diff reports
-  - 351 pages total after build (same count — replaced a stub page)
+  - Services are generated only for @table entities (non-table entities have no CRUD repository to call)
+  - Service functions take &PgPool directly (not AppState) — service layer is decoupled from Axum
+  - Service function signatures match repository signatures: list returns Vec, get_by_id returns Option, create returns entity, update/delete return Option
+  - Middleware uses Axum middleware::from_fn pattern: async fn(Request, Next) -> Result<Response, StatusCode>
+  - Auth middleware stub passes all requests through by default — users edit the stub to add real auth
+  - All unused params prefixed with _ to avoid dead_code warnings in stubs
+  - 22 new tests across services (13) and middleware (9) — all 118 rust_codegen tests pass
 ---
 
-## 2026-03-02T17:55 - US-009
-- Wrote comprehensive Core Concept page for Routing and Handlers at packages/docs/src/content/docs/core-concepts/routing-and-handlers.mdx
-- Covers: RouteContract<TParams, TQuery, TBody, TResponse> with full examples, defineHandlers<TRoutes>() with typed handler implementation, file convention (contracts.ts, handlers.ts, middleware.ts), explicit route registration in app.ts, automatic validation of params/query/body, full end-to-end flow example
-- Uses Starlight components: Aside (tip, note, caution), Tabs/TabItem not needed for this page
-- Cross-links to schema-first-types, middleware-and-context, error-handling, building-first-api
-- Files changed: packages/docs/src/content/docs/core-concepts/routing-and-handlers.mdx
+## 2026-03-06T05:14 - US-007
+- Implemented complete Rust project scaffold generation in rust_codegen/project.rs
+- Generates 5 files: Cargo.toml, src/main.rs, src/lib.rs, .typokit/app.rs, .typokit/error.rs
+- Files changed:
+  - packages/transform-native/src/rust_codegen/project.rs (new — ~370 lines code + ~220 lines tests)
+  - packages/transform-native/src/rust_codegen/mod.rs (added project module, wired into generate())
 - **Learnings for future iterations:**
-  - The explore agent provides excellent codebase summaries including actual handler implementations from example packages
-  - RouteContract has 4 type params (TParams, TQuery, TBody, TResponse) all defaulting to void
-  - defineHandlers is a pure type-validation pass-through at runtime — returns handlers unchanged
-  - HandlerInput provides params, query, body, and ctx — all typed from the contract
-  - Route registration uses RouteGroup with prefix, handlers, and optional middleware array
-  - ctx.fail() is the standard error pattern in handlers (covered in detail in Error Handling page)
-  - 351 pages total after build (same count — replaced a stub page)
+  - src/lib.rs uses #[path = "../.typokit/..."] attributes to bridge .typokit/ into the Rust module tree (relative to src/ directory)
+  - Cargo.toml uses edition = "2024" and name = "server" as defaults; binary references lib crate via `use server::{module}`
+  - AppError enum variants match exactly what handlers.rs generates: `AppError::NotFound(String)` etc.
+  - AppError also implements Display and has convenience constructors (not_found, bad_request, etc.) for user-written code
+  - Generated error.rs returns JSON bodies with { error: status_code, message: string } format
+  - All 5 project scaffold files use overwrite: true since they're framework-managed
+  - 31 new tests added — all 157 rust_codegen tests pass
 ---
 
-## 2026-03-02T18:04 - US-010
-- Wrote comprehensive Core Concept page for Middleware and Context at packages/docs/src/content/docs/core-concepts/middleware-and-context.mdx
-- Covers: RequestContext interface (ctx.fail, ctx.log, ctx.services, ctx.requestId), defineMiddleware<TAdded>() with full auth example, context type narrowing mechanism, executeMiddlewareChain internals, priority ordering (lower runs first), short-circuiting via ctx.fail(), global vs route-group registration, typed vs framework-native middleware distinction, request processing order diagram, common patterns (logging, tenant resolution, rate limiting)
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to routing-and-handlers, error-handling, server-adapters, building-first-api
-- Files changed: packages/docs/src/content/docs/core-concepts/middleware-and-context.mdx
+## 2026-03-06T05:19 - US-008
+- Implemented --target rust CLI flag for typokit build command
+- Files changed:
+  - packages/transform-native/src/lib.rs (added generate_rust_codegen napi function)
+  - packages/transform-native/src/index.ts (added generateRustCodegen, buildRustPipeline with caching)
+  - packages/cli/src/commands/build.ts (added target/db/outDir options, Rust build execution path)
+  - packages/cli/src/index.ts (parse --target, --db, --out flags, updated help text)
+  - packages/cli/src/index.test.ts (8 new tests for flag parsing and build target routing)
 - **Learnings for future iterations:**
-  - The middleware-and-context.mdx file is the correct name (sidebar slug: core-concepts/middleware-and-context), not middleware.mdx as AC states
-  - defineMiddleware generic TAdded type must include index signature [key: string]: unknown for context spread compatibility
-  - executeMiddlewareChain sorts by priority (lower first, default 0), then accumulates returned objects via spread
-  - Middleware short-circuits by calling ctx.fail() which throws AppError — remaining middleware and handler don't execute
-  - Framework-native middleware (CORS, compression) runs BEFORE TypoKit normalization; typed middleware runs AFTER
-  - 351 pages total after build (same count — replaced a stub page)
+  - The CLI's executeBuild was refactored into executeBuild (router), executeRustBuild, and executeTypeScriptBuild for clean separation
+  - Rust target skips the TypeScript compiler step entirely — only runs transform + emit
+  - buildRustPipeline in transform-native handles content-hash caching identically to buildPipeline (same .typokit/.cache-hash mechanism)
+  - The napi function generate_rust_codegen reuses parser::parse_and_extract_types and route_compiler::extract_route_contracts internally
+  - --db flag only supports 'sqlx' currently — error validation happens early in executeBuild before any work
+  - --out defaults to rootDir for Rust target, not '.' — this matches user expectation of generating in-place
+  - 214 Rust tests + 156 CLI tests all pass (8 new CLI tests added)
 ---
 
-## 2026-03-02T18:08 - US-011
-- Wrote comprehensive Core Concept page for Error Handling at packages/docs/src/content/docs/core-concepts/error-handling.mdx
-- Covers: thrown errors philosophy (vs Result types), AppError class hierarchy (NotFoundError, ValidationError, UnauthorizedError, ForbiddenError, ConflictError), ctx.fail() usage as syntactic sugar, built-in error middleware (createErrorMiddleware), Typia validation error auto-formatting, dev mode vs production mode differences (stack trace exposure), structured error JSON for AI agents (traceId, route, phase, failures, sourceFile, schemaFile, relatedTests), best practices
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to middleware-and-context, routing-and-handlers, observability, building-first-api
-- Files changed: packages/docs/src/content/docs/core-concepts/error-handling.mdx
+## 2026-03-06T05:28 - US-009
+- Created complete example-todo-server-axum reference application (32 files)
+- Files changed:
+  - packages/example-todo-server-axum/ (new package — 32 files total)
+  - .typokit/ — 18 generated Rust files (models, db, router, migrations, app, error)
+  - src/ — 10 user-written files (handlers, services, middleware, main.rs, lib.rs)
+  - Cargo.toml, package.json, README.md, .gitignore
 - **Learnings for future iterations:**
-  - AppError class is in @typokit/errors package with 5 subclasses: NotFoundError (404), ValidationError (400), UnauthorizedError (401), ForbiddenError (403), ConflictError (409)
-  - ctx.fail() creates the appropriate AppError subclass based on status code and throws it — return type is `never`
-  - createErrorMiddleware() in @typokit/core handles 3 error categories: AppError, Typia validation errors, unknown errors
-  - Dev mode exposes stack traces and error messages; production returns generic "Internal Server Error" and logs full details server-side
-  - Extended error format includes sourceFile, schemaFile, relatedTests fields specifically designed for AI agent consumption
-  - 351 pages total after build (same count — replaced a stub page)
----
-## 2026-03-02T18:22 - US-015
-- Wrote comprehensive Core Concept page for Testing at packages/docs/src/content/docs/core-concepts/testing.mdx
-- Covers: schema-first testing philosophy, auto-generated contract tests (3 coverage levels: valid input, missing fields, invalid formats), createTestClient with typed HTTP methods, createIntegrationSuite with in-memory database and seed fixtures, createFactory with build/buildMany/buildInvalid methods, toMatchSchema custom matcher, CLI commands (typokit test, test:contracts, test:integration), CI consistency guarantees (idempotent generation, isolated tests, flaky detection, deterministic factories), full integration test example
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to building-first-api, error-handling, generate-migrate-test CLI reference
-- Files changed: packages/docs/src/content/docs/core-concepts/testing.mdx
-- **Learnings for future iterations:**
-  - Contract test generation groups routes by first path segment and outputs one test file per group to __generated__/
-  - createFactory uses seeded Mulberry32 PRNG for deterministic data generation respecting all JSDoc constraints
-  - createIntegrationSuite provides both suite.client (HTTP) and suite.db (direct DB access) for full-stack testing
-  - Schema matcher (toMatchSchema) works with Jest, Vitest, and Rstest — framework-agnostic
-  - CLI auto-detects test runner from config files; defaults to Vitest if none found
-  - 351 pages total after build (same count — replaced a stub page)
+  - Root .gitignore blocks `.typokit/` — must use `git add -f` for example packages that check in generated files
+  - Axum 0.8 routing: `get(handler).post(handler)` chains — only `get` needs to be imported from `axum::routing`, the rest are MethodRouter methods
+  - For sqlx::FromRow with enum fields, use `#[derive(sqlx::Type)]` with `#[sqlx(type_name = "pg_enum_name")]` and create corresponding PostgreSQL ENUM type in migration
+  - Union literal types shared across multiple structs (e.g., UserStatus in User, CreateUserInput, PublicUser) — practical approach: define enum in the primary entity module and import via `super::` in others
+  - Cargo.toml `name = "server"` is used by main.rs imports (`use server::...`) — changing the crate name requires updating all `use` statements
+  - sqlx features must include `chrono` and `uuid` for DateTime<Utc> and Uuid column support (codegen Cargo.toml doesn't include these)
+  - cargo build/check works fine for standalone Rust projects within the pnpm monorepo
+  - Pre-existing lint failure in transform-native (no-undef `window`) is unrelated to new code
 ---
 
-## 2026-03-02T18:10 - US-012
-- Wrote comprehensive Core Concept page for Server Adapters at packages/docs/src/content/docs/core-concepts/server-adapters.mdx
-- Covers: philosophy (TypoKit is not an HTTP server), ownership boundary table (TypoKit vs adapter responsibilities), request processing order diagram (10-step flow), ServerAdapter interface definition, all 4 adapters (Native, Fastify, Hono, Express) with full usage examples, when to use native vs bring-your-own decision guide, platform adapters as orthogonal axis with compatibility matrix, getNativeServer() escape hatch
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to custom-server-adapter guide, middleware-and-context, error-handling, building-first-api
-- Files changed: packages/docs/src/content/docs/core-concepts/server-adapters.mdx
+## 2026-03-06T05:43 - US-010
+- Updated project documentation to reflect the new Rust codegen target
+- Files changed:
+  - typokit-arch.md (added Section 12.13 Rust Codegen Target, updated Sections 6.5, 12.1, 12.11, 14.1)
+  - AGENTS.md (updated transform-native description to include rust_codegen module)
 - **Learnings for future iterations:**
-  - ServerAdapter interface is defined in @typokit/core at packages/core/src/adapters/server.ts with 5 methods: registerRoutes, listen, normalizeRequest, writeResponse, getNativeServer
-  - Platform adapters (@typokit/platform-node, platform-bun, platform-deno) are separate from server adapters — orthogonal concerns that combine freely
-  - Native adapter uses compiled radix tree directly for O(k) route lookup; framework adapters translate the route table to framework-native registrations
-  - Fastify and Express work on Bun via compat mode but don't use Bun-native APIs; Hono and Native work natively on all 3 runtimes
-  - Framework-native middleware (CORS, compression) runs BEFORE TypoKit normalization; typed middleware runs AFTER
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T18:12 - US-013
-- Wrote comprehensive Core Concept page for Database Adapters at packages/docs/src/content/docs/core-concepts/database-adapters.mdx
-- Covers: philosophy (generate types, not queries — not an ORM), DatabaseAdapter interface (generate, diff, generateRepositories), comparison table of all 4 adapters (Drizzle, Kysely, Prisma, Raw SQL), full generated output examples for each, type metadata flow from JSDoc to DB schema, migration philosophy (drafts never auto-applied, destructive flagging), ownership boundary table, choosing an adapter guide
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links kept minimal (no broken links to unwritten pages)
-- Files changed: packages/docs/src/content/docs/core-concepts/database-adapters.mdx
-- **Learnings for future iterations:**
-  - DatabaseAdapter interface is in @typokit/core at packages/core/src/adapters/database.ts with generate(), diff(), and optional generateRepositories()
-  - All 4 DB adapters support both PostgreSQL and SQLite dialects via constructor option
-  - Drizzle generates per-table .ts files; Kysely generates single database.ts; Prisma generates schema.prisma; Raw SQL generates per-table .sql + types.ts
-  - MigrationDraft includes destructive boolean flag — CI blocks on destructive migrations until reviewed
-  - JSDoc tags @id, @generated, @unique, @maxLength, @default, @format, @table drive all database schema generation
-  - Naming: Type→Table uses pluralize+snake_case, Property→Column uses snake_case
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T18:17 - US-014
-- Wrote comprehensive Core Concept page for Plugins at packages/docs/src/content/docs/core-concepts/plugins.mdx
-- Covers: TypoKitPlugin interface with all hooks, BuildPipeline with 6 async series hooks (beforeTransform→afterTypeParse→afterValidators→afterRouteTable→emit→done), runtime lifecycle hooks (onStart→onReady→onError→onStop→onSchemaChange), plugin registration in createApp(), why no onRequest/onResponse hooks (use middleware instead), official plugins (@typokit/plugin-debug with 8 debug endpoints, @typokit/plugin-ws with build-time codegen + runtime connection management), full custom plugin example with services/CLI commands/inspect endpoints, design guidelines
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to middleware-and-context, custom-plugin-development guide
-- Files changed: packages/docs/src/content/docs/core-concepts/plugins.mdx
-- **Learnings for future iterations:**
-  - TypoKitPlugin interface is in packages/core/src/plugin.ts; BuildPipeline in packages/core/src/hooks.ts; createApp in packages/core/src/app.ts
-  - Build pipeline uses AsyncSeriesHook (tapable pattern) with 6 phases — plugins tap via pipeline.hooks.{phase}.tap(name, fn)
-  - Plugins register services on app.services during onStart (DI pattern); built-in services prefixed with underscore (_debug, _ws)
-  - Plugin-debug exposes 8 endpoints on a separate sidecar port (default 9229) with dev/production security modes
-  - Plugin-ws hooks into both build-time (afterTypeParse + emit for codegen) and runtime (onStart/onReady/onStop for connection management)
-  - No onRequest/onResponse hooks by design — plugins use defineMiddleware() during onStart for per-request logic
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T18:27 - US-016
-- Wrote comprehensive Core Concept page for Observability and Debugging at packages/docs/src/content/docs/core-concepts/observability.mdx
-- Covers: structured logging via ctx.log with automatic traceId/route/phase enrichment, Logger API and log entry structure, log configuration with field redaction, log sinks (Stdout/OTel/DebugSidecar), OpenTelemetry integration (@typokit/otel) with auto-instrumented spans and span exporters, log-to-span bridging with OTel severity mapping, request lifecycle trace format (full JSON example), debug sidecar (@typokit/plugin-debug) with 12 endpoints and dev vs production security modes, typokit inspect CLI commands with --json flag, structured error context for AI agents with extended failure details, observability signal flow diagram
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to error-handling, middleware-and-context, plugins, building-first-api
-- Files changed: packages/docs/src/content/docs/core-concepts/observability.mdx
-- **Learnings for future iterations:**
-  - StructuredLogger in @typokit/otel emits to 3 sinks simultaneously: Stdout, OtelLogSink, and DebugSidecar
-  - OTel log severity mapping: trace=1, debug=5, info=9, warn=13, error=17, fatal=21
-  - Debug sidecar has 12 endpoints (not 8 as mentioned in US-014 progress) -- includes /_debug/server, /_debug/build-pipeline, /_debug/spans, /_debug/logs
-  - typokit inspect commands mirror debug sidecar endpoints but work from CLI without a running sidecar
-  - Extended AI error context includes failures[] array with path, expected, received, suggestion fields
-  - 351 pages total after build (same count -- replaced a stub page)
----
-
-## 2026-03-02T18:33 - US-017
-- Wrote comprehensive step-by-step tutorial at packages/docs/src/content/docs/guides/building-first-api.mdx
-- Tutorial builds a Notes API (not todos) with 5 CRUD endpoints: POST/GET/GET/:id/PUT/:id/DELETE/:id
-- Covers 10 steps: scaffold project, define entity type with JSDoc, define route contracts, implement handlers, add auth middleware with context narrowing, register routes in app.ts, generate database schema with Drizzle, start dev server and test with curl, run auto-generated contract tests, write integration tests
-- Each step includes the file path, full code listing, and expected output
-- Uses native server + Drizzle adapter (most common path per AC)
-- Includes curl commands for every endpoint plus validation/auth error testing
-- Uses Starlight components: Aside (tip, note, caution), Steps, Tabs/TabItem
-- Cross-links to middleware-and-context, error-handling, server-adapters, observability, quickstart
-- Files changed: packages/docs/src/content/docs/guides/building-first-api.mdx
-- **Learnings for future iterations:**
-  - Guide pages should use Steps component for numbered tutorial flow — gives clear visual progression
-  - The existing stub files at guides/ are already configured in the sidebar at astro.config.mjs; no sidebar changes needed
-  - AC said `first-api.mdx` but sidebar already references `building-first-api` slug — use the existing file
-  - Tutorial content should go deeper than quickstart but reference it as prerequisite
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T18:39 - US-018
-- Wrote comprehensive guide for building custom server adapters at packages/docs/src/content/docs/guides/custom-server-adapter.mdx
-- Covers: full ServerAdapter interface with method-by-method explanation, key types (TypoKitRequest, TypoKitResponse, CompiledRoute, ServerHandle), 6-step walkthrough building a "Micro" adapter (package setup, collectRoutes tree walker, normalizeRequest, writeResponse, registerRoutes with middleware chain, wiring into app), compiled route table radix tree structure explanation, testing guidance with 4 test examples, common pitfalls section
-- Uses Starlight components: Aside (tip, note, caution), Steps
-- Cross-links to server-adapters concept page, middleware-and-context, building-first-api
-- Files changed: packages/docs/src/content/docs/guides/custom-server-adapter.mdx
-- **Learnings for future iterations:**
-  - collectRoutes() is NOT an exported utility -- each adapter implements its own version internally; document this clearly
-  - CompiledRouteTable is just an alias for CompiledRoute (the root node); the tree uses children/paramChild/wildcardChild
-  - Route lookup priority is: static children -> parameterized child -> wildcard child
-  - params field in TypoKitRequest starts empty in normalizeRequest(); URL params are injected by the framework router
-  - ServerHandle.close() must be async -- important for graceful shutdown with request draining
-  - 351 pages total after build (same count -- replaced a stub page)
----
-
-## 2026-03-02T18:45 - US-019
-- Wrote comprehensive custom plugin development guide at packages/docs/src/content/docs/guides/custom-plugin.mdx
-- Builds a request-timing plugin (plugin-timing) step by step across 11 steps: project setup, plugin skeleton, build-time hooks (afterRouteTable), runtime services (app.services DI), onReady warmup, onError tracking, graceful shutdown, CLI commands (timing:report), introspection endpoints (/_inspect/timing), framework-native middleware via getNativeServer(), plugin registration in createApp()
-- Includes build pipeline hook reference table, complete plugin source code, and design guidelines section
-- Uses Starlight components: Aside (tip, note, caution), Steps
-- Cross-links to plugins concept page, middleware-and-context, building-first-api
-- Files changed: packages/docs/src/content/docs/guides/custom-plugin.mdx
-- **Learnings for future iterations:**
-  - AC says custom-plugin.mdx but sidebar slug is guides/custom-plugin — the stub file already existed at the correct path
-  - Plugin state should live in closure scope (factory function), not on AppInstance — this is a key design pattern
-  - Official plugins prefix services with underscore (_debug, _ws); custom plugins should use unprefixed names
-  - defineMiddleware() priority: lower numbers run first; use negative priority for instrumentation middleware
-  - getNativeServer() is available via app instance for framework-native middleware registration
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T18:57 - US-021
-- Wrote comprehensive CLI reference for Scaffolding and Development commands at packages/docs/src/content/docs/cli-reference/scaffolding-dev.mdx
-- Covers 5 commands: typokit init, typokit add route, typokit add service, typokit build, typokit dev
-- Each command includes: syntax, arguments, flags, description of what it does, example usage with expected output, code examples for scaffolded files
-- Documents global flags (--root, --verbose), --debug-port for dev command
-- Uses Starlight Aside components for tips, notes, cautions
-- Cross-links to generate-migrate-test, inspect, quickstart, building-first-api
-- Files changed: packages/docs/src/content/docs/cli-reference/scaffolding-dev.mdx
-- **Learnings for future iterations:**
-  - AC says `cli/scaffolding.mdx` and `cli/development.mdx` but sidebar uses `cli-reference/scaffolding-dev` — use existing file and slug
-  - CLI commands are implemented in packages/cli/src/commands/*.ts with index.ts as entry point
-  - Global flags (--root, --verbose) apply to all commands; specific flags are per-command
-  - Dev command uses AST cache + dependency graph for incremental rebuilds; debug sidecar requires plugin-debug
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T18:55 - US-020
-- Wrote comprehensive migration guide at packages/docs/src/content/docs/guides/migration.mdx
-- Covers incremental adoption path for both Express and Fastify projects
-- Express: install @typokit/server-express, pass existing app via expressServer({ app }), add TypoKit routes alongside legacy ones
-- Fastify: install @typokit/server-fastify, use getNativeServer() to register existing plugins and legacy routes
-- Explains middleware coexistence: framework-native middleware runs first (CORS, helmet, compression), TypoKit typed middleware runs after normalization for TypoKit routes only
-- Includes request processing order diagram, migration checklist, FAQ section
-- What changes vs stays the same comparison table
-- Uses Starlight components: Aside (tip, note, caution), Steps, Tabs/TabItem
-- Cross-links to server-adapters, middleware-and-context, error-handling, building-first-api
-- Files changed: packages/docs/src/content/docs/guides/migration.mdx
-- **Learnings for future iterations:**
-  - Express adapter accepts existing app instance via expressServer({ app: myExistingApp }) — key migration pattern
-  - Fastify adapter uses getNativeServer() for accessing native Fastify instance for plugins/legacy routes
-  - Framework-native middleware runs BEFORE TypoKit normalization; TypoKit middleware runs AFTER — only for TypoKit routes
-  - Legacy routes and TypoKit routes coexist because they're registered on the same framework instance
-  - 351 pages total after build (same count — replaced a stub page)
----
-## 2026-03-02T19:02 - US-022
-- Wrote comprehensive CLI reference for Generate, Migrate, and Test commands at packages/docs/src/content/docs/cli-reference/generate-migrate-test.mdx
-- Covers 10 commands: generate:db, generate:client, generate:openapi, generate:tests, migrate:generate, migrate:diff, migrate:apply, test, test:contracts, test:integration
-- Each command includes: syntax, flags (including --json where applicable), description, example usage with expected output
-- Documents test runner auto-detection (Jest > Vitest > Rstest > fallback Vitest) and runner-specific patterns
-- Documents destructive migration handling (--force flag, DESTRUCTIVE annotations)
-- Uses Starlight Aside components for tips, notes, cautions
-- Cross-links to scaffolding-dev, inspect, building-first-api, database-adapters
-- Files changed: packages/docs/src/content/docs/cli-reference/generate-migrate-test.mdx
-- **Learnings for future iterations:**
-  - AC says create files at cli/generate.mdx, cli/migrate.mdx, cli/test.mdx but sidebar uses cli-reference/generate-migrate-test slug — use existing file
-  - All generate commands output to config.outputDir (default: .typokit/) — consistent pattern
-  - migrate:generate creates both .sql and .json metadata files with matching timestamps
-  - Test runner detection priority: Jest > Vitest > Rstest > fallback Vitest
-  - Runner-specific patterns differ: Vitest uses un __generated__/, Jest uses --testPathPattern
-  - 351 pages total after build (same count — replaced a stub page)
----
-## 2026-03-02T19:08 - US-023
-- Wrote comprehensive CLI reference for Inspect commands at packages/docs/src/content/docs/cli-reference/inspect.mdx
-- Covers 9 subcommands: routes, route, middleware, dependencies/deps, schema, errors, performance, server, build-pipeline
-- Each command includes: syntax, flags, description of what it does, example JSON output
-- Separated into Build-Time Commands (read from disk) and Runtime Commands (query debug sidecar)
-- Documents global flags: --json, --format json, --debug-port, --root, --verbose
-- Includes AI agent integration section with common workflow examples
-- Uses Starlight Aside components for tips, notes, cautions
-- Cross-links to AI Agent Integration guide
-- Files changed: packages/docs/src/content/docs/cli-reference/inspect.mdx
-- **Learnings for future iterations:**
-  - AC says cli/inspect.mdx but sidebar uses cli-reference/inspect slug -- use existing file and slug
-  - Inspect commands split into build-time (read generated files) and runtime (query debug sidecar on port 9800)
-  - Default debug sidecar port is 9800 (not 9229 as mentioned in plugin-debug docs for a different port)
-  - inspect.ts uses dynamic imports for path/fs/http modules to stay platform-agnostic
-  - deps is an alias for dependencies subcommand
-  - 351 pages total after build (same count -- replaced a stub page)
----
-
-## 2026-03-02T19:17 - US-024
-- Wrote comprehensive Architecture Overview page at packages/docs/src/content/docs/architecture/overview.mdx
-- Covers: high-level architecture Mermaid diagram (schema -> build -> runtime tiers), package responsibilities table (30 packages across 10 categories: core, transform, server adapters, platform adapters, db adapters, testing/observability, plugins, client generation, build tooling), build pipeline flow diagram with 6 AsyncSeriesHook phases, request processing sequence diagram (10-step flow through server adapter -> TypoKit core -> handler), key design decisions table (8 decisions with rationale and trade-offs), links to deep-dive pages
-- Uses Starlight components: Aside (tip, note)
-- Uses Mermaid diagrams: graph TD, flowchart LR, sequenceDiagram
-- Cross-links to build-pipeline, compiled-router, quickstart, building-first-api
-- Files changed: packages/docs/src/content/docs/architecture/overview.mdx
-- **Learnings for future iterations:**
-  - Mermaid diagrams render natively in Starlight without additional configuration
-  - Package count is 30 (excluding example-* packages and docs)
-  - Architecture pages should link to the repo's typokit-arch.md as the canonical full architecture document
-  - 351 pages total after build (same count -- replaced a stub page)
----
-
-## 2026-03-02T19:21 - US-025
-- Wrote comprehensive Build Pipeline deep dive page at packages/docs/src/content/docs/architecture/build-pipeline.mdx
-- Covers all acceptance criteria: Rust transform pipeline stages (parse, extract, route table, OpenAPI, test stubs, schema diff, Typia callback, write), napi-rs boundary and Typia integration, .typokit/ output directory structure, tapable hook system with AsyncSeriesHook and build phase hooks, build performance targets, content-hash caching
-- Uses Starlight components: Aside, Steps, Tabs/TabItem for build tool integration examples
-- Files changed: packages/docs/src/content/docs/architecture/build-pipeline.mdx
-- **Learnings for future iterations:**
-  - The typokit-arch.md file in repo root is the authoritative source for all architecture details
-  - Section 12 of typokit-arch.md covers the build pipeline exhaustively (sections 12.1-12.12)
-  - Starlight Steps component works well for sequential pipeline stages
-  - Tabs component is useful for showing alternative configurations (Standalone/Nx/Turborepo)
-  - Architecture deep dive pages benefit from ASCII diagrams for showing data flow between Rust and JS boundaries
----
-
-## 2026-03-02T19:27 - US-026
-- Wrote comprehensive Compiled Router deep dive documentation at packages/docs/src/content/docs/architecture/compiled-router.mdx
-- Covers: radix tree construction at build time (Rust), runtime consumption (TypeScript), compiled router output format with code examples
-- Explains static vs parameterized route lookup with O(k) complexity
-- Documents edge cases: param vs static priority, wildcard/catch-all, trailing slashes, 405 handling
-- Includes performance targets table (static lookup < 100ns, param lookup < 200ns, load time < 1ms)
-- Includes benchmark comparison with Express, Fastify, and Hono
-- Shows how each server adapter (native, Fastify, Hono) consumes the compiled router differently using Tabs component
-- Files changed: packages/docs/src/content/docs/architecture/compiled-router.mdx
-- **Learnings for future iterations:**
-  - The existing stub file was at compiled-router.mdx (not router.mdx as AC suggested) — always check existing files and sidebar slugs
-  - Use Tabs/TabItem components for showing adapter-specific code examples (consistent with build-pipeline.mdx style)
-  - Steps component works well for sequential processes (tree construction, runtime matching)
-  - Radix tree / compiled router details are spread across typokit-arch.md sections 4, 6.7, 12, and the build-pipeline.mdx
----
-
-## 2026-03-02T19:32 - US-027
-- Wrote comprehensive AI Agent Integration guide at packages/docs/src/content/docs/ai-agents/integration.mdx
-- Covers: five-phase agent workflow (modify types -> generate -> test -> inspect errors -> self-correct), all typokit inspect commands with JSON output examples (routes, route, schema, middleware, dependencies, build-pipeline, errors, performance, server), debug sidecar HTTP endpoints with request/response examples (8 endpoints on port 9800), structured error context (validation failures with path/expected/received/suggestion, handler errors with source location, build errors), diff minimization strategy (file-per-concern layout, atomic changes, agent best practices table), end-to-end example adding a phone field to User entity
-- Uses Starlight components: Aside (tip, note, caution), Steps
-- Cross-links to inspect CLI reference, observability, error-handling, plugins, machine-readable docs
-- Files changed: packages/docs/src/content/docs/ai-agents/integration.mdx
-- **Learnings for future iterations:**
-  - Debug sidecar default port is 9800 (confirmed from inspect.mdx and plugin docs)
-  - Debug sidecar has 8 endpoints: routes, middleware, errors, performance, health, dependencies, traces, logs
-  - Structured errors include sourceFile, schemaName, failures[] with path/expected/received/suggestion fields
-  - Agent workflow is deterministic: same types always produce same generated output
-  - File-per-concern pattern is a key TypoKit design principle for AI agent compatibility
-  - 351 pages total after build (same count -- replaced a stub page)
----
-
-## 2026-03-02T19:41 - US-028
-- Wrote comprehensive Machine-Readable Docs page at packages/docs/src/content/docs/ai-agents/machine-readable.mdx
-- Covers: llms.txt and llms-full.txt files (llmstxt.org convention), --json flag on all inspect commands with example JSON output (routes, schema, errors), OpenAPI spec generation via typokit generate:openapi, debug sidecar JSON endpoints table (8 endpoints on port 9800), generated file artifacts in .typokit/ directory, agent workflow combining all interfaces
-- Created packages/docs/public/llms.txt with structured summary: project overview, categorized doc links (Getting Started, Core Concepts, Guides, CLI Reference, Architecture, AI Agents), and all 24 publishable @typokit/* packages
-- Created packages/docs/public/llms-full.txt with expanded inline content: detailed package descriptions grouped by category, complete CLI command reference, architecture summary, and key concepts explained in-context
-- Uses Starlight components: Aside (tip, note, caution)
-- Cross-links to AI Agent Integration, Observability, inspect CLI reference
-- Files changed: packages/docs/src/content/docs/ai-agents/machine-readable.mdx, packages/docs/public/llms.txt (new), packages/docs/public/llms-full.txt (new)
-- **Learnings for future iterations:**
-  - llms.txt follows llmstxt.org format: H1 title, blockquote summary, H2 sections with link lists
-  - llms-full.txt expands on llms.txt with inline content so agents don't need to follow links
-  - Files in packages/docs/public/ are served at the site root (with base prefix for GitHub Pages)
-  - Sidebar already referenced ai-agents/machine-readable slug — no config changes needed
-  - 351 pages total after build (same count — replaced a stub page)
----
-
-## 2026-03-02T19:48 - US-029
-- Wrote comprehensive Contributing guide at packages/docs/src/content/docs/contributing/index.mdx
-- Covers: prerequisites (Node.js 24+, pnpm, Rust toolchain), setup steps, monorepo package map with all @typokit/* packages
-- Explains Nx workspace targets (build, test, lint, typecheck) with commands
-- Includes Rust native transform development section with NAPI-RS build instructions
-- Documents PR process, CI checks, code style, and conventional commits
-- Uses Starlight components: Aside, Steps, Tabs/TabItem for interactive docs
-- Links to architecture docs for deeper understanding
-- Files changed: packages/docs/src/content/docs/contributing/index.mdx
-- **Learnings for future iterations:**
-  - All packages use rstest as the test runner, not Jest or Vitest
-  - Rust transform uses @napi-rs/cli for cross-platform builds with pnpm build:native / build:native:release
-  - The nx graph command is useful for visualizing package dependencies
-  - nx affected commands help scope CI checks to impacted packages only
----
-
-## 2026-03-02T19:52 - US-030
-- Installed and configured starlight-blog plugin in astro.config.mjs
-- Updated @astrojs/starlight from v0.32 to v0.37.6 (required by starlight-blog >=0.33.0 peer dep)
-- Updated social config from object to array format (breaking change in Starlight v0.33)
-- Updated content.config.ts with docsLoader() and blogSchema extension
-- Created initial blog post: Introducing TypoKit at blog/introducing-typokit.mdx
-- Blog generates: listing page, individual post, RSS feed, author pages, tag pages
-- 355 pages total (4 new: blog index, post, author, 2 tag pages)
-- Files changed: packages/docs/astro.config.mjs, packages/docs/package.json, packages/docs/src/content.config.ts, packages/docs/src/content/docs/blog/introducing-typokit.mdx (new), pnpm-lock.yaml
-- **Learnings for future iterations:**
-  - starlight-blog requires @astrojs/starlight >=0.33.0 — upgrading starlight may cause breaking changes (social config format changed from object to array)
-  - Blog posts go in src/content/docs/blog/ as individual .mdx files (NOT as index.mdx — that conflicts with the auto-generated listing page)
-  - Blog frontmatter requires date field; supports uthors, 	ags, xcerpt fields
-  - starlight-blog auto-generates: /blog/ listing, /blog/rss.xml, /blog/authors/*, /blog/tags/* pages
-  - starlight-blog adds its own "Blog" link in the header nav — remove any manual Blog sidebar entry
-  - content.config.ts must use docsLoader() and extend docsSchema with blogSchema for starlight-blog
-  - Starlight v0.33+ social config uses array format: [{ icon: "github", label: "GitHub", href: "url" }]
----
-
-## 2026-03-02T19:54 - US-031
-- Designed full landing page with feature highlights at packages/docs/src/content/docs/index.mdx
-- Hero section with tagline "Write the type once" and Get Started / GitHub CTA buttons
-- 6 feature cards: Schema-First Types, Rust Build Pipeline, Pluggable Server Adapters, Auto-Generated Tests, AI-Native Debugging, Type-Safe Client SDK
-- Code example showcase using Tabs component (schema definition, generated handler, type-safe client)
-- "Who Is This For" section targeting framework users and AI agent developers
-- "Start Building" section with LinkCards to quickstart, core concepts, API reference, architecture
-- Files changed: packages/docs/src/content/docs/index.mdx
-- **Learnings for future iterations:**
-  - Starlight splash template is full-width, no sidebar — ideal for landing pages
-  - Use @astrojs/starlight/components for Card, CardGrid, LinkCard, Tabs, TabItem in MDX
-  - Hero action links and LinkCard hrefs need base prefix /typokit/ for GitHub Pages deployment
-  - Starlight icon names include both built-in (rocket, star, puzzle) and Seti icons (seti:typescript, seti:robot)
-  - Build completes in ~25s with 355 pages; typecheck is fast at ~15s
----
-
-## 2026-03-02T19:58 - US-032
-- Added OpenGraph and SEO metadata to Starlight docs config
-- Created 1200x630 social card image (og-image.png) using Python/zlib PNG generation
-- Created robots.txt with sitemap reference
-- Configured head meta tags: og:image, og:image:width/height/type, og:type, og:site_name, twitter:card, twitter:image
-- Added description field to Starlight config for og:description generation
-- Files changed: packages/docs/astro.config.mjs, packages/docs/public/og-image.png (new), packages/docs/public/robots.txt (new)
-- **Learnings for future iterations:**
-  - Starlight auto-generates og:title, og:description, og:url, and canonical URLs from page frontmatter when site is configured
-  - Starlight includes @astrojs/sitemap automatically; sitemap.xml is generated at build time
-  - Use Starlight head config array for custom meta tags; each entry is { tag, attrs }
-  - sharp may hang on Windows without pnpm approve-builds; Python zlib PNG generation is a reliable alternative for simple images
-  - Social card images must be PNG/JPG (not SVG) for og:image compatibility
----
-
-## 2026-03-02T20:18 - US-033
-- Implemented cross-link validation and final QA for the docs site
-- Created `packages/docs/check-internal-links.py` - Python script that validates all internal links in built HTML
-- Updated `.github/workflows/docs.yml` to clean generated API ref before build and run link checker
-- Validated 122,835 internal links across 354 pages - all valid
-- Verified all 25 sidebar slugs match actual file structure
-- Typecheck passes with 0 errors, 0 warnings, 0 hints
-- Pagefind search indexed 350 fragments covering key terms (RouteContract, defineHandlers, ctx.fail, ServerAdapter)
-- Build produces only expected TypeDoc reference warnings (24 internal type reference warnings)
-- Files changed: `.github/workflows/docs.yml`, `packages/docs/check-internal-links.py` (new)
-- **Learnings for future iterations:**
-  - Stale generated API reference files cause 300+ duplicate ID warnings; always clean `api-reference/generated/` before build
-  - starlight-typedoc generates a root README.md with links to per-package readmes that don't exist (packages have no README.md files) - link checker excludes this page
-  - With `base: "/typokit"` config, static files from `public/` are served at the base path (e.g., `dist/llms.txt` -> `/typokit/llms.txt`)
-  - Pagefind search index is built automatically during Astro build; 350 fragments for 354 pages
-  - `astro check` (typecheck) requires TypeDoc to generate content first, so it takes ~14s including TypeDoc conversion
+  - Documentation-only stories still require typecheck pass — run `pnpm nx affected -t typecheck` even for markdown changes
+  - The architecture doc uses numbered sections (1-16+) — new codegen subsections fit under Section 12 (Build Pipeline)
+  - Server adapter compatibility matrix in Section 6.5 is the right place for Axum's native target entry
+  - CLI commands in Section 14.1 should document all flags including --target, --db, --out
+  - When many unrelated changes exist in the working tree, use selective `git add` to commit only relevant files
 ---
