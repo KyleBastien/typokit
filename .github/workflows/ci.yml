@@ -161,7 +161,7 @@ jobs:
             build: |
               cd packages/transform-native && npx napi build --platform --release --target x86_64-unknown-linux-musl && cd ../..
               cd packages/plugin-axum && npx napi build --platform --release --target x86_64-unknown-linux-musl && cd ../..
-          - host: macos-13
+          - host: macos-14
             target: x86_64-apple-darwin
             build: |
               cd packages/transform-native && npx napi build --platform --release --target x86_64-apple-darwin && cd ../..
