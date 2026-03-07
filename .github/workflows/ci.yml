@@ -276,7 +276,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: "Release: Sync native platform versions"
-        run: node scripts/sync-native-versions.mjs
+        run: node --experimental-strip-types scripts/sync-native-versions.ts
 
       - name: "Release: Publish native platform packages"
         run: |
