@@ -1,0 +1,19 @@
+{
+  "name": "@typokit/plugin-axum-darwin-x64",
+  "version": "0.2.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "index.darwin-x64.node",
+  "files": [
+    "index.darwin-x64.node"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/plugin-axum"
+  },
+  "os": [
+    "darwin"
+  ]
+}

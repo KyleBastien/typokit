@@ -1,0 +1,19 @@
+{
+  "name": "@typokit/plugin-axum-win32-x64-msvc",
+  "version": "0.2.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "index.win32-x64-msvc.node",
+  "files": [
+    "index.win32-x64-msvc.node"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/plugin-axum"
+  },
+  "os": [
+    "win32"
+  ]
+}
