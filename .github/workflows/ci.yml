@@ -269,18 +269,18 @@ jobs:
 
       - name: Move native artifacts to package directories
         run: |
-          # Move transform-native artifacts
+          # napi artifacts expects files in ./artifacts/
+          mkdir -p packages/transform-native/artifacts packages/plugin-axum/artifacts
           for dir in native-artifacts/transform-native-*; do
-            cp "$dir"/*.node packages/transform-native/ 2>/dev/null || true
+            cp "$dir"/*.node packages/transform-native/artifacts/ 2>/dev/null || true
           done
-          # Move plugin-axum artifacts
           for dir in native-artifacts/plugin-axum-*; do
-            cp "$dir"/*.node packages/plugin-axum/ 2>/dev/null || true
+            cp "$dir"/*.node packages/plugin-axum/artifacts/ 2>/dev/null || true
           done
-          echo "=== transform-native .node files ==="
-          ls -la packages/transform-native/*.node
-          echo "=== plugin-axum .node files ==="
-          ls -la packages/plugin-axum/*.node
+          echo "=== transform-native artifacts ==="
+          ls -la packages/transform-native/artifacts/
+          echo "=== plugin-axum artifacts ==="
+          ls -la packages/plugin-axum/artifacts/
 
       - name: Organize native artifacts for publishing
         run: |
