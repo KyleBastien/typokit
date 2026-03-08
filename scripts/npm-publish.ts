@@ -1,7 +1,9 @@
 /**
  * Publishes an npm package with OIDC provenance if it already exists on the
- * registry, or falls back to NPM_TOKEN for first-time publishes (OIDC
+ * registry, or falls back to NPM_ACCESS_TOKEN for first-time publishes (OIDC
  * trusted publishing cannot create new packages).
+ *
+ * Skips publishing if the exact version is already on the registry.
  *
  * Usage: node --experimental-strip-types scripts/npm-publish.ts <dir> [--dry-run]
  *
@@ -30,19 +32,25 @@ const pkg: PackageJson = JSON.parse(
   readFileSync(join(dir, "package.json"), "utf8"),
 );
 
-function packageExistsOnNpm(name: string): boolean {
+function getPublishedVersion(name: string): string | null {
   try {
-    execSync(`npm view ${name} version`, { stdio: "pipe" });
-    return true;
+    return execSync(`npm view ${name} version`, { stdio: "pipe" })
+      .toString()
+      .trim();
   } catch {
-    return false;
+    return null;
   }
 }
 
-const exists = packageExistsOnNpm(pkg.name);
+const publishedVersion = getPublishedVersion(pkg.name);
 const dryRunFlag = dryRun ? " --dry-run" : "";
 
-if (exists) {
+if (publishedVersion === pkg.version) {
+  console.log(`⏭️  ${pkg.name}@${pkg.version} — already published, skipping`);
+  process.exit(0);
+}
+
+if (publishedVersion) {
   console.log(`📦 ${pkg.name}@${pkg.version} — exists on npm, using OIDC provenance`);
   execSync(`npm publish --access public --provenance${dryRunFlag}`, {
     cwd: dir,
@@ -54,7 +62,7 @@ if (exists) {
     console.error(`❌ ${pkg.name} is new but NPM_ACCESS_TOKEN is not set — cannot publish`);
     process.exit(1);
   }
-  console.log(`🆕 ${pkg.name}@${pkg.version} — first publish, using NPM_TOKEN`);
+  console.log(`🆕 ${pkg.name}@${pkg.version} — first publish, using NPM_ACCESS_TOKEN`);
   execSync(
     `npm publish --access public --registry https://registry.npmjs.org/${dryRunFlag}`,
     {
@@ -62,7 +70,6 @@ if (exists) {
       stdio: "inherit",
       env: {
         ...process.env,
-        // Token-based auth, no provenance (requires OIDC)
         NODE_AUTH_TOKEN: token,
         NPM_CONFIG_PROVENANCE: "false",
       },
