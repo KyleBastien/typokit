@@ -296,7 +296,11 @@ jobs:
       # can be versioned and published in lock-step with the main packages.
 
       - name: "Release: Version"
-        run: pnpm nx release version
+        id: version
+        run: |
+          pnpm nx release version
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
@@ -319,7 +323,7 @@ jobs:
           NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
 
       - name: "Release: Changelog"
-        run: pnpm nx release changelog
+        run: pnpm nx release changelog ${{ steps.version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
