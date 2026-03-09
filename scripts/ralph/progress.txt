@@ -17,6 +17,8 @@ Started: 03/08/2026 23:22:45
 - NestJS requires experimentalDecorators + emitDecoratorMetadata in tsconfig (enabled in benchmarks tsconfig.json)
 - AdonisJS v6 can't work in single-file mode; benchmark uses AdonisJS-style HTTP context/middleware pattern
 - tRPC standalone adapter needs URL rewriting for REST-style /db/:id → /db?input={"id":X}
+- Astro components can't use `import.meta.dirname` — use `fileURLToPath` + `dirname()` instead
+- Starlight sidebar fails at build time if referenced slugs don't exist — always create stub pages
 
 ---
 
@@ -202,4 +204,84 @@ Started: 03/08/2026 23:22:45
   - Validation analysis is computed post-hoc from the three validate scenario results grouped by framework|platform|server
   - Passthrough endpoint has NO validators in the route table — this is the key to measuring TypoKit validator framework overhead
   - Handwritten validation bypasses ValidatorMap entirely — validation happens inline in the handler, measuring framework dispatch overhead
+---
+
+## 2026-03-09T08:24 - US-014
+- What was implemented: Non-HTTP serialization microbenchmark comparing 3 serializers
+  - JSON.stringify (native baseline)
+  - fast-json-stringify (schema-compiled, popular npm package)
+  - TypoKit compiled serializer (direct property access, build-time generated)
+- Files changed:
+  - packages/benchmarks/src/microbench/serialization.ts (new: microbenchmark harness with configurable iterations, warmup, timing, summary table)
+  - packages/benchmarks/src/types.ts (added MicrobenchmarkResult interface)
+  - packages/benchmarks/src/results.ts (added microbenchmarks key to ResultsFile, updated writeTimestampedResults and mergeLatestResults)
+  - packages/benchmarks/src/runner.ts (added serialization to Scenario type, split HttpScenario vs Scenario, integrated microbenchmark in main())
+  - packages/benchmarks/package.json (added fast-json-stringify devDependency)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - The Scenario type needed splitting into HttpScenario (used by SCENARIO_DEFS/benchmarkScenario) and Scenario (union of HttpScenario | serialization) to avoid type errors with Record<Scenario, ScenarioDef>
+  - fast-json-stringify types work with tsc --noEmit (typecheck) but may show TS2769 under tsc -p tsconfig.lib.json (build) -- same pre-existing build failure pattern as Bun/Deno files
+  - performance.now() returns milliseconds; multiply by 1_000_000 for nanosecond precision in microbenchmarks
+  - Float64Array is more efficient than number[] for large timing arrays (1M iterations)
+  - Microbenchmark results use a separate merge key (name|serializer) distinct from HTTP benchmark composite key (framework|platform|server|scenario)
+---
+
+## 2026-03-09T08:33 - US-015
+- What was implemented: GitHub Actions benchmark workflow with PR regression detection and main branch full suite
+- Files changed:
+  - .github/workflows/benchmark.yml (new: CI workflow with check-affected, bench-pr, and bench-main jobs)
+  - packages/benchmarks/src/compare-baseline.ts (new: baseline comparison script with >10% regression threshold, markdown output)
+  - packages/benchmarks/project.json (updated: bench-baseline target now clears latest.json, runs bench-ci filter, copies to baseline.json)
+- **Learnings for future iterations:**
+  - The BenchmarkResult.framework field stores the full app name (e.g., "typokit-node-native"), NOT the framework category ("typokit")
+  - ESLint CRLF fix is needed for every new .ts file created on Windows — consistent with previous iterations
+  - actions-rust-lang/setup-rust-toolchain@v1 is the correct action for Rust setup in CI (different from dtolnay/rust-toolchain@stable used in ci.yml)
+  - The docs.yml workflow already supports workflow_dispatch, so bench-main can trigger docs deploy via createWorkflowDispatch API
+  - nx show projects --affected is the correct way to check if a specific package is affected in CI
+  - PR comment uses "## Benchmark Results vs Baseline" as marker to find/update existing comments
+---
+
+## 2026-03-09T08:41 - US-016
+- What was implemented: Docs site Benchmarks page with Chart.js interactive charts
+  - Performance sidebar section added to astro.config.mjs
+  - BenchmarkCharts.astro component: reads latest.json at build time, falls back to sample data
+  - 4 bar charts (JSON, Validate, DB req/s on log scale; Startup on linear)
+  - Platform × Server heatmap (13 TypoKit combinations, Rust/Axum distinguished in orange)
+  - Latency percentile comparison table (top 15 frameworks)
+  - Consistent color scheme: purple=TypoKit, orange=Rust, gray=raw, named colors for competitors
+  - Methodology stub page (placeholder for US-017)
+  - chart.js added to docs package.json, CDN script for client-side rendering
+- Files changed:
+  - packages/docs/astro.config.mjs (added Performance sidebar section, Chart.js CDN script tag)
+  - packages/docs/package.json (added chart.js dependency)
+  - packages/docs/src/components/BenchmarkCharts.astro (new: full chart component with build-time data loading)
+  - packages/docs/src/content/docs/performance/benchmarks.mdx (new: Benchmarks overview page)
+  - packages/docs/src/content/docs/performance/methodology.mdx (new: methodology stub for US-017)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - Astro components can't use `import.meta.dirname` — use `fileURLToPath(import.meta.url)` + `dirname()` instead
+  - Chart.js is loaded via CDN in Starlight head config; Astro `<script define:vars>` passes serialized data to client
+  - Starlight sidebar fails at build time if referenced slugs don't exist — create stub pages for all sidebar entries
+  - Sample data generation at build time allows docs to build even before benchmarks are run
+  - The docs build takes ~34s and validates all sidebar entries, content, and component imports
+---
+
+## 2026-03-09T08:49 - US-017
+- What was implemented: Full Methodology documentation page for the benchmark suite
+  - CI runner hardware specs section
+  - Bombardier settings (default: 100 conn/30s/5s warmup/3 runs, CI: 50 conn/10s/1 run)
+  - All 8 scenarios documented (json, validate, validate-passthrough, validate-handwritten, db, middleware, startup, serialization)
+  - Complete framework list with 25 apps (13 TypoKit, 4 raw, 8 competitor) with versions and links
+  - Local reproduction instructions with prerequisites and all CLI commands
+  - Nx affected scoping explanation (partial runs, cumulative latest.json merge, skip conditions)
+  - CI regression detection documentation (baseline.json, 10% threshold, PR comments, main branch workflow)
+  - Results format documentation with example JSON
+  - Methodology sidebar entry already existed from US-016
+- Files changed:
+  - packages/docs/src/content/docs/performance/methodology.mdx (replaced stub with full documentation)
+  - scripts/ralph/prd.json (US-017 passes set to true)
+- **Learnings for future iterations:**
+  - The methodology.mdx stub was already created by US-016 with sidebar entry — only content needed replacing
+  - Astro/Starlight .mdx files support standard markdown tables and code blocks without special imports
+  - LinkCard component from @astrojs/starlight/components is useful for cross-page navigation
 ---
