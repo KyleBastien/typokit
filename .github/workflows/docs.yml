@@ -6,6 +6,7 @@ on:
     paths:
       - "packages/docs/**"
       - "packages/*/src/**"
+      - "!packages/benchmarks/**"
       - "typokit-arch.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/docs.yml"

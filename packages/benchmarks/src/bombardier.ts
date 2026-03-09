@@ -270,6 +270,15 @@ export async function runBombardier(
     maxBuffer: 10 * 1024 * 1024,
   });
 
-  const json: BombardierJsonOutput = JSON.parse(stdout) as BombardierJsonOutput;
+  // bombardier prints a "Bombarding <url>..." preamble before the JSON object
+  const jsonStart = stdout.indexOf("{");
+  if (jsonStart === -1) {
+    throw new Error(
+      `bombardier produced no JSON output: ${stdout.slice(0, 200)}`,
+    );
+  }
+  const json: BombardierJsonOutput = JSON.parse(
+    stdout.slice(jsonStart),
+  ) as BombardierJsonOutput;
   return parseBombardierOutput(json);
 }
