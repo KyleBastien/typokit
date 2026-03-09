@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -137,7 +138,7 @@ jobs:
 
   bench-main:
     needs: check-affected
-    if: needs.check-affected.outputs.affected == 'true' && github.event_name == 'push'
+    if: needs.check-affected.outputs.affected == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
 
     permissions:
@@ -163,6 +164,14 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -172,26 +181,17 @@ jobs:
       - name: Run full benchmark suite
         run: pnpm nx run benchmarks:bench
 
-      - name: Check for result changes
-        id: changes
-        run: |
-          if git diff --quiet -- packages/benchmarks/results/latest.json 2>/dev/null; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Commit updated results
-        if: steps.changes.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/benchmarks/results/latest.json
-          git commit -m "chore(benchmarks): update benchmark results [skip ci]"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(benchmarks): update benchmark results [skip ci]"
+            git push
+          fi
 
       - name: Trigger docs deploy
-        if: steps.changes.outputs.changed == 'true'
         uses: actions/github-script@v7
         with:
           script: |
