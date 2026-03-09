@@ -45,13 +45,5 @@
     "type": "git",
     "url": "https://github.com/KyleBastien/typokit",
     "directory": "packages/plugin-axum"
-  },
-  "optionalDependencies": {
-    "@typokit/plugin-axum-darwin-arm64": "0.2.1",
-    "@typokit/plugin-axum-darwin-x64": "0.2.1",
-    "@typokit/plugin-axum-linux-arm64-gnu": "0.2.1",
-    "@typokit/plugin-axum-linux-x64-gnu": "0.2.1",
-    "@typokit/plugin-axum-linux-x64-musl": "0.2.1",
-    "@typokit/plugin-axum-win32-x64-msvc": "0.2.1"
   }
 }
