@@ -3,6 +3,7 @@ Started: 03/08/2026 23:22:45
 
 ## Codebase Patterns
 - Benchmarks package uses Nx auto-infer (no project.json needed) — consistent with all packages
+- Benchmarks project.json defines custom targets (bench, bench-ci, etc.) with nx:run-commands executor
 - pnpm-workspace.yaml `packages/*` glob auto-detects new packages
 - Raw baseline apps use hand-written routing (no framework) — same 5 endpoints as TypoKit apps
 - ESLint enforces LF line endings — use `eslint --fix` to auto-convert CRLF on Windows
@@ -12,7 +13,10 @@ Started: 03/08/2026 23:22:45
 - Axum 0.8 path params use `{id}` syntax (not `:id`)
 - For rusqlite in Axum, use `Arc<Mutex<Connection>>` + `spawn_blocking` since Connection is Send but not Sync
 - Build target (tsc -p tsconfig.lib.json) fails on Bun/Deno files; typecheck (tsc --noEmit) is the real quality gate
-- Competitor apps use each framework's recommended validation (JSON Schema for Fastify, TypeBox for Elysia, manual for others)
+- Competitor apps use each framework's recommended validation (JSON Schema for Fastify, TypeBox for Elysia, Zod for tRPC, manual for others)
+- NestJS requires experimentalDecorators + emitDecoratorMetadata in tsconfig (enabled in benchmarks tsconfig.json)
+- AdonisJS v6 can't work in single-file mode; benchmark uses AdonisJS-style HTTP context/middleware pattern
+- tRPC standalone adapter needs URL rewriting for REST-style /db/:id → /db?input={"id":X}
 
 ---
 
@@ -110,4 +114,92 @@ Started: 03/08/2026 23:22:45
   - Hono on Node.js requires @hono/node-server with serve() function
   - Koa requires @koa/router for routing and @koa/bodyparser for JSON body parsing
   - Build target (tsc -p tsconfig.lib.json) fails on Bun/Deno files but typecheck (tsc --noEmit) passes - typecheck is the real quality gate
+---
+
+## 2026-03-09T07:32 - US-009
+- What was implemented: 4 new competitor framework benchmark apps (tRPC, NestJS, H3/Nitro, AdonisJS)
+- Files changed:
+  - packages/benchmarks/src/apps/competitor-trpc.ts (new: tRPC 10 with standalone HTTP adapter, Zod validation, URL rewriting for /db/:id)
+  - packages/benchmarks/src/apps/competitor-nestjs.ts (new: NestJS 10 with Express platform, decorators, hand-written validation)
+  - packages/benchmarks/src/apps/competitor-h3.ts (new: H3/Nitro with createApp/createRouter, onRequest hooks for middleware)
+  - packages/benchmarks/src/apps/competitor-adonis.ts (new: AdonisJS-style HTTP server with context creation, middleware chain, router)
+  - packages/benchmarks/src/apps/index.ts (added 4 new competitor app exports)
+  - packages/benchmarks/package.json (added h3, @trpc/server, zod, @nestjs/*, reflect-metadata dependencies)
+  - packages/benchmarks/tsconfig.json (added experimentalDecorators + emitDecoratorMetadata for NestJS)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - NestJS requires experimentalDecorators and emitDecoratorMetadata in tsconfig; added only to benchmarks tsconfig.json
+  - AdonisJS v6 cannot work in single-file mode; benchmark uses AdonisJS-style HTTP context/middleware/router pattern
+  - tRPC standalone adapter serves at /<name> paths; URL rewriting maps /db/:id to /db?input={"id":X}
+  - H3 defineEventHandler supports onRequest hooks array for route-specific middleware
+  - reflect-metadata must be imported before any NestJS decorators
+---
+
+## 2026-03-09T07:48 - US-010
+- What was implemented: Benchmark runner core with full orchestration and Nx CLI targets
+- Files changed:
+  - packages/benchmarks/src/runner.ts (new: main runner with app registry, CLI arg parsing, orchestration, summary table, results file output)
+  - packages/benchmarks/src/subprocess-entry.ts (new: generic subprocess launcher for Bun/Deno apps)
+  - packages/benchmarks/src/bombardier.ts (modified: added method/body/headers to BombardierRunConfig for POST scenario support)
+  - packages/benchmarks/project.json (new: Nx targets — bench, bench-ci, bench-baseline, bench-info, bench-reproduce)
+  - packages/benchmarks/results/.gitkeep (new: results output directory)
+  - packages/benchmarks/package.json (added tsx devDependency)
+  - package.json (added root bench scripts)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - project.json with nx:run-commands executor works alongside Nx auto-infer for custom targets
+  - tsx is needed as devDep for running TypeScript benchmark scripts directly (no build step required)
+  - Bombardier supports POST via `-m POST -b <body> -H "header: value"` flags; execFile avoids shell escaping issues
+  - Cross-runtime subprocess management uses subprocess-entry.ts which dynamically imports app modules and reports port via stdout
+  - Rust binary names come from Cargo.toml `[package] name` field, not the directory name (e.g., `typokit-benchmark-axum` not `typokit-rust-axum`)
+  - Direct-mode apps (Node.js) use dynamic imports `await import("./apps/<name>.ts")` — works with tsx
+---
+## 2026-03-09T08:03 - US-011
+- What was implemented: Results aggregation module (results.ts) with summary table, cumulative latest.json merge, and bombardier version in system info
+- Files changed:
+  - packages/benchmarks/src/results.ts (new: formatSummaryTable, printSummaryTable, writeTimestampedResults, mergeLatestResults, averageSuiteRuns, getBombardierVersion)
+  - packages/benchmarks/src/runner.ts (refactored: removed old printSummaryTable/writeResults/padLeft/padRight, imports from results.ts, async collectSystemInfo with bombardier version, main() calls mergeLatestResults)
+  - packages/benchmarks/src/types.ts (added bombardierVersion to SystemInfo)
+- **Learnings for future iterations:**
+  - Summary tables are grouped by scenario with Rank, vs. Fastest (%) computed from highest req/s in each group
+  - Cumulative merge uses composite key: framework|platform|server|scenario -- new results overwrite matching entries, others preserved
+  - Results files now use ResultsFile wrapper { version, generatedAt, results } for forward compatibility; legacy raw arrays also supported on read
+  - getBombardierVersion() runs `bombardier --version` and parses the version string
+---
+## 2026-03-09T08:09 - US-012
+- What was implemented: System info collection module (system-info.ts) with comprehensive runtime detection, JSON bench-info output, and full bench-reproduce instructions
+- Files changed:
+  - packages/benchmarks/src/system-info.ts (new: collectSystemInfo, formatSystemInfoJson, formatReproduceInstructions with Bun/Deno/Rust detection)
+  - packages/benchmarks/src/runner.ts (refactored: removed inline collectSystemInfo, imports from system-info.ts, printSystemInfo outputs JSON, printReproduceInfo uses full step-by-step instructions)
+- **Learnings for future iterations:**
+  - `bun --version` outputs just the version number (e.g., "1.1.12"), while `deno --version` and `rustc --version` need regex parsing
+  - ESLint CRLF fix pattern applies to all new .ts files created on Windows — always run eslint --fix after creating files
+  - The printSystemInfo function now outputs parseable JSON; consumer scripts can pipe through `jq` for specific fields
+  - The reproduce instructions include both exact reproduction (with config from latest results) and generic defaults when no results exist
+---
+
+## 2026-03-09T08:15 - US-013
+- What was implemented: Validation overhead isolation variants for all 13 TypoKit benchmark apps
+  - `/validate-passthrough` endpoint (no validation, body passthrough)
+  - `/validate-handwritten` endpoint (inline if/typeof validation, bypasses TypoKit validator framework)
+  - Runner scenarios `validate-passthrough` and `validate-handwritten` (TypoKit-only, skipped for raw/competitor apps)
+  - Validation Overhead Analysis table in summary output showing vs-passthrough and vs-handwritten deltas
+  - `validationAnalysis` field in results JSON (timestamped + latest.json)
+  - `ValidationAnalysisEntry` type in types.ts
+- Files changed:
+  - packages/benchmarks/src/apps/shared-routes.ts (new route table entries, handwrittenValidate function, passthrough/handwritten handlers)
+  - packages/benchmarks/src/apps/shared-routes-bun.ts (passthrough/handwritten handlers, re-export handwrittenValidate)
+  - packages/benchmarks/src/apps/shared-routes-deno.ts (passthrough/handwritten handlers, re-export handwrittenValidate)
+  - packages/benchmarks/src/apps/index.ts (added handwrittenValidate export)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/handlers.rs (post_validate_passthrough, post_validate_handwritten handlers)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/main.rs (registered new routes)
+  - packages/benchmarks/src/runner.ts (Scenario type expanded, SCENARIO_DEFS, TYPOKIT_ONLY_SCENARIOS set, filtering in run loop)
+  - packages/benchmarks/src/types.ts (ValidationAnalysisEntry interface)
+  - packages/benchmarks/src/results.ts (computeValidationAnalysis, formatValidationAnalysis, updated writeTimestampedResults and mergeLatestResults)
+- **Learnings for future iterations:**
+  - The handwrittenValidate function is exported from shared-routes.ts and reused by bun/deno variants to avoid duplication
+  - TYPOKIT_ONLY_SCENARIOS set in runner.ts controls which scenarios are skipped for non-TypoKit apps (checked via `app.framework !== "typokit"`)
+  - Validation analysis is computed post-hoc from the three validate scenario results grouped by framework|platform|server
+  - Passthrough endpoint has NO validators in the route table — this is the key to measuring TypoKit validator framework overhead
+  - Handwritten validation bypasses ValidatorMap entirely — validation happens inline in the handler, measuring framework dispatch overhead
 ---
