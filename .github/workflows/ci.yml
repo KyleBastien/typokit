@@ -20,6 +20,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-test:
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
 
     permissions:
@@ -62,6 +63,7 @@ jobs:
         run: pnpm nx affected -t test
 
   e2e:
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
 
     permissions:
