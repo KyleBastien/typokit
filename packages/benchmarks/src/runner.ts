@@ -77,6 +77,10 @@ interface RunnerConfig {
   readonly runs: number;
 }
 
+type MutableRunnerConfig = {
+  -readonly [K in keyof RunnerConfig]: RunnerConfig[K];
+};
+
 interface ScenarioDef {
   readonly path: string;
   readonly method?: string;
@@ -764,7 +768,7 @@ function parseArgs(): {
 } {
   const args = process.argv.slice(2);
   let mode: "run" | "info" | "reproduce" = "run";
-  const overrides: { -readonly [K in keyof RunnerConfig]?: RunnerConfig[K] } = {};
+  const overrides: Partial<MutableRunnerConfig> = {};
   const scenarios: Scenario[] = [];
 
   for (let i = 0; i < args.length; i++) {
