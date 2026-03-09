@@ -20,6 +20,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-test:
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
 
     permissions:
@@ -62,6 +63,7 @@ jobs:
         run: pnpm nx affected -t test
 
   e2e:
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
 
     permissions:
@@ -324,6 +326,13 @@ jobs:
               node --experimental-strip-types scripts/npm-publish.ts "$dir"
             fi
           done
+        env:
+          NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+
+      - name: "Release: Publish native main packages"
+        run: |
+          node --experimental-strip-types scripts/npm-publish.ts packages/transform-native
+          node --experimental-strip-types scripts/npm-publish.ts packages/plugin-axum
         env:
           NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
 
