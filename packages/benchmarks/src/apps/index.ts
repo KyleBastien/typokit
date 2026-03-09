@@ -24,4 +24,8 @@ export { start as startTypokitDenoFastify } from "./typokit-deno-fastify.ts";
 export { start as startTypokitDenoHono } from "./typokit-deno-hono.ts";
 export { start as startTypokitDenoExpress } from "./typokit-deno-express.ts";
 
+export { start as startRawNode } from "./raw-node.ts";
+export { start as startRawBun } from "./raw-bun.ts";
+export { start as startRawDeno } from "./raw-deno.ts";
+
 export type { BenchmarkHandle } from "./typokit-node-native.ts";
