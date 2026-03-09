@@ -1,11 +1,10 @@
 ---
 /**
  * BenchmarkCharts.astro — Build-time chart rendering for benchmark results.
- * Imports latest.json from the benchmarks package and renders Chart.js charts
- * via client-side <script> initialization on <canvas> elements.
+ * Reads latest.json (committed by CI) from the benchmarks package and renders
+ * Chart.js charts via client-side <script> initialization on <canvas> elements.
  */
 
-// At build time, try to load latest.json; fall back to sample data if not available.
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,178 +29,29 @@ interface BenchmarkResult {
 
 interface ResultsFile {
   version: number;
+  generatedAt?: string;
   results: BenchmarkResult[];
 }
 
-// Resolve path to benchmarks results
+// Resolve path to benchmarks results (committed by CI on main)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const resultsPath = resolve(
   __dirname,
-  "../../../../benchmarks/results/latest.json"
+  "../../../benchmarks/results/latest.json"
 );
 
-let resultsData: ResultsFile;
-if (existsSync(resultsPath)) {
-  resultsData = JSON.parse(readFileSync(resultsPath, "utf-8"));
-  // Handle legacy raw arrays
-  if (Array.isArray(resultsData)) {
-    resultsData = { version: 1, results: resultsData as unknown as BenchmarkResult[] };
-  }
-} else {
-  // Sample data for docs builds before benchmarks have been run
-  resultsData = generateSampleData();
-}
+const hasResults = existsSync(resultsPath);
+const resultsData: ResultsFile = hasResults
+  ? JSON.parse(readFileSync(resultsPath, "utf-8"))
+  : { version: 1, results: [] };
 
-function generateSampleData(): ResultsFile {
-  const typoKitCombos = [
-    { platform: "node", server: "native" },
-    { platform: "node", server: "fastify" },
-    { platform: "node", server: "hono" },
-    { platform: "node", server: "express" },
-    { platform: "bun", server: "native" },
-    { platform: "bun", server: "fastify" },
-    { platform: "bun", server: "hono" },
-    { platform: "bun", server: "express" },
-    { platform: "deno", server: "native" },
-    { platform: "deno", server: "fastify" },
-    { platform: "deno", server: "hono" },
-    { platform: "deno", server: "express" },
-    { platform: "rust", server: "axum" },
-  ];
-
-  const rawApps = [
-    { framework: "raw", platform: "node", server: "http" },
-    { framework: "raw", platform: "bun", server: "bun-serve" },
-    { framework: "raw", platform: "deno", server: "deno-serve" },
-    { framework: "raw", platform: "rust", server: "axum" },
-  ];
-
-  const competitors = [
-    { framework: "express", platform: "node", server: "standalone" },
-    { framework: "fastify", platform: "node", server: "standalone" },
-    { framework: "hono", platform: "node", server: "standalone" },
-    { framework: "koa", platform: "node", server: "standalone" },
-    { framework: "elysia", platform: "bun", server: "standalone" },
-    { framework: "trpc", platform: "node", server: "standalone" },
-    { framework: "nestjs", platform: "node", server: "standalone" },
-    { framework: "h3", platform: "node", server: "standalone" },
-    { framework: "adonis", platform: "node", server: "standalone" },
-  ];
-
-  const scenarios = ["json", "validate", "db", "middleware", "startup"];
-
-  // Realistic-ish sample throughput values (req/s) per scenario
-  const baseThroughput: Record<string, Record<string, number>> = {
-    json: {
-      "typokit-rust-axum": 320000,
-      "typokit-bun-native": 185000,
-      "typokit-bun-hono": 170000,
-      "typokit-bun-fastify": 155000,
-      "typokit-bun-express": 95000,
-      "typokit-deno-native": 145000,
-      "typokit-deno-hono": 140000,
-      "typokit-deno-fastify": 130000,
-      "typokit-deno-express": 80000,
-      "typokit-node-native": 125000,
-      "typokit-node-hono": 115000,
-      "typokit-node-fastify": 110000,
-      "typokit-node-express": 55000,
-      "raw-rust-axum": 350000,
-      "raw-bun-bun-serve": 200000,
-      "raw-deno-deno-serve": 160000,
-      "raw-node-http": 135000,
-      "express-node-standalone": 38000,
-      "fastify-node-standalone": 95000,
-      "hono-node-standalone": 105000,
-      "koa-node-standalone": 45000,
-      "elysia-bun-standalone": 175000,
-      "trpc-node-standalone": 60000,
-      "nestjs-node-standalone": 35000,
-      "h3-node-standalone": 85000,
-      "adonis-node-standalone": 30000,
-    },
-  };
-
-  const results: BenchmarkResult[] = [];
-  const latency = (rps: number): LatencyPercentiles => ({
-    p50: Math.round((1000 / rps) * 1e6 * 50) / 100,
-    p75: Math.round((1000 / rps) * 1e6 * 75) / 100,
-    p90: Math.round((1000 / rps) * 1e6 * 120) / 100,
-    p95: Math.round((1000 / rps) * 1e6 * 180) / 100,
-    p99: Math.round((1000 / rps) * 1e6 * 400) / 100,
-  });
-
-  for (const scenario of scenarios) {
-    // TypoKit combos
-    for (const combo of typoKitCombos) {
-      const key = `typokit-${combo.platform}-${combo.server}`;
-      const jsonRps = baseThroughput.json[key] ?? 80000;
-      const factor = scenario === "json" ? 1.0
-        : scenario === "validate" ? 0.85
-        : scenario === "db" ? 0.4
-        : scenario === "middleware" ? 0.95
-        : 0.001; // startup → treated as ms not rps
-      const rps = scenario === "startup"
-        ? Math.round(50 + Math.random() * 150)
-        : Math.round(jsonRps * factor);
-      results.push({
-        framework: `typokit-${combo.platform}-${combo.server}`,
-        platform: combo.platform,
-        server: combo.server,
-        scenario,
-        reqPerSec: rps,
-        latency: latency(scenario === "startup" ? 100000 : rps),
-        errors: 0,
-      });
-    }
-    // Raw baselines
-    for (const raw of rawApps) {
-      const key = `${raw.framework}-${raw.platform}-${raw.server}`;
-      const jsonRps = baseThroughput.json[key] ?? 120000;
-      const factor = scenario === "json" ? 1.0
-        : scenario === "validate" ? 0.9
-        : scenario === "db" ? 0.45
-        : scenario === "middleware" ? 0.98
-        : 0.001;
-      const rps = scenario === "startup"
-        ? Math.round(30 + Math.random() * 100)
-        : Math.round(jsonRps * factor);
-      results.push({
-        framework: `raw-${raw.platform}`,
-        platform: raw.platform,
-        server: raw.server,
-        scenario,
-        reqPerSec: rps,
-        latency: latency(scenario === "startup" ? 100000 : rps),
-        errors: 0,
-      });
-    }
-    // Competitors
-    for (const comp of competitors) {
-      const key = `${comp.framework}-${comp.platform}-${comp.server}`;
-      const jsonRps = baseThroughput.json[key] ?? 50000;
-      const factor = scenario === "json" ? 1.0
-        : scenario === "validate" ? 0.8
-        : scenario === "db" ? 0.35
-        : scenario === "middleware" ? 0.9
-        : 0.001;
-      const rps = scenario === "startup"
-        ? Math.round(100 + Math.random() * 300)
-        : Math.round(jsonRps * factor);
-      results.push({
-        framework: comp.framework,
-        platform: comp.platform,
-        server: comp.server,
-        scenario,
-        reqPerSec: rps,
-        latency: latency(scenario === "startup" ? 100000 : rps),
-        errors: 0,
-      });
-    }
-  }
-
-  return { version: 1, results };
-}
+const generatedAt = resultsData.generatedAt
+  ? new Date(resultsData.generatedAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  : null;
 
 // Group results by scenario
 const resultsByScenario: Record<string, BenchmarkResult[]> = {};
@@ -289,19 +139,24 @@ const colorMap = JSON.stringify(
       .map((f) => [f, getColor(f)])
   )
 );
-
-const isSampleData = !existsSync(resultsPath);
 ---
 
 <div class="benchmark-charts">
-  {isSampleData && (
-    <aside class="sample-data-notice">
+  {!hasResults ? (
+    <aside class="results-pending">
       <p>
-        <strong>📊 Sample Data</strong> — These charts show representative sample
-        data. Run <code>pnpm nx bench benchmarks</code> to generate real results.
+        Benchmark results will appear here after the next CI run on the main branch.
       </p>
     </aside>
-  )}
+  ) : (
+    <>
+      {generatedAt && (
+        <aside class="results-meta">
+          <p>
+            <strong>📊 CI Benchmark Results</strong> — Generated on {generatedAt} from the main branch CI pipeline.
+          </p>
+        </aside>
+      )}
 
   <!-- JSON Scenario -->
   <section class="chart-section">
@@ -431,6 +286,8 @@ const isSampleData = !existsSync(resultsPath);
       </table>
     </div>
   </section>
+    </>
+  )}
 </div>
 
 <style>
@@ -439,7 +296,7 @@ const isSampleData = !existsSync(resultsPath);
     overflow: hidden;
   }
 
-  .sample-data-notice {
+  .results-meta {
     background: var(--sl-color-blue-low);
     border: 1px solid var(--sl-color-blue);
     border-radius: 0.5rem;
@@ -447,9 +304,22 @@ const isSampleData = !existsSync(resultsPath);
     margin-bottom: 1.5rem;
   }
 
-  .sample-data-notice p {
+  .results-meta p {
     margin: 0;
     font-size: 0.9rem;
+  }
+
+  .results-pending {
+    background: var(--sl-color-gray-6);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .results-pending p {
+    margin: 0;
+    color: var(--sl-color-gray-2);
   }
 
   .chart-section {
@@ -572,7 +442,8 @@ const isSampleData = !existsSync(resultsPath);
   }
 </style>
 
-<script define:vars={{ chartData, colorMap }}>
+<script define:vars={{ chartData, colorMap, hasResults }}>
+  if (!hasResults) { /* no charts to render */ } else {
   // Chart.js is loaded via CDN in the page head
   const data = JSON.parse(chartData);
   const colors = JSON.parse(colorMap);
@@ -668,5 +539,6 @@ const isSampleData = !existsSync(resultsPath);
     document.addEventListener("DOMContentLoaded", init);
   } else {
     init();
+  }
   }
 </script>
