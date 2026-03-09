@@ -9,7 +9,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { BenchmarkResult, LatencyPercentiles } from "./types.ts";
+import type {
+  BenchmarkResult,
+  LatencyPercentiles,
+  MicrobenchmarkResult,
+} from "./types.ts";
 import { runBombardier } from "./bombardier.ts";
 import type { BombardierOutput, BombardierRunConfig } from "./bombardier.ts";
 import {
@@ -22,6 +26,10 @@ import {
   formatSystemInfoJson,
   formatReproduceInstructions,
 } from "./system-info.ts";
+import {
+  runSerializationBenchmark,
+  parseSerializationArgs,
+} from "./microbench/serialization.ts";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -29,7 +37,7 @@ const __dirname = join(__filename, "..");
 
 // ─── Types ───────────────────────────────────────────────────
 
-type Scenario =
+type HttpScenario =
   | "json"
   | "validate"
   | "validate-passthrough"
@@ -37,6 +45,8 @@ type Scenario =
   | "db"
   | "middleware"
   | "startup";
+
+type Scenario = HttpScenario | "serialization";
 
 interface AppDef {
   readonly name: string;
@@ -84,6 +94,7 @@ const ALL_SCENARIOS: ReadonlyArray<Scenario> = [
   "db",
   "middleware",
   "startup",
+  "serialization",
 ];
 
 const DEFAULT_RUNNER_CONFIG: RunnerConfig = {
@@ -103,7 +114,7 @@ const VALID_POST_BODY = JSON.stringify({
   author: { name: "Bench Runner", email: "bench@test.com" },
 });
 
-const SCENARIO_DEFS: Readonly<Record<Scenario, ScenarioDef>> = {
+const SCENARIO_DEFS: Readonly<Record<HttpScenario, ScenarioDef>> = {
   json: { path: "/json" },
   validate: {
     path: "/validate",
@@ -129,7 +140,7 @@ const SCENARIO_DEFS: Readonly<Record<Scenario, ScenarioDef>> = {
 };
 
 /** Scenarios that only apply to TypoKit framework apps */
-const TYPOKIT_ONLY_SCENARIOS: ReadonlySet<Scenario> = new Set([
+const TYPOKIT_ONLY_SCENARIOS: ReadonlySet<HttpScenario> = new Set([
   "validate-passthrough",
   "validate-handwritten",
 ]);
@@ -556,7 +567,7 @@ function averageOutputs(results: ReadonlyArray<BombardierOutput>): {
 
 async function benchmarkScenario(
   port: number,
-  scenario: Scenario,
+  scenario: HttpScenario,
   config: RunnerConfig,
 ): Promise<{ reqPerSec: number; latency: LatencyPercentiles; errors: number }> {
   const scenarioDef = SCENARIO_DEFS[scenario];
@@ -640,16 +651,23 @@ async function runSuite(config: RunnerConfig): Promise<BenchmarkResult[]> {
 
       // Run each scenario
       for (const scenario of config.scenarios) {
+        // Skip non-HTTP scenarios (handled separately)
+        if (scenario === "serialization") continue;
+        const httpScenario = scenario as HttpScenario;
         // Skip TypoKit-only scenarios for non-TypoKit apps
         if (
-          TYPOKIT_ONLY_SCENARIOS.has(scenario) &&
+          TYPOKIT_ONLY_SCENARIOS.has(httpScenario) &&
           app.framework !== "typokit"
         ) {
           continue;
         }
-        log(`  Benchmarking: ${scenario}`);
+        log(`  Benchmarking: ${httpScenario}`);
         try {
-          const avg = await benchmarkScenario(handle.port, scenario, config);
+          const avg = await benchmarkScenario(
+            handle.port,
+            httpScenario,
+            config,
+          );
           const result: BenchmarkResult = {
             framework: app.name,
             platform: app.platform,
@@ -827,16 +845,39 @@ async function main(): Promise<void> {
     "\n\u2500\u2500\u2500 TypoKit Benchmark Suite \u2500\u2500\u2500\n",
   );
 
-  const results = await runSuite(config);
+  // Separate serialization microbenchmark from HTTP scenarios
+  const httpScenarios = config.scenarios.filter((s) => s !== "serialization");
+  const hasSerialization = config.scenarios.includes("serialization");
 
-  if (results.length > 0) {
-    printSummaryTable(results);
+  let microResults: MicrobenchmarkResult[] = [];
 
-    const resultsDir = join(__dirname, "..", "results");
-    const filePath = await writeTimestampedResults(results, resultsDir);
+  // Run HTTP benchmarks if there are HTTP scenarios to run
+  const results =
+    httpScenarios.length > 0
+      ? await runSuite({ ...config, scenarios: httpScenarios })
+      : [];
+
+  // Run serialization microbenchmark if requested
+  if (hasSerialization) {
+    const microConfig = parseSerializationArgs(process.argv.slice(2));
+    microResults = runSerializationBenchmark(microConfig);
+  }
+
+  const resultsDir = join(__dirname, "..", "results");
+
+  if (results.length > 0 || microResults.length > 0) {
+    if (results.length > 0) {
+      printSummaryTable(results);
+    }
+
+    const filePath = await writeTimestampedResults(
+      results,
+      resultsDir,
+      microResults,
+    );
     log(`Results written to ${filePath}`);
 
-    const merged = await mergeLatestResults(results, resultsDir);
+    const merged = await mergeLatestResults(results, resultsDir, microResults);
     log(
       `latest.json updated: ${String(merged.length)} total result(s) (${String(results.length)} new/updated)`,
     );

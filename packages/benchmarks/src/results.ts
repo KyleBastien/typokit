@@ -8,6 +8,7 @@ import { execFile } from "node:child_process";
 import type {
   BenchmarkResult,
   LatencyPercentiles,
+  MicrobenchmarkResult,
   ValidationAnalysisEntry,
 } from "./types.ts";
 import { getBombardierPath } from "./bombardier.ts";
@@ -22,6 +23,7 @@ export interface ResultsFile {
   readonly generatedAt: string;
   readonly results: ReadonlyArray<BenchmarkResult>;
   readonly validationAnalysis?: ReadonlyArray<ValidationAnalysisEntry>;
+  readonly microbenchmarks?: ReadonlyArray<MicrobenchmarkResult>;
 }
 
 /** A row in the summary table, enriched with ranking data */
@@ -365,6 +367,7 @@ export function formatValidationAnalysis(
 export async function writeTimestampedResults(
   results: ReadonlyArray<BenchmarkResult>,
   resultsDir: string,
+  microbenchmarks?: ReadonlyArray<MicrobenchmarkResult>,
 ): Promise<string> {
   await mkdir(resultsDir, { recursive: true });
 
@@ -378,6 +381,9 @@ export async function writeTimestampedResults(
     generatedAt: new Date().toISOString(),
     results,
     ...(analysis.length > 0 ? { validationAnalysis: analysis } : {}),
+    ...(microbenchmarks && microbenchmarks.length > 0
+      ? { microbenchmarks }
+      : {}),
   };
 
   await writeFile(filePath, JSON.stringify(file, null, 2) + "\n");
@@ -395,12 +401,14 @@ export async function writeTimestampedResults(
 export async function mergeLatestResults(
   newResults: ReadonlyArray<BenchmarkResult>,
   resultsDir: string,
+  newMicrobenchmarks?: ReadonlyArray<MicrobenchmarkResult>,
 ): Promise<ReadonlyArray<BenchmarkResult>> {
   await mkdir(resultsDir, { recursive: true });
   const latestPath = join(resultsDir, "latest.json");
 
   // Load existing results if available
   let existing: BenchmarkResult[] = [];
+  let existingMicro: MicrobenchmarkResult[] = [];
   try {
     const raw = await readFile(latestPath, "utf-8");
     const parsed: unknown = JSON.parse(raw);
@@ -414,7 +422,11 @@ export async function mergeLatestResults(
       "results" in parsed
     ) {
       // ResultsFile format
-      existing = [...(parsed as ResultsFile).results] as BenchmarkResult[];
+      const rf = parsed as ResultsFile;
+      existing = [...rf.results] as BenchmarkResult[];
+      if (rf.microbenchmarks) {
+        existingMicro = [...rf.microbenchmarks] as MicrobenchmarkResult[];
+      }
     }
   } catch {
     // No existing file or invalid JSON — start fresh
@@ -433,12 +445,25 @@ export async function mergeLatestResults(
 
   const mergedArray = [...merged.values()];
 
+  // Merge microbenchmarks by name+serializer key
+  const microMap = new Map<string, MicrobenchmarkResult>();
+  for (const m of existingMicro) {
+    microMap.set(`${m.name}|${m.serializer}`, m);
+  }
+  if (newMicrobenchmarks) {
+    for (const m of newMicrobenchmarks) {
+      microMap.set(`${m.name}|${m.serializer}`, m);
+    }
+  }
+  const mergedMicro = [...microMap.values()];
+
   const analysis = computeValidationAnalysis(mergedArray);
   const file: ResultsFile = {
     version: 1,
     generatedAt: new Date().toISOString(),
     results: mergedArray,
     ...(analysis.length > 0 ? { validationAnalysis: analysis } : {}),
+    ...(mergedMicro.length > 0 ? { microbenchmarks: mergedMicro } : {}),
   };
 
   await writeFile(latestPath, JSON.stringify(file, null, 2) + "\n");

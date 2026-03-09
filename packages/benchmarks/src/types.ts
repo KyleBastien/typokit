@@ -47,6 +47,17 @@ export interface BenchmarkResult {
   readonly config: BenchmarkConfig;
 }
 
+/** Result of a single microbenchmark (non-HTTP, in-process) */
+export interface MicrobenchmarkResult {
+  readonly name: string;
+  readonly serializer: string;
+  readonly iterations: number;
+  readonly opsPerSec: number;
+  readonly meanTimeNs: number;
+  readonly p99TimeNs: number;
+  readonly timestamp: string;
+}
+
 /** Validation overhead analysis entry computed from validate/passthrough/handwritten scenarios */
 export interface ValidationAnalysisEntry {
   readonly framework: string;

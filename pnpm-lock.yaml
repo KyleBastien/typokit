@@ -141,6 +141,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.13
+      fast-json-stringify:
+        specifier: ^6.3.0
+        version: 6.3.0
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
