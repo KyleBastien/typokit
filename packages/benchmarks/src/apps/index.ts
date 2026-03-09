@@ -33,5 +33,9 @@ export { start as startCompetitorFastify } from "./competitor-fastify.ts";
 export { start as startCompetitorHono } from "./competitor-hono.ts";
 export { start as startCompetitorKoa } from "./competitor-koa.ts";
 export { start as startCompetitorElysia } from "./competitor-elysia.ts";
+export { start as startCompetitorTrpc } from "./competitor-trpc.ts";
+export { start as startCompetitorNestjs } from "./competitor-nestjs.ts";
+export { start as startCompetitorH3 } from "./competitor-h3.ts";
+export { start as startCompetitorAdonis } from "./competitor-adonis.ts";
 
 export type { BenchmarkHandle } from "./typokit-node-native.ts";

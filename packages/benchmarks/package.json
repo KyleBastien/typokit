@@ -26,6 +26,10 @@
     "@hono/node-server": "^1.19.9",
     "@koa/bodyparser": "^5.1.0",
     "@koa/router": "^13.1.0",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@trpc/server": "^10.45.0",
     "@typokit/core": "workspace:*",
     "@typokit/errors": "workspace:*",
     "@typokit/platform-bun": "workspace:*",
@@ -40,8 +44,11 @@
     "elysia": "^1.2.0",
     "express": "^5.1.0",
     "fastify": "^5.3.3",
+    "h3": "^1.13.0",
     "hono": "^4.12.3",
-    "koa": "^2.15.0"
+    "koa": "^2.15.0",
+    "reflect-metadata": "^0.2.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
