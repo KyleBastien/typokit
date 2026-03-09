@@ -1,3 +1,23 @@
 # Ralph Progress Log
 Started: 03/08/2026 23:22:45
 ---
+
+## 2026-03-09T07:05 - US-005
+- What was implemented: TypoKit Deno benchmark apps for all 4 server adapters (native, fastify, hono, express)
+- Files changed:
+  - packages/benchmarks/src/deno-sqlite.d.ts (new: type declarations for @db/sqlite module)
+  - packages/benchmarks/src/apps/shared-routes-deno.ts (new: Deno-specific resource builder using @db/sqlite)
+  - packages/benchmarks/src/apps/typokit-deno-native.ts (new: native server adapter on Deno)
+  - packages/benchmarks/src/apps/typokit-deno-fastify.ts (new: Fastify adapter on Deno)
+  - packages/benchmarks/src/apps/typokit-deno-hono.ts (new: Hono adapter on Deno)
+  - packages/benchmarks/src/apps/typokit-deno-express.ts (new: Express adapter on Deno)
+  - packages/benchmarks/src/apps/index.ts (added Deno app exports)
+  - packages/benchmarks/package.json (added @typokit/platform-deno dep)
+  - packages/benchmarks/tsconfig.lib.json (Nx synced platform-deno reference)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - @db/sqlite API returns undefined (not null) when no row found - same as better-sqlite3
+  - Deno SQLite type declarations follow same pattern as bun:sqlite - minimal .d.ts with Database/Statement classes
+  - Nx sync auto-detected the new @typokit/platform-deno dependency and added the tsconfig reference automatically
+  - The Deno apps follow identical pattern to Bun apps - only the DB layer (shared-routes-deno.ts) differs; server adapters work via Deno Node compat
+---
