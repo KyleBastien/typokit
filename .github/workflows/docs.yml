@@ -1,15 +1,10 @@
 name: Deploy Docs
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Benchmarks"]
+    types: [completed]
     branches: [main]
-    paths:
-      - "packages/docs/**"
-      - "packages/*/src/**"
-      - "!packages/benchmarks/**"
-      - "typokit-arch.md"
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:
@@ -26,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: pnpm/action-setup@v4
 

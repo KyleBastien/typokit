@@ -191,13 +191,3 @@ jobs:
             git push
           fi
 
-      - name: Trigger docs deploy
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'docs.yml',
-              ref: 'main',
-            });
