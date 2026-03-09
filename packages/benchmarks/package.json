@@ -22,7 +22,19 @@
     "src",
     "fixtures"
   ],
+  "dependencies": {
+    "@typokit/core": "workspace:*",
+    "@typokit/errors": "workspace:*",
+    "@typokit/platform-node": "workspace:*",
+    "@typokit/server-express": "workspace:*",
+    "@typokit/server-fastify": "workspace:*",
+    "@typokit/server-hono": "workspace:*",
+    "@typokit/server-native": "workspace:*",
+    "@typokit/types": "workspace:*",
+    "better-sqlite3": "^11.9.1"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0"
   },
   "repository": {

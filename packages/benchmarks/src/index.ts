@@ -30,3 +30,15 @@ export {
 } from "./bombardier.ts";
 
 export type { BombardierRunConfig, BombardierOutput } from "./bombardier.ts";
+
+export {
+  buildRouteTable,
+  buildAppResources,
+  buildValidatorMap,
+  startTypokitNodeNative,
+  startTypokitNodeFastify,
+  startTypokitNodeHono,
+  startTypokitNodeExpress,
+} from "./apps/index.ts";
+
+export type { BenchmarkAppResources, BenchmarkHandle } from "./apps/index.ts";

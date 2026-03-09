@@ -46,7 +46,38 @@ importers:
         version: 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
 
   packages/benchmarks:
+    dependencies:
+      '@typokit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typokit/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@typokit/platform-node':
+        specifier: workspace:*
+        version: link:../platform-node
+      '@typokit/server-express':
+        specifier: workspace:*
+        version: link:../server-express
+      '@typokit/server-fastify':
+        specifier: workspace:*
+        version: link:../server-fastify
+      '@typokit/server-hono':
+        specifier: workspace:*
+        version: link:../server-hono
+      '@typokit/server-native':
+        specifier: workspace:*
+        version: link:../server-native
+      '@typokit/types':
+        specifier: workspace:*
+        version: link:../types
+      better-sqlite3:
+        specifier: ^11.9.1
+        version: 11.10.0
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.13
