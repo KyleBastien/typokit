@@ -1,18 +1,18 @@
-// TypoKit benchmark app — Node.js + Fastify server adapter
+// TypoKit benchmark app — Bun + Fastify server adapter
 
 import type { AddressInfo } from "node:net";
 import { fastifyServer } from "@typokit/server-fastify";
-import { buildRouteTable, buildAppResources } from "./shared-routes.ts";
+import { buildRouteTable, buildAppResourcesBun } from "./shared-routes-bun.ts";
 
 export interface BenchmarkHandle {
   port: number;
   close: () => Promise<void>;
 }
 
-/** Start the TypoKit benchmark app with the Fastify server adapter */
+/** Start the TypoKit Bun benchmark app with the Fastify server adapter */
 export async function start(dbPath?: string): Promise<BenchmarkHandle> {
   const adapter = fastifyServer({ logger: false });
-  const resources = buildAppResources(dbPath);
+  const resources = buildAppResourcesBun(dbPath);
   const routeTable = buildRouteTable();
 
   adapter.registerRoutes(

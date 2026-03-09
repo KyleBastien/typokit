@@ -1,20 +1,22 @@
-// TypoKit benchmark app — Node.js + native server adapter
-// Uses @typokit/server-native with zero external HTTP dependencies.
+// TypoKit benchmark app — Bun + native server adapter
+// Uses @typokit/server-native on Bun runtime with bun:sqlite for DB.
 
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { nativeServer } from "@typokit/server-native";
-import { buildRouteTable, buildAppResources } from "./shared-routes.ts";
+import { getPlatformInfo } from "@typokit/platform-bun";
+import { buildRouteTable, buildAppResourcesBun } from "./shared-routes-bun.ts";
 
 export interface BenchmarkHandle {
   port: number;
   close: () => Promise<void>;
 }
 
-/** Start the TypoKit benchmark app with the native server adapter */
+/** Start the TypoKit Bun benchmark app with the native server adapter */
 export async function start(dbPath?: string): Promise<BenchmarkHandle> {
+  const _platform = getPlatformInfo();
   const adapter = nativeServer();
-  const resources = buildAppResources(dbPath);
+  const resources = buildAppResourcesBun(dbPath);
   const routeTable = buildRouteTable();
 
   adapter.registerRoutes(

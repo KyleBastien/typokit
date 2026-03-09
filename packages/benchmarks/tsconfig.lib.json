@@ -35,6 +35,9 @@
       "path": "../platform-node/tsconfig.lib.json"
     },
     {
+      "path": "../platform-bun/tsconfig.lib.json"
+    },
+    {
       "path": "../errors/tsconfig.lib.json"
     },
     {

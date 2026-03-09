@@ -53,6 +53,9 @@ importers:
       '@typokit/errors':
         specifier: workspace:*
         version: link:../errors
+      '@typokit/platform-bun':
+        specifier: workspace:*
+        version: link:../platform-bun
       '@typokit/platform-node':
         specifier: workspace:*
         version: link:../platform-node

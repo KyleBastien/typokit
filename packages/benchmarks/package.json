@@ -25,6 +25,7 @@
   "dependencies": {
     "@typokit/core": "workspace:*",
     "@typokit/errors": "workspace:*",
+    "@typokit/platform-bun": "workspace:*",
     "@typokit/platform-node": "workspace:*",
     "@typokit/server-express": "workspace:*",
     "@typokit/server-fastify": "workspace:*",
