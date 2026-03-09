@@ -28,4 +28,10 @@ export { start as startRawNode } from "./raw-node.ts";
 export { start as startRawBun } from "./raw-bun.ts";
 export { start as startRawDeno } from "./raw-deno.ts";
 
+export { start as startCompetitorExpress } from "./competitor-express.ts";
+export { start as startCompetitorFastify } from "./competitor-fastify.ts";
+export { start as startCompetitorHono } from "./competitor-hono.ts";
+export { start as startCompetitorKoa } from "./competitor-koa.ts";
+export { start as startCompetitorElysia } from "./competitor-elysia.ts";
+
 export type { BenchmarkHandle } from "./typokit-node-native.ts";

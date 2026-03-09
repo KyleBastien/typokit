@@ -23,6 +23,9 @@
     "fixtures"
   ],
   "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "@koa/bodyparser": "^5.1.0",
+    "@koa/router": "^13.1.0",
     "@typokit/core": "workspace:*",
     "@typokit/errors": "workspace:*",
     "@typokit/platform-bun": "workspace:*",
@@ -33,10 +36,18 @@
     "@typokit/server-hono": "workspace:*",
     "@typokit/server-native": "workspace:*",
     "@typokit/types": "workspace:*",
-    "better-sqlite3": "^11.9.1"
+    "better-sqlite3": "^11.9.1",
+    "elysia": "^1.2.0",
+    "express": "^5.1.0",
+    "fastify": "^5.3.3",
+    "hono": "^4.12.3",
+    "koa": "^2.15.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.0",
+    "@types/koa": "^2.15.0",
+    "@types/koa__router": "^12.0.4",
     "@types/node": "^22.0.0"
   },
   "repository": {
