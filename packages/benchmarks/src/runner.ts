@@ -5,24 +5,23 @@
 import type { ChildProcess } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
-import { cpus, totalmem, type as osType, release, arch } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type {
-  BenchmarkResult,
-  LatencyPercentiles,
-  SystemInfo,
-} from "./types.ts";
+import type { BenchmarkResult, LatencyPercentiles } from "./types.ts";
 import { runBombardier } from "./bombardier.ts";
 import type { BombardierOutput, BombardierRunConfig } from "./bombardier.ts";
 import {
   printSummaryTable,
   writeTimestampedResults,
   mergeLatestResults,
-  getBombardierVersion,
 } from "./results.ts";
+import {
+  collectSystemInfo,
+  formatSystemInfoJson,
+  formatReproduceInstructions,
+} from "./system-info.ts";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -331,20 +330,6 @@ function matchesFilter(name: string, filter: string): boolean {
 
 function formatNumber(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-}
-
-async function collectSystemInfo(): Promise<SystemInfo> {
-  const bombardierVersion = await getBombardierVersion();
-  return {
-    os: `${osType()} ${release()} ${arch()}`,
-    cpu: cpus()[0]?.model ?? "unknown",
-    cpuCores: cpus().length,
-    ram: `${Math.round(totalmem() / (1024 * 1024 * 1024))} GB`,
-    runtimeVersions: {
-      node: process.version,
-    },
-    bombardierVersion,
-  };
 }
 
 // ─── App Lifecycle: Direct ───────────────────────────────────
@@ -665,53 +650,58 @@ async function runSuite(config: RunnerConfig): Promise<BenchmarkResult[]> {
 
 async function printSystemInfo(): Promise<void> {
   const info = await collectSystemInfo();
-  console.log("\nSystem Information:");
-  console.log(`  OS:       ${info.os}`);
-  console.log(`  CPU:      ${info.cpu}`);
-  console.log(`  Cores:    ${String(info.cpuCores)}`);
-  console.log(`  RAM:      ${info.ram}`);
-  console.log(`  Node.js:  ${info.runtimeVersions.node ?? "N/A"}`);
-  console.log(`  Bombardier: ${info.bombardierVersion ?? "N/A"}`);
-  console.log(`\nRegistered apps: ${String(APP_REGISTRY.length)}`);
-  console.log(`Available scenarios: ${ALL_SCENARIOS.join(", ")}\n`);
+  const output = {
+    ...info,
+    registeredApps: APP_REGISTRY.length,
+    availableScenarios: [...ALL_SCENARIOS],
+  };
+  console.log(formatSystemInfoJson(output));
 }
 
 // ─── Reproduce Mode ──────────────────────────────────────────
 
 async function printReproduceInfo(): Promise<void> {
   const resultsDir = join(__dirname, "..", "results");
-  let files: string[];
+  let config:
+    | { connections: number; duration: string; warmup: string; runs: number }
+    | undefined;
+  let lastFile: string | undefined;
+
   try {
-    files = await readdir(resultsDir);
+    const files = await readdir(resultsDir);
+    const jsonFiles = files.filter((f) => f.endsWith(".json")).sort();
+
+    if (jsonFiles.length > 0) {
+      const latestFile = jsonFiles[jsonFiles.length - 1];
+      lastFile = `results/${latestFile}`;
+      const filePath = join(resultsDir, latestFile);
+      const raw = await readFile(filePath, "utf-8");
+      const parsed: unknown = JSON.parse(raw);
+
+      // Support both ResultsFile and legacy array format
+      let results: ReadonlyArray<BenchmarkResult>;
+      if (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        "results" in parsed &&
+        Array.isArray((parsed as Record<string, unknown>).results)
+      ) {
+        results = (parsed as { results: BenchmarkResult[] }).results;
+      } else if (Array.isArray(parsed)) {
+        results = parsed as BenchmarkResult[];
+      } else {
+        results = [];
+      }
+
+      if (results.length > 0) {
+        config = results[0].config;
+      }
+    }
   } catch {
-    console.log("No results directory found. Run benchmarks first.");
-    return;
+    // No results directory — will print generic instructions
   }
 
-  const jsonFiles = files.filter((f) => f.endsWith(".json")).sort();
-  if (jsonFiles.length === 0) {
-    console.log("No result files found. Run benchmarks first.");
-    return;
-  }
-
-  const latestFile = jsonFiles[jsonFiles.length - 1];
-  const filePath = join(resultsDir, latestFile);
-  const raw = await readFile(filePath, "utf-8");
-  const results = JSON.parse(raw) as ReadonlyArray<BenchmarkResult>;
-
-  if (results.length === 0) {
-    console.log("Latest results file is empty.");
-    return;
-  }
-
-  const cfg = results[0].config;
-  console.log("\nTo reproduce the last benchmark results:");
-  console.log(
-    `  npx tsx src/runner.ts --connections ${String(cfg.connections)} ` +
-      `--duration ${cfg.duration} --warmup ${cfg.warmup} --runs ${String(cfg.runs)}`,
-  );
-  console.log(`\nLast results: results/${latestFile}`);
-  console.log(`Timestamp: ${results[0].timestamp}\n`);
+  console.log(formatReproduceInstructions(config, lastFile));
 }
 
 // ─── CLI ─────────────────────────────────────────────────────
