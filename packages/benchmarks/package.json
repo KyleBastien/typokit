@@ -1,0 +1,67 @@
+{
+  "name": "@typokit/benchmarks",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "test": "rstest run --passWithNoTests",
+    "lint": "eslint --max-warnings 0 src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "fixtures"
+  ],
+  "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "@koa/bodyparser": "^5.1.0",
+    "@koa/router": "^13.1.0",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@trpc/server": "^10.45.0",
+    "@typokit/core": "workspace:*",
+    "@typokit/errors": "workspace:*",
+    "@typokit/platform-bun": "workspace:*",
+    "@typokit/platform-deno": "workspace:*",
+    "@typokit/platform-node": "workspace:*",
+    "@typokit/server-express": "workspace:*",
+    "@typokit/server-fastify": "workspace:*",
+    "@typokit/server-hono": "workspace:*",
+    "@typokit/server-native": "workspace:*",
+    "@typokit/types": "workspace:*",
+    "better-sqlite3": "^11.9.1",
+    "elysia": "^1.2.0",
+    "express": "^5.1.0",
+    "fastify": "^5.3.3",
+    "h3": "^1.13.0",
+    "hono": "^4.12.3",
+    "koa": "^2.15.0",
+    "reflect-metadata": "^0.2.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.0",
+    "@types/koa": "^2.15.0",
+    "@types/koa__router": "^12.0.4",
+    "@types/node": "^22.0.0",
+    "fast-json-stringify": "^6.3.0",
+    "tsx": "^4.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyleBastien/typokit",
+    "directory": "packages/benchmarks"
+  }
+}

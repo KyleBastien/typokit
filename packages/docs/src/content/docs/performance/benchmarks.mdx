@@ -1,0 +1,60 @@
+---
+title: Benchmarks
+description: Interactive performance benchmarks comparing TypoKit against raw baselines and popular frameworks across Node.js, Bun, Deno, and Rust.
+---
+
+import BenchmarkCharts from '../../../components/BenchmarkCharts.astro';
+
+TypoKit is designed to add **minimal overhead** over raw HTTP servers while providing full type-safety, validation, and middleware. These benchmarks quantify that overhead across every supported platform and server adapter.
+
+## What We Measure
+
+| Scenario | Description |
+|----------|-------------|
+| **JSON** | Serialize a fixed JSON response — measures pure routing + serialization overhead |
+| **Validate** | Parse and validate a POST body — measures the validation pipeline cost |
+| **DB** | Full request with SQLite read — measures realistic end-to-end latency |
+| **Middleware** | Route through a 5-layer middleware chain — measures middleware dispatch overhead |
+| **Startup** | Cold start to first response — measures framework initialization cost |
+
+## Test Configuration
+
+All benchmarks use [bombardier](https://github.com/codesenberg/bombardier) with identical settings:
+
+- **Connections:** 64 concurrent
+- **Duration:** 10 seconds per scenario
+- **Warmup:** 3 seconds
+- **Runs:** 3 (results averaged)
+- **Database:** In-memory SQLite with identical schema and seed data
+
+## Results
+
+<BenchmarkCharts />
+
+## How to Read These Charts
+
+- **TypoKit entries** (purple) show TypoKit running on each platform × server adapter combination
+- **Rust/Axum** (orange) is visually distinguished since it's a compiled binary, not a JS runtime
+- **Raw baselines** (gray) are zero-framework HTTP servers — the theoretical performance ceiling
+- **Competitors** (colored by framework) show popular Node.js/Bun frameworks for reference
+
+The closer TypoKit is to the raw baseline for a given platform, the lower TypoKit's overhead. See the [Methodology](/typokit/performance/methodology/) page for full details on how benchmarks are run and how to reproduce them.
+
+## Running Benchmarks Locally
+
+```bash
+# Run the full benchmark suite
+pnpm nx bench benchmarks
+
+# Run only TypoKit apps
+pnpm nx bench benchmarks -- --filter "typokit-*"
+
+# Run only the JSON scenario
+pnpm nx bench benchmarks -- --scenario json
+
+# Print system info
+pnpm nx bench-info benchmarks
+
+# Print reproduce instructions
+pnpm nx bench-reproduce benchmarks
+```

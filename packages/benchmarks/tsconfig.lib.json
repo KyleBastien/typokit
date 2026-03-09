@@ -1,0 +1,50 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "references": [
+    {
+      "path": "../types/tsconfig.lib.json"
+    },
+    {
+      "path": "../server-native/tsconfig.lib.json"
+    },
+    {
+      "path": "../server-hono/tsconfig.lib.json"
+    },
+    {
+      "path": "../server-fastify/tsconfig.lib.json"
+    },
+    {
+      "path": "../server-express/tsconfig.lib.json"
+    },
+    {
+      "path": "../platform-node/tsconfig.lib.json"
+    },
+    {
+      "path": "../platform-deno/tsconfig.lib.json"
+    },
+    {
+      "path": "../platform-bun/tsconfig.lib.json"
+    },
+    {
+      "path": "../errors/tsconfig.lib.json"
+    },
+    {
+      "path": "../core/tsconfig.lib.json"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ export default defineConfig({
         { icon: "github", label: "GitHub", href: "https://github.com/typokit/typokit" },
       ],
       head: [
+        { tag: "script", attrs: { src: "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js", defer: true } },
         { tag: "meta", attrs: { property: "og:image", content: "https://kylebastien.github.io/typokit/og-image.png" } },
         { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
         { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
@@ -114,6 +115,14 @@ export default defineConfig({
           ],
         },
         typeDocSidebarGroup,
+        {
+          label: "Performance",
+          collapsed: true,
+          items: [
+            { label: "Benchmarks", slug: "performance/benchmarks" },
+            { label: "Methodology", slug: "performance/methodology" },
+          ],
+        },
         {
           label: "Architecture",
           collapsed: true,

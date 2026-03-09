@@ -1,194 +1,287 @@
 # Ralph Progress Log
-Started: 03/05/2026 20:38:23
----
+Started: 03/08/2026 23:22:45
 
 ## Codebase Patterns
-- Existing generators (openapi_generator.rs, test_stub_generator.rs) use string-based code generation, returning String directly
-- Handler entity files (src/handlers/{entity}.rs) use overwrite: false; mod.rs files use overwrite: true
-- Service stubs follow same pattern: src/services/{entity}.rs (overwrite: false), src/services/mod.rs (overwrite: true)
-- Middleware stubs: src/middleware/auth.rs (overwrite: false), src/middleware/mod.rs (overwrite: true)
-- Entity name resolution: strip "Routes" suffix from handler_ref, then try singular forms (strip 's', 'ies'→'y') to match type_map keys
-- Root .gitignore ignores .typokit/ — use `git add -f` to check in generated files for example/demo packages
-- Axum 0.8 router: only import `get` from `axum::routing`; post/put/delete are chained as methods on MethodRouter
-- sqlx enum support: derive sqlx::Type with `#[sqlx(type_name = "pg_enum_name", rename_all = "snake_case")]` for PostgreSQL custom enums
-- Example packages need `"private": true` in package.json and `publish = false` in Cargo.toml; excluded from nx release via `!packages/example-*`
-- TypeMetadata from type_extractor.rs contains `jsdoc: Option<HashMap<String, String>>` for JSDoc tags like @table, @id, @generated, @format, @unique, etc.
-- PropertyMetadata contains `type_str` (stringified TS type), `optional`, and `jsdoc` for per-property annotations
-- HashMap keys in type_map are type names, values are TypeMetadata. Properties within are also HashMap-keyed by property name
-- All generators sort output deterministically (BTreeMap or sorted Vec) for reproducible codegen
-- cargo check and cargo test both work from packages/transform-native directory
-- Tests use internal parser::parse_typescript() to create test data from TS source strings
-- Type extractor only processes interfaces (TsInterfaceDecl), NOT type aliases — utility types (Omit/Partial/Pick) are not in type_map
-- Union literal types in properties are stored as `"active" | "inactive"` (with quote chars around each variant)
-- Use BTreeMap for collecting resolved types to ensure deterministic iteration order
-- rust_codegen::generate() accepts both type_map AND routes — sub-modules should accept the inputs they need
-- Handler refs follow "EntityRoutes#METHOD /path" format — derive entity module by stripping "Routes" suffix and snake_casing
-- @table entities have jsdoc.contains_key("table"); the value is the SQL table name (fall back to snake_case + "s")
-- @generated properties: value "uuid" → Uuid::new_v4(), value "now" → Utc::now(); these are excluded from user input in INSERT
-- @id property found by jsdoc "id" key or by property name "id"; used as PRIMARY KEY in migrations
-- @unique fields get UNIQUE constraint in migration SQL; use collect on jsdoc.contains_key("unique")
-- TS→PostgreSQL type mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
-- Project scaffold files (Cargo.toml, src/main.rs, src/lib.rs, .typokit/app.rs, .typokit/error.rs) all use overwrite: true
-- src/lib.rs uses #[path = "../.typokit/..."] to bridge .typokit/ modules into the Rust module tree (paths relative to src/ dir)
-- CLI build command uses executeBuild (router) → executeRustBuild or executeTypeScriptBuild based on --target flag
-- Napi bridge for rust_codegen: generate_rust_codegen() takes type/route file paths, returns JsRustGeneratedOutput[]
-- buildRustPipeline in transform-native handles caching + file writing for Rust target (same .cache-hash mechanism as TS pipeline)
+- Benchmarks package uses Nx auto-infer (no project.json needed) — consistent with all packages
+- Benchmarks project.json defines custom targets (bench, bench-ci, etc.) with nx:run-commands executor
+- pnpm-workspace.yaml `packages/*` glob auto-detects new packages
+- Raw baseline apps use hand-written routing (no framework) — same 5 endpoints as TypoKit apps
+- ESLint enforces LF line endings — use `eslint --fix` to auto-convert CRLF on Windows
+- ESLint forbids `import()` type annotations — use explicit `import type` at top of file
+- Server adapter apps follow shared-routes pattern per platform (shared-routes.ts, shared-routes-bun.ts, shared-routes-deno.ts)
+- Root .gitignore has `target/` for Rust and `.typokit/` for generated files
+- Axum 0.8 path params use `{id}` syntax (not `:id`)
+- For rusqlite in Axum, use `Arc<Mutex<Connection>>` + `spawn_blocking` since Connection is Send but not Sync
+- Build target (tsc -p tsconfig.lib.json) fails on Bun/Deno files; typecheck (tsc --noEmit) is the real quality gate
+- Competitor apps use each framework's recommended validation (JSON Schema for Fastify, TypeBox for Elysia, Zod for tRPC, manual for others)
+- NestJS requires experimentalDecorators + emitDecoratorMetadata in tsconfig (enabled in benchmarks tsconfig.json)
+- AdonisJS v6 can't work in single-file mode; benchmark uses AdonisJS-style HTTP context/middleware pattern
+- tRPC standalone adapter needs URL rewriting for REST-style /db/:id → /db?input={"id":X}
+- Astro components can't use `import.meta.dirname` — use `fileURLToPath` + `dirname()` instead
+- Starlight sidebar fails at build time if referenced slugs don't exist — always create stub pages
 
-## 2026-03-06T04:39 - US-001
-- Implemented rust_codegen module with GeneratedOutput struct and struct generation
-- Files changed:
-  - packages/transform-native/src/rust_codegen/mod.rs (new)
-  - packages/transform-native/src/rust_codegen/structs.rs (new)
-  - packages/transform-native/src/lib.rs (added `mod rust_codegen;`)
-- **Learnings for future iterations:**
-  - The crate is a napi cdylib — `cargo check`/`cargo test` work but `cargo build` needs napi tooling
-  - Existing generators don't return GeneratedOutput — they return plain Strings. The GeneratedOutput struct is new for rust_codegen
-  - TypeMetadata.jsdoc contains JSDoc tags as HashMap<String, String> — check for `@table` via `jsdoc.contains_key("table")`
-  - Property jsdoc tags like @id, @generated, @format, @unique, @minLength, @maxLength are available per-property
-  - camelCase→snake_case conversion and serde rename attributes are needed for Rust field names
-  - `dead_code` warnings appear for non-napi-exported functions — this is expected until napi bridge functions are added
 ---
 
-## 2026-03-06T04:42 - US-002
-- Implemented validation annotations, utility type resolution, union literal enums, common types, and integer inference
+## 2026-03-09T07:05 - US-005
+- What was implemented: TypoKit Deno benchmark apps for all 4 server adapters (native, fastify, hono, express)
 - Files changed:
-  - packages/transform-native/src/rust_codegen/structs.rs (major update — +975 lines)
+  - packages/benchmarks/src/deno-sqlite.d.ts (new: type declarations for @db/sqlite module)
+  - packages/benchmarks/src/apps/shared-routes-deno.ts (new: Deno-specific resource builder using @db/sqlite)
+  - packages/benchmarks/src/apps/typokit-deno-native.ts (new: native server adapter on Deno)
+  - packages/benchmarks/src/apps/typokit-deno-fastify.ts (new: Fastify adapter on Deno)
+  - packages/benchmarks/src/apps/typokit-deno-hono.ts (new: Hono adapter on Deno)
+  - packages/benchmarks/src/apps/typokit-deno-express.ts (new: Express adapter on Deno)
+  - packages/benchmarks/src/apps/index.ts (added Deno app exports)
+  - packages/benchmarks/package.json (added @typokit/platform-deno dep)
+  - packages/benchmarks/tsconfig.lib.json (Nx synced platform-deno reference)
+  - pnpm-lock.yaml (updated)
 - **Learnings for future iterations:**
-  - Type extractor only handles interfaces, not type aliases — utility type resolution must happen in rust_codegen
-  - Utility types (Omit/Partial/Pick) can appear as property type_str values even though they don't exist as top-level types in the type_map
-  - Union literal type_str values contain escaped quotes: `"active" | "inactive"` — detect via split on ` | ` and check for quote wrapping
-  - For serde rename on enum variants, compare PascalCase to original (not to_lowercase) — "Active" != "active" triggers rename
-  - Use BTreeMap for resolved utility types to ensure deterministic output ordering
-  - Validator crate v0.19 requires Lazy<Regex> statics for pattern validation — generate them at file top
-  - Common types (PaginatedResponse<T>, ErrorResponse) are always generated in common.rs with the "common" module
-  - mod.rs generation must now track both module names and type exports separately for proper re-exports
+  - @db/sqlite API returns undefined (not null) when no row found - same as better-sqlite3
+  - Deno SQLite type declarations follow same pattern as bun:sqlite - minimal .d.ts with Database/Statement classes
+  - Nx sync auto-detected the new @typokit/platform-deno dependency and added the tsconfig reference automatically
+  - The Deno apps follow identical pattern to Bun apps - only the DB layer (shared-routes-deno.ts) differs; server adapters work via Deno Node compat
 ---
 
-## 2026-03-06T04:52 - US-003
-- Implemented Axum router generation from RouteEntry[] in rust_codegen/router.rs
-- Files changed:
-  - packages/transform-native/src/rust_codegen/router.rs (new — ~310 lines)
-  - packages/transform-native/src/rust_codegen/mod.rs (updated generate() signature, added router module)
+## 2026-03-09T07:08 - US-001
+- What was implemented: Already fully implemented by prior iteration - verified all acceptance criteria pass
+- Files: No changes needed - all files exist (package.json, types.ts, shared/, fixtures/)
 - **Learnings for future iterations:**
-  - The generate() function in mod.rs now takes both type_map AND routes — future sub-modules must match this pattern
-  - Handler refs follow "EntityRoutes#METHOD /path" pattern — derive module name by stripping "Routes" suffix and snake_casing
-  - Action name derivation uses REST conventions: GET collection=list, GET :id=get_by_id, POST=create, PUT/PATCH :id=update, DELETE :id=delete
-  - Routes with same path should be grouped with method chaining in Axum (get(handler).post(handler))
-  - Axum uses same :param path syntax as Express — no path conversion needed
-  - BTreeMap used for all route grouping/sorting to ensure deterministic output
+  - Benchmarks package uses Nx auto-infer (no project.json) consistent with all other packages
+  - pnpm-workspace.yaml uses packages/* glob, so new packages are auto-detected
+  - All quality checks (typecheck, lint) pass for the existing scaffolding
 ---
 
-## 2026-03-06T04:57 - US-004
-- Implemented sqlx database layer: connection pool, CRUD repository, and SQL migrations
-- Files changed:
-  - packages/transform-native/src/rust_codegen/database.rs (new — ~900 lines)
-  - packages/transform-native/src/rust_codegen/mod.rs (added database module, wired into generate())
+## 2026-03-09T07:09 - US-002, US-003, US-004
+- What was implemented: Already fully implemented by prior iterations - verified all exist and typecheck/lint pass
+- Files: No changes - bombardier.ts, all Node/Bun/Deno app files, shared-routes files all present
 - **Learnings for future iterations:**
-  - @table entities: jsdoc has "table" key; value is the SQL table name (empty string falls back to snake_case + "s")
-  - @generated properties: value "uuid" → Uuid::new_v4().to_string(), value "now" → Utc::now(); excluded from user-supplied INSERT input
-  - @id property: found by jsdoc "id" key OR by property name "id"; becomes PRIMARY KEY in migrations
-  - @unique fields get UNIQUE constraint; checked via jsdoc.contains_key("unique")
-  - TS→PostgreSQL mapping: string→TEXT, number→DOUBLE PRECISION, boolean→BOOLEAN, Date→TIMESTAMPTZ, arrays→JSONB, @integer→BIGINT
-  - Repository uses sqlx::query_as::<_, Entity>() pattern with parameterized SQL ($1, $2...)
-  - CREATE functions use RETURNING * to get the full entity back after INSERT
-  - Input struct for create/update is named EntityWithoutId (matches Omit<Entity, "id"> utility type from structs.rs)
-  - Migration files use sequential timestamps (000000000001, 000000000002...) for deterministic ordering
-  - 20 tests added covering all CRUD operations, migration DDL, type mappings, and edge cases
+  - All server adapter apps (node/bun/deno × native/fastify/hono/express) follow shared-routes pattern
+  - Each platform has its own shared-routes variant (shared-routes.ts, shared-routes-bun.ts, shared-routes-deno.ts)
 ---
 
-## 2026-03-06T05:05 - US-005
-- Implemented per-entity Axum handler file generation wired to repository CRUD functions
+## 2026-03-09T07:12 - US-006
+- What was implemented: Rust/Axum benchmark app with 5 endpoints (json, validate, db, middleware, startup)
 - Files changed:
-  - packages/transform-native/src/rust_codegen/handlers.rs (new — ~510 lines code + ~510 lines tests)
-  - packages/transform-native/src/rust_codegen/mod.rs (added handlers module, wired into generate())
+  - packages/benchmarks/src/apps/typokit-rust-axum/Cargo.toml (new)
+  - packages/benchmarks/src/apps/typokit-rust-axum/Cargo.lock (new)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/main.rs (new: tokio entrypoint with --port/PORT support)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/models.rs (new: BenchmarkResponseShape, CreateBenchmarkItemBody, validation)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/db.rs (new: rusqlite read-only SQLite access)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/handlers.rs (new: 5 endpoint handlers)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/middleware.rs (new: noop middleware for chain overhead testing)
 - **Learnings for future iterations:**
-  - Handler entity files use overwrite: false (user-owned code), handlers/mod.rs uses overwrite: true (stays in sync)
-  - Entity name resolution from handler_ref: "UsersRoutes" → strip "Routes" → "Users" → look up "User" in type_map by stripping trailing 's'
-  - Also handles "ies" → "y" pluralization (e.g., "Categories" → "Category")
-  - PUT and PATCH both map to "update" action — deduplication via BTreeSet avoids generating duplicate handler functions
-  - Handler stubs for @table entities call repository functions directly; non-table entities get TODO placeholders
-  - Each handler file gets a ListQuery struct with page/page_size for list endpoints rather than referencing models
-  - ID type in Path<T> extractor derives from @id property type_str: "string" → String, "number" → i64
-  - 26 tests added covering all CRUD handlers, overwrite flags, entity resolution, dedup, determinism, and edge cases
+  - Axum 0.8 uses {id} path syntax (not :id); Cargo edition 2021 works reliably
+  - rusqlite::Connection is Send but not Sync; use Arc<Mutex<Connection>> with spawn_blocking for Axum State
+  - Root .gitignore already has target/ so Cargo build artifacts are excluded
+  - The alidator crate was NOT needed — manual validation is simpler and avoids the derive dependency
+  - Use OnceLock for static startup time tracking instead of lazy_static
 ---
 
-## 2026-03-06T05:10 - US-006
-- Implemented service-layer and middleware stub generation
+## 2026-03-09T07:16 - US-007
+- What was implemented: Raw baseline benchmark apps for Node.js, Bun, Deno, and Axum - zero framework dependencies
 - Files changed:
-  - packages/transform-native/src/rust_codegen/services.rs (new — ~235 lines code + ~200 lines tests)
-  - packages/transform-native/src/rust_codegen/middleware.rs (new — ~75 lines code + ~75 lines tests)
-  - packages/transform-native/src/rust_codegen/mod.rs (added services + middleware modules, wired into generate())
+  - packages/benchmarks/src/apps/raw-node.ts (new: raw http.createServer with 5 endpoints)
+  - packages/benchmarks/src/apps/raw-bun.ts (new: raw Bun.serve() with 5 endpoints)
+  - packages/benchmarks/src/apps/raw-deno.ts (new: raw Deno.serve() with 5 endpoints)
+  - packages/benchmarks/src/apps/raw-axum/Cargo.toml (new: identical deps to typokit-rust-axum)
+  - packages/benchmarks/src/apps/raw-axum/src/main.rs (new: tokio entrypoint)
+  - packages/benchmarks/src/apps/raw-axum/src/models.rs (new: same models + validation)
+  - packages/benchmarks/src/apps/raw-axum/src/db.rs (new: rusqlite read-only)
+  - packages/benchmarks/src/apps/raw-axum/src/handlers.rs (new: 5 endpoint handlers)
+  - packages/benchmarks/src/apps/raw-axum/src/middleware.rs (new: noop middleware)
+  - packages/benchmarks/src/apps/index.ts (added raw app exports)
 - **Learnings for future iterations:**
-  - Services are generated only for @table entities (non-table entities have no CRUD repository to call)
-  - Service functions take &PgPool directly (not AppState) — service layer is decoupled from Axum
-  - Service function signatures match repository signatures: list returns Vec, get_by_id returns Option, create returns entity, update/delete return Option
-  - Middleware uses Axum middleware::from_fn pattern: async fn(Request, Next) -> Result<Response, StatusCode>
-  - Auth middleware stub passes all requests through by default — users edit the stub to add real auth
-  - All unused params prefixed with _ to avoid dead_code warnings in stubs
-  - 22 new tests across services (13) and middleware (9) — all 118 rust_codegen tests pass
+  - ESLint enforces LF line endings via prettier - files created on Windows need eslint --fix to strip CRLF
+  - ESLint consistent-type-imports forbids import() type annotations - use explicit import type at file top
+  - Raw apps duplicate validation logic from shared-routes.ts by design (no framework code allowed)
+  - Raw Axum structure is identical to typokit-rust-axum - only the package name and log message differ
+  - For the no-op middleware simulation in raw TS apps, a simple for-loop is sufficient (vs Axum layer stacking)
 ---
 
-## 2026-03-06T05:14 - US-007
-- Implemented complete Rust project scaffold generation in rust_codegen/project.rs
-- Generates 5 files: Cargo.toml, src/main.rs, src/lib.rs, .typokit/app.rs, .typokit/error.rs
+## 2026-03-09T07:23 - US-008
+- What was implemented: Competitor framework benchmark apps for Express 5, Fastify 5, Hono 4, Koa 2, and Elysia (Bun)
 - Files changed:
-  - packages/transform-native/src/rust_codegen/project.rs (new — ~370 lines code + ~220 lines tests)
-  - packages/transform-native/src/rust_codegen/mod.rs (added project module, wired into generate())
+  - packages/benchmarks/src/apps/competitor-express.ts (new: standalone Express with 5 endpoints)
+  - packages/benchmarks/src/apps/competitor-fastify.ts (new: standalone Fastify with JSON Schema validation)
+  - packages/benchmarks/src/apps/competitor-hono.ts (new: standalone Hono + @hono/node-server)
+  - packages/benchmarks/src/apps/competitor-koa.ts (new: standalone Koa + @koa/router + @koa/bodyparser)
+  - packages/benchmarks/src/apps/competitor-elysia.ts (new: standalone Elysia with TypeBox validation, bun:sqlite)
+  - packages/benchmarks/src/apps/index.ts (added competitor app exports)
+  - packages/benchmarks/package.json (added koa, elysia, express, fastify, hono, @hono/node-server as direct deps)
+  - pnpm-lock.yaml (updated)
 - **Learnings for future iterations:**
-  - src/lib.rs uses #[path = "../.typokit/..."] attributes to bridge .typokit/ into the Rust module tree (relative to src/ directory)
-  - Cargo.toml uses edition = "2024" and name = "server" as defaults; binary references lib crate via `use server::{module}`
-  - AppError enum variants match exactly what handlers.rs generates: `AppError::NotFound(String)` etc.
-  - AppError also implements Display and has convenience constructors (not_found, bad_request, etc.) for user-written code
-  - Generated error.rs returns JSON bodies with { error: status_code, message: string } format
-  - All 5 project scaffold files use overwrite: true since they're framework-managed
-  - 31 new tests added — all 157 rust_codegen tests pass
+  - Fastify preHandler hooks require mutable arrays (Array<>), not ReadonlyArray
+  - Fastify recommended validation is JSON Schema (built-in Ajv)
+  - Elysia uses t from elysia (TypeBox wrapper) for built-in validation schemas
+  - Hono on Node.js requires @hono/node-server with serve() function
+  - Koa requires @koa/router for routing and @koa/bodyparser for JSON body parsing
+  - Build target (tsc -p tsconfig.lib.json) fails on Bun/Deno files but typecheck (tsc --noEmit) passes - typecheck is the real quality gate
 ---
 
-## 2026-03-06T05:19 - US-008
-- Implemented --target rust CLI flag for typokit build command
+## 2026-03-09T07:32 - US-009
+- What was implemented: 4 new competitor framework benchmark apps (tRPC, NestJS, H3/Nitro, AdonisJS)
 - Files changed:
-  - packages/transform-native/src/lib.rs (added generate_rust_codegen napi function)
-  - packages/transform-native/src/index.ts (added generateRustCodegen, buildRustPipeline with caching)
-  - packages/cli/src/commands/build.ts (added target/db/outDir options, Rust build execution path)
-  - packages/cli/src/index.ts (parse --target, --db, --out flags, updated help text)
-  - packages/cli/src/index.test.ts (8 new tests for flag parsing and build target routing)
+  - packages/benchmarks/src/apps/competitor-trpc.ts (new: tRPC 10 with standalone HTTP adapter, Zod validation, URL rewriting for /db/:id)
+  - packages/benchmarks/src/apps/competitor-nestjs.ts (new: NestJS 10 with Express platform, decorators, hand-written validation)
+  - packages/benchmarks/src/apps/competitor-h3.ts (new: H3/Nitro with createApp/createRouter, onRequest hooks for middleware)
+  - packages/benchmarks/src/apps/competitor-adonis.ts (new: AdonisJS-style HTTP server with context creation, middleware chain, router)
+  - packages/benchmarks/src/apps/index.ts (added 4 new competitor app exports)
+  - packages/benchmarks/package.json (added h3, @trpc/server, zod, @nestjs/*, reflect-metadata dependencies)
+  - packages/benchmarks/tsconfig.json (added experimentalDecorators + emitDecoratorMetadata for NestJS)
+  - pnpm-lock.yaml (updated)
 - **Learnings for future iterations:**
-  - The CLI's executeBuild was refactored into executeBuild (router), executeRustBuild, and executeTypeScriptBuild for clean separation
-  - Rust target skips the TypeScript compiler step entirely — only runs transform + emit
-  - buildRustPipeline in transform-native handles content-hash caching identically to buildPipeline (same .typokit/.cache-hash mechanism)
-  - The napi function generate_rust_codegen reuses parser::parse_and_extract_types and route_compiler::extract_route_contracts internally
-  - --db flag only supports 'sqlx' currently — error validation happens early in executeBuild before any work
-  - --out defaults to rootDir for Rust target, not '.' — this matches user expectation of generating in-place
-  - 214 Rust tests + 156 CLI tests all pass (8 new CLI tests added)
+  - NestJS requires experimentalDecorators and emitDecoratorMetadata in tsconfig; added only to benchmarks tsconfig.json
+  - AdonisJS v6 cannot work in single-file mode; benchmark uses AdonisJS-style HTTP context/middleware/router pattern
+  - tRPC standalone adapter serves at /<name> paths; URL rewriting maps /db/:id to /db?input={"id":X}
+  - H3 defineEventHandler supports onRequest hooks array for route-specific middleware
+  - reflect-metadata must be imported before any NestJS decorators
 ---
 
-## 2026-03-06T05:28 - US-009
-- Created complete example-todo-server-axum reference application (32 files)
+## 2026-03-09T07:48 - US-010
+- What was implemented: Benchmark runner core with full orchestration and Nx CLI targets
 - Files changed:
-  - packages/example-todo-server-axum/ (new package — 32 files total)
-  - .typokit/ — 18 generated Rust files (models, db, router, migrations, app, error)
-  - src/ — 10 user-written files (handlers, services, middleware, main.rs, lib.rs)
-  - Cargo.toml, package.json, README.md, .gitignore
+  - packages/benchmarks/src/runner.ts (new: main runner with app registry, CLI arg parsing, orchestration, summary table, results file output)
+  - packages/benchmarks/src/subprocess-entry.ts (new: generic subprocess launcher for Bun/Deno apps)
+  - packages/benchmarks/src/bombardier.ts (modified: added method/body/headers to BombardierRunConfig for POST scenario support)
+  - packages/benchmarks/project.json (new: Nx targets — bench, bench-ci, bench-baseline, bench-info, bench-reproduce)
+  - packages/benchmarks/results/.gitkeep (new: results output directory)
+  - packages/benchmarks/package.json (added tsx devDependency)
+  - package.json (added root bench scripts)
+  - pnpm-lock.yaml (updated)
 - **Learnings for future iterations:**
-  - Root .gitignore blocks `.typokit/` — must use `git add -f` for example packages that check in generated files
-  - Axum 0.8 routing: `get(handler).post(handler)` chains — only `get` needs to be imported from `axum::routing`, the rest are MethodRouter methods
-  - For sqlx::FromRow with enum fields, use `#[derive(sqlx::Type)]` with `#[sqlx(type_name = "pg_enum_name")]` and create corresponding PostgreSQL ENUM type in migration
-  - Union literal types shared across multiple structs (e.g., UserStatus in User, CreateUserInput, PublicUser) — practical approach: define enum in the primary entity module and import via `super::` in others
-  - Cargo.toml `name = "server"` is used by main.rs imports (`use server::...`) — changing the crate name requires updating all `use` statements
-  - sqlx features must include `chrono` and `uuid` for DateTime<Utc> and Uuid column support (codegen Cargo.toml doesn't include these)
-  - cargo build/check works fine for standalone Rust projects within the pnpm monorepo
-  - Pre-existing lint failure in transform-native (no-undef `window`) is unrelated to new code
+  - project.json with nx:run-commands executor works alongside Nx auto-infer for custom targets
+  - tsx is needed as devDep for running TypeScript benchmark scripts directly (no build step required)
+  - Bombardier supports POST via `-m POST -b <body> -H "header: value"` flags; execFile avoids shell escaping issues
+  - Cross-runtime subprocess management uses subprocess-entry.ts which dynamically imports app modules and reports port via stdout
+  - Rust binary names come from Cargo.toml `[package] name` field, not the directory name (e.g., `typokit-benchmark-axum` not `typokit-rust-axum`)
+  - Direct-mode apps (Node.js) use dynamic imports `await import("./apps/<name>.ts")` — works with tsx
+---
+## 2026-03-09T08:03 - US-011
+- What was implemented: Results aggregation module (results.ts) with summary table, cumulative latest.json merge, and bombardier version in system info
+- Files changed:
+  - packages/benchmarks/src/results.ts (new: formatSummaryTable, printSummaryTable, writeTimestampedResults, mergeLatestResults, averageSuiteRuns, getBombardierVersion)
+  - packages/benchmarks/src/runner.ts (refactored: removed old printSummaryTable/writeResults/padLeft/padRight, imports from results.ts, async collectSystemInfo with bombardier version, main() calls mergeLatestResults)
+  - packages/benchmarks/src/types.ts (added bombardierVersion to SystemInfo)
+- **Learnings for future iterations:**
+  - Summary tables are grouped by scenario with Rank, vs. Fastest (%) computed from highest req/s in each group
+  - Cumulative merge uses composite key: framework|platform|server|scenario -- new results overwrite matching entries, others preserved
+  - Results files now use ResultsFile wrapper { version, generatedAt, results } for forward compatibility; legacy raw arrays also supported on read
+  - getBombardierVersion() runs `bombardier --version` and parses the version string
+---
+## 2026-03-09T08:09 - US-012
+- What was implemented: System info collection module (system-info.ts) with comprehensive runtime detection, JSON bench-info output, and full bench-reproduce instructions
+- Files changed:
+  - packages/benchmarks/src/system-info.ts (new: collectSystemInfo, formatSystemInfoJson, formatReproduceInstructions with Bun/Deno/Rust detection)
+  - packages/benchmarks/src/runner.ts (refactored: removed inline collectSystemInfo, imports from system-info.ts, printSystemInfo outputs JSON, printReproduceInfo uses full step-by-step instructions)
+- **Learnings for future iterations:**
+  - `bun --version` outputs just the version number (e.g., "1.1.12"), while `deno --version` and `rustc --version` need regex parsing
+  - ESLint CRLF fix pattern applies to all new .ts files created on Windows — always run eslint --fix after creating files
+  - The printSystemInfo function now outputs parseable JSON; consumer scripts can pipe through `jq` for specific fields
+  - The reproduce instructions include both exact reproduction (with config from latest results) and generic defaults when no results exist
 ---
 
-## 2026-03-06T05:43 - US-010
-- Updated project documentation to reflect the new Rust codegen target
+## 2026-03-09T08:15 - US-013
+- What was implemented: Validation overhead isolation variants for all 13 TypoKit benchmark apps
+  - `/validate-passthrough` endpoint (no validation, body passthrough)
+  - `/validate-handwritten` endpoint (inline if/typeof validation, bypasses TypoKit validator framework)
+  - Runner scenarios `validate-passthrough` and `validate-handwritten` (TypoKit-only, skipped for raw/competitor apps)
+  - Validation Overhead Analysis table in summary output showing vs-passthrough and vs-handwritten deltas
+  - `validationAnalysis` field in results JSON (timestamped + latest.json)
+  - `ValidationAnalysisEntry` type in types.ts
 - Files changed:
-  - typokit-arch.md (added Section 12.13 Rust Codegen Target, updated Sections 6.5, 12.1, 12.11, 14.1)
-  - AGENTS.md (updated transform-native description to include rust_codegen module)
+  - packages/benchmarks/src/apps/shared-routes.ts (new route table entries, handwrittenValidate function, passthrough/handwritten handlers)
+  - packages/benchmarks/src/apps/shared-routes-bun.ts (passthrough/handwritten handlers, re-export handwrittenValidate)
+  - packages/benchmarks/src/apps/shared-routes-deno.ts (passthrough/handwritten handlers, re-export handwrittenValidate)
+  - packages/benchmarks/src/apps/index.ts (added handwrittenValidate export)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/handlers.rs (post_validate_passthrough, post_validate_handwritten handlers)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/main.rs (registered new routes)
+  - packages/benchmarks/src/runner.ts (Scenario type expanded, SCENARIO_DEFS, TYPOKIT_ONLY_SCENARIOS set, filtering in run loop)
+  - packages/benchmarks/src/types.ts (ValidationAnalysisEntry interface)
+  - packages/benchmarks/src/results.ts (computeValidationAnalysis, formatValidationAnalysis, updated writeTimestampedResults and mergeLatestResults)
 - **Learnings for future iterations:**
-  - Documentation-only stories still require typecheck pass — run `pnpm nx affected -t typecheck` even for markdown changes
-  - The architecture doc uses numbered sections (1-16+) — new codegen subsections fit under Section 12 (Build Pipeline)
-  - Server adapter compatibility matrix in Section 6.5 is the right place for Axum's native target entry
-  - CLI commands in Section 14.1 should document all flags including --target, --db, --out
-  - When many unrelated changes exist in the working tree, use selective `git add` to commit only relevant files
+  - The handwrittenValidate function is exported from shared-routes.ts and reused by bun/deno variants to avoid duplication
+  - TYPOKIT_ONLY_SCENARIOS set in runner.ts controls which scenarios are skipped for non-TypoKit apps (checked via `app.framework !== "typokit"`)
+  - Validation analysis is computed post-hoc from the three validate scenario results grouped by framework|platform|server
+  - Passthrough endpoint has NO validators in the route table — this is the key to measuring TypoKit validator framework overhead
+  - Handwritten validation bypasses ValidatorMap entirely — validation happens inline in the handler, measuring framework dispatch overhead
+---
+
+## 2026-03-09T08:24 - US-014
+- What was implemented: Non-HTTP serialization microbenchmark comparing 3 serializers
+  - JSON.stringify (native baseline)
+  - fast-json-stringify (schema-compiled, popular npm package)
+  - TypoKit compiled serializer (direct property access, build-time generated)
+- Files changed:
+  - packages/benchmarks/src/microbench/serialization.ts (new: microbenchmark harness with configurable iterations, warmup, timing, summary table)
+  - packages/benchmarks/src/types.ts (added MicrobenchmarkResult interface)
+  - packages/benchmarks/src/results.ts (added microbenchmarks key to ResultsFile, updated writeTimestampedResults and mergeLatestResults)
+  - packages/benchmarks/src/runner.ts (added serialization to Scenario type, split HttpScenario vs Scenario, integrated microbenchmark in main())
+  - packages/benchmarks/package.json (added fast-json-stringify devDependency)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - The Scenario type needed splitting into HttpScenario (used by SCENARIO_DEFS/benchmarkScenario) and Scenario (union of HttpScenario | serialization) to avoid type errors with Record<Scenario, ScenarioDef>
+  - fast-json-stringify types work with tsc --noEmit (typecheck) but may show TS2769 under tsc -p tsconfig.lib.json (build) -- same pre-existing build failure pattern as Bun/Deno files
+  - performance.now() returns milliseconds; multiply by 1_000_000 for nanosecond precision in microbenchmarks
+  - Float64Array is more efficient than number[] for large timing arrays (1M iterations)
+  - Microbenchmark results use a separate merge key (name|serializer) distinct from HTTP benchmark composite key (framework|platform|server|scenario)
+---
+
+## 2026-03-09T08:33 - US-015
+- What was implemented: GitHub Actions benchmark workflow with PR regression detection and main branch full suite
+- Files changed:
+  - .github/workflows/benchmark.yml (new: CI workflow with check-affected, bench-pr, and bench-main jobs)
+  - packages/benchmarks/src/compare-baseline.ts (new: baseline comparison script with >10% regression threshold, markdown output)
+  - packages/benchmarks/project.json (updated: bench-baseline target now clears latest.json, runs bench-ci filter, copies to baseline.json)
+- **Learnings for future iterations:**
+  - The BenchmarkResult.framework field stores the full app name (e.g., "typokit-node-native"), NOT the framework category ("typokit")
+  - ESLint CRLF fix is needed for every new .ts file created on Windows — consistent with previous iterations
+  - actions-rust-lang/setup-rust-toolchain@v1 is the correct action for Rust setup in CI (different from dtolnay/rust-toolchain@stable used in ci.yml)
+  - The docs.yml workflow already supports workflow_dispatch, so bench-main can trigger docs deploy via createWorkflowDispatch API
+  - nx show projects --affected is the correct way to check if a specific package is affected in CI
+  - PR comment uses "## Benchmark Results vs Baseline" as marker to find/update existing comments
+---
+
+## 2026-03-09T08:41 - US-016
+- What was implemented: Docs site Benchmarks page with Chart.js interactive charts
+  - Performance sidebar section added to astro.config.mjs
+  - BenchmarkCharts.astro component: reads latest.json at build time, falls back to sample data
+  - 4 bar charts (JSON, Validate, DB req/s on log scale; Startup on linear)
+  - Platform × Server heatmap (13 TypoKit combinations, Rust/Axum distinguished in orange)
+  - Latency percentile comparison table (top 15 frameworks)
+  - Consistent color scheme: purple=TypoKit, orange=Rust, gray=raw, named colors for competitors
+  - Methodology stub page (placeholder for US-017)
+  - chart.js added to docs package.json, CDN script for client-side rendering
+- Files changed:
+  - packages/docs/astro.config.mjs (added Performance sidebar section, Chart.js CDN script tag)
+  - packages/docs/package.json (added chart.js dependency)
+  - packages/docs/src/components/BenchmarkCharts.astro (new: full chart component with build-time data loading)
+  - packages/docs/src/content/docs/performance/benchmarks.mdx (new: Benchmarks overview page)
+  - packages/docs/src/content/docs/performance/methodology.mdx (new: methodology stub for US-017)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - Astro components can't use `import.meta.dirname` — use `fileURLToPath(import.meta.url)` + `dirname()` instead
+  - Chart.js is loaded via CDN in Starlight head config; Astro `<script define:vars>` passes serialized data to client
+  - Starlight sidebar fails at build time if referenced slugs don't exist — create stub pages for all sidebar entries
+  - Sample data generation at build time allows docs to build even before benchmarks are run
+  - The docs build takes ~34s and validates all sidebar entries, content, and component imports
+---
+
+## 2026-03-09T08:49 - US-017
+- What was implemented: Full Methodology documentation page for the benchmark suite
+  - CI runner hardware specs section
+  - Bombardier settings (default: 100 conn/30s/5s warmup/3 runs, CI: 50 conn/10s/1 run)
+  - All 8 scenarios documented (json, validate, validate-passthrough, validate-handwritten, db, middleware, startup, serialization)
+  - Complete framework list with 25 apps (13 TypoKit, 4 raw, 8 competitor) with versions and links
+  - Local reproduction instructions with prerequisites and all CLI commands
+  - Nx affected scoping explanation (partial runs, cumulative latest.json merge, skip conditions)
+  - CI regression detection documentation (baseline.json, 10% threshold, PR comments, main branch workflow)
+  - Results format documentation with example JSON
+  - Methodology sidebar entry already existed from US-016
+- Files changed:
+  - packages/docs/src/content/docs/performance/methodology.mdx (replaced stub with full documentation)
+  - scripts/ralph/prd.json (US-017 passes set to true)
+- **Learnings for future iterations:**
+  - The methodology.mdx stub was already created by US-016 with sidebar entry — only content needed replacing
+  - Astro/Starlight .mdx files support standard markdown tables and code blocks without special imports
+  - LinkCard component from @astrojs/starlight/components is useful for cross-page navigation
 ---

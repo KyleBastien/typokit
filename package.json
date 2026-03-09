@@ -15,7 +15,12 @@
     "affected:build": "nx affected -t build",
     "affected:test": "nx affected -t test",
     "affected:lint": "nx affected -t lint",
-    "affected:typecheck": "nx affected -t typecheck"
+    "affected:typecheck": "nx affected -t typecheck",
+    "bench": "nx run benchmarks:bench",
+    "bench:ci": "nx run benchmarks:bench-ci",
+    "bench:baseline": "nx run benchmarks:bench-baseline",
+    "bench:info": "nx run benchmarks:bench-info",
+    "bench:reproduce": "nx run benchmarks:bench-reproduce"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
