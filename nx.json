@@ -97,8 +97,7 @@
         "file": false
       },
       "git": {
-        "commit": true,
-        "commitMessage": "chore(release): {version} [skip ci]",
+        "commit": false,
         "tag": false
       }
     }

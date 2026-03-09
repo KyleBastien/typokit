@@ -307,6 +307,11 @@ jobs:
       - name: "Release: Sync native platform versions"
         run: node --experimental-strip-types scripts/sync-native-versions.ts
 
+      - name: "Release: Commit sync changes"
+        run: |
+          git add -A
+          git diff --staged --quiet || git commit --amend --no-edit
+
       - name: "Release: Publish native platform packages"
         run: |
           for dir in packages/transform-native/npm/*/; do
@@ -337,3 +342,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: true
+
+      - name: "Release: Push tags and commits"
+        run: git push --follow-tags
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
