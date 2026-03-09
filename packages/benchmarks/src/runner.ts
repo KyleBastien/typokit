@@ -764,7 +764,7 @@ function parseArgs(): {
 } {
   const args = process.argv.slice(2);
   let mode: "run" | "info" | "reproduce" = "run";
-  const overrides: Partial<RunnerConfig> = {};
+  const overrides: { -readonly [K in keyof RunnerConfig]?: RunnerConfig[K] } = {};
   const scenarios: Scenario[] = [];
 
   for (let i = 0; i < args.length; i++) {

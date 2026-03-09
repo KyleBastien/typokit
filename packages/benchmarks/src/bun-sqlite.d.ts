@@ -1,5 +1,17 @@
-// Minimal type declarations for bun:sqlite so the package compiles
-// under Node16 moduleResolution without bun-types installed.
+// Minimal type declarations for Bun globals and bun:sqlite so the package
+// compiles under Node16 moduleResolution without bun-types installed.
+
+declare namespace Bun {
+  interface ServeOptions {
+    port?: number;
+    fetch(req: Request): Response | Promise<Response>;
+  }
+  interface Server {
+    port: number;
+    stop(closeActiveConnections?: boolean): void;
+  }
+  function serve(options: ServeOptions): Server;
+}
 
 declare module "bun:sqlite" {
   export class Database {

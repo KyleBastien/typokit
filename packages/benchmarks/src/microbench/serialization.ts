@@ -20,7 +20,7 @@ const fastSerializer = fastJsonStringify({
   properties: {
     id: { type: "integer" },
     title: { type: "string" },
-    status: { type: "string", enum: ["active", "archived", "draft"] },
+    status: { type: "string" } as Record<string, unknown>,
     priority: { type: "integer" },
     tags: { type: "array", items: { type: "string" } },
     author: {
