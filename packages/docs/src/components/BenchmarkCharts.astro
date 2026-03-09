@@ -5,7 +5,7 @@
  * Chart.js charts via client-side <script> initialization on <canvas> elements.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,7 +40,10 @@ const resultsPath = resolve(
   "../../../benchmarks/results/latest.json"
 );
 
-const resultsData: ResultsFile = JSON.parse(readFileSync(resultsPath, "utf-8"));
+const hasResults = existsSync(resultsPath);
+const resultsData: ResultsFile = hasResults
+  ? JSON.parse(readFileSync(resultsPath, "utf-8"))
+  : { version: 1, results: [] };
 
 const generatedAt = resultsData.generatedAt
   ? new Date(resultsData.generatedAt).toLocaleDateString("en-US", {
@@ -139,13 +142,21 @@ const colorMap = JSON.stringify(
 ---
 
 <div class="benchmark-charts">
-  {generatedAt && (
-    <aside class="results-meta">
+  {!hasResults ? (
+    <aside class="results-pending">
       <p>
-        <strong>📊 CI Benchmark Results</strong> — Generated on {generatedAt} from the main branch CI pipeline.
+        Benchmark results will appear here after the next CI run on the main branch.
       </p>
     </aside>
-  )}
+  ) : (
+    <>
+      {generatedAt && (
+        <aside class="results-meta">
+          <p>
+            <strong>📊 CI Benchmark Results</strong> — Generated on {generatedAt} from the main branch CI pipeline.
+          </p>
+        </aside>
+      )}
 
   <!-- JSON Scenario -->
   <section class="chart-section">
@@ -275,6 +286,8 @@ const colorMap = JSON.stringify(
       </table>
     </div>
   </section>
+    </>
+  )}
 </div>
 
 <style>
@@ -294,6 +307,19 @@ const colorMap = JSON.stringify(
   .results-meta p {
     margin: 0;
     font-size: 0.9rem;
+  }
+
+  .results-pending {
+    background: var(--sl-color-gray-6);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .results-pending p {
+    margin: 0;
+    color: var(--sl-color-gray-2);
   }
 
   .chart-section {
@@ -416,7 +442,8 @@ const colorMap = JSON.stringify(
   }
 </style>
 
-<script define:vars={{ chartData, colorMap }}>
+<script define:vars={{ chartData, colorMap, hasResults }}>
+  if (!hasResults) { /* no charts to render */ } else {
   // Chart.js is loaded via CDN in the page head
   const data = JSON.parse(chartData);
   const colors = JSON.parse(colorMap);
@@ -512,5 +539,6 @@ const colorMap = JSON.stringify(
     document.addEventListener("DOMContentLoaded", init);
   } else {
     init();
+  }
   }
 </script>
