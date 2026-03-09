@@ -22,6 +22,7 @@ export interface SystemInfo {
   readonly cpuCores: number;
   readonly ram: string;
   readonly runtimeVersions: RuntimeVersions;
+  readonly bombardierVersion?: string;
 }
 
 /** Configuration for a benchmark run */

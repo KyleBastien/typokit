@@ -4,7 +4,7 @@
 
 import type { ChildProcess } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { cpus, totalmem, type as osType, release, arch } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,12 @@ import type {
 } from "./types.ts";
 import { runBombardier } from "./bombardier.ts";
 import type { BombardierOutput, BombardierRunConfig } from "./bombardier.ts";
+import {
+  printSummaryTable,
+  writeTimestampedResults,
+  mergeLatestResults,
+  getBombardierVersion,
+} from "./results.ts";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -323,19 +329,12 @@ function matchesFilter(name: string, filter: string): boolean {
   });
 }
 
-function padRight(s: string, len: number): string {
-  return s.length >= len ? s : s + " ".repeat(len - s.length);
-}
-
-function padLeft(s: string, len: number): string {
-  return s.length >= len ? s : " ".repeat(len - s.length) + s;
-}
-
 function formatNumber(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-function collectSystemInfo(): SystemInfo {
+async function collectSystemInfo(): Promise<SystemInfo> {
+  const bombardierVersion = await getBombardierVersion();
   return {
     os: `${osType()} ${release()} ${arch()}`,
     cpu: cpus()[0]?.model ?? "unknown",
@@ -344,6 +343,7 @@ function collectSystemInfo(): SystemInfo {
     runtimeVersions: {
       node: process.version,
     },
+    bombardierVersion,
   };
 }
 
@@ -570,64 +570,6 @@ async function benchmarkScenario(
   return averageOutputs(runs);
 }
 
-// ─── Summary Table ───────────────────────────────────────────
-
-function printSummaryTable(results: ReadonlyArray<BenchmarkResult>): void {
-  if (results.length === 0) {
-    console.log("\nNo benchmark results collected.");
-    return;
-  }
-
-  const W = { name: 28, scenario: 12, rps: 12, p50: 10, p99: 10, errors: 8 };
-
-  const header = [
-    padRight("Framework", W.name),
-    padRight("Scenario", W.scenario),
-    padLeft("req/sec", W.rps),
-    padLeft("p50 (ms)", W.p50),
-    padLeft("p99 (ms)", W.p99),
-    padLeft("Errors", W.errors),
-  ].join("  ");
-
-  const divider = "\u2500".repeat(header.length);
-
-  console.log("");
-  console.log(header);
-  console.log(divider);
-
-  for (const r of results) {
-    console.log(
-      [
-        padRight(r.framework, W.name),
-        padRight(r.scenario, W.scenario),
-        padLeft(formatNumber(r.reqPerSec), W.rps),
-        padLeft(r.latency.p50.toFixed(2), W.p50),
-        padLeft(r.latency.p99.toFixed(2), W.p99),
-        padLeft(String(r.errors), W.errors),
-      ].join("  "),
-    );
-  }
-
-  console.log(divider);
-  console.log(`Total: ${String(results.length)} benchmark(s)\n`);
-}
-
-// ─── Results File ────────────────────────────────────────────
-
-async function writeResults(
-  results: ReadonlyArray<BenchmarkResult>,
-): Promise<string> {
-  const resultsDir = join(__dirname, "..", "results");
-  await mkdir(resultsDir, { recursive: true });
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `${timestamp}.json`;
-  const filePath = join(resultsDir, filename);
-
-  await writeFile(filePath, JSON.stringify(results, null, 2) + "\n");
-  return filePath;
-}
-
 // ─── Runner ──────────────────────────────────────────────────
 
 async function runSuite(config: RunnerConfig): Promise<BenchmarkResult[]> {
@@ -649,7 +591,7 @@ async function runSuite(config: RunnerConfig): Promise<BenchmarkResult[]> {
     `Config: ${String(config.connections)} connections, ${config.duration} duration, ${config.warmup} warmup`,
   );
 
-  const systemInfo = collectSystemInfo();
+  const systemInfo = await collectSystemInfo();
   const benchmarkConfig = {
     connections: config.connections,
     duration: config.duration,
@@ -721,14 +663,15 @@ async function runSuite(config: RunnerConfig): Promise<BenchmarkResult[]> {
 
 // ─── System Info Mode ────────────────────────────────────────
 
-function printSystemInfo(): void {
-  const info = collectSystemInfo();
+async function printSystemInfo(): Promise<void> {
+  const info = await collectSystemInfo();
   console.log("\nSystem Information:");
   console.log(`  OS:       ${info.os}`);
   console.log(`  CPU:      ${info.cpu}`);
   console.log(`  Cores:    ${String(info.cpuCores)}`);
   console.log(`  RAM:      ${info.ram}`);
   console.log(`  Node.js:  ${info.runtimeVersions.node ?? "N/A"}`);
+  console.log(`  Bombardier: ${info.bombardierVersion ?? "N/A"}`);
   console.log(`\nRegistered apps: ${String(APP_REGISTRY.length)}`);
   console.log(`Available scenarios: ${ALL_SCENARIOS.join(", ")}\n`);
 }
@@ -847,7 +790,7 @@ async function main(): Promise<void> {
 
   switch (mode) {
     case "info":
-      printSystemInfo();
+      await printSystemInfo();
       return;
     case "reproduce":
       await printReproduceInfo();
@@ -865,8 +808,14 @@ async function main(): Promise<void> {
   if (results.length > 0) {
     printSummaryTable(results);
 
-    const filePath = await writeResults(results);
+    const resultsDir = join(__dirname, "..", "results");
+    const filePath = await writeTimestampedResults(results, resultsDir);
     log(`Results written to ${filePath}`);
+
+    const merged = await mergeLatestResults(results, resultsDir);
+    log(
+      `latest.json updated: ${String(merged.length)} total result(s) (${String(results.length)} new/updated)`,
+    );
   }
 
   console.log("\nDone.\n");
