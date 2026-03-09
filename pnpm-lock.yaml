@@ -56,6 +56,9 @@ importers:
       '@typokit/platform-bun':
         specifier: workspace:*
         version: link:../platform-bun
+      '@typokit/platform-deno':
+        specifier: workspace:*
+        version: link:../platform-deno
       '@typokit/platform-node':
         specifier: workspace:*
         version: link:../platform-node
