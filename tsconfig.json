@@ -92,6 +92,9 @@
       ],
       "@typokit/example-todo-client": [
         "packages/example-todo-client/src/index.ts"
+      ],
+      "@typokit/benchmarks": [
+        "packages/benchmarks/src/index.ts"
       ]
     }
   },
