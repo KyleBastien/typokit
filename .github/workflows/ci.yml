@@ -309,6 +309,9 @@ jobs:
       - name: "Release: Sync native platform versions"
         run: node --experimental-strip-types scripts/sync-native-versions.ts
 
+      - name: "Release: Update lockfile"
+        run: pnpm install --no-frozen-lockfile
+
       - name: "Release: Commit sync changes"
         run: |
           git add -A
