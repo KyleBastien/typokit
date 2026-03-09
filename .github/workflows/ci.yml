@@ -355,6 +355,14 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: true
 
+      - name: "Release: Sync lockfile with published packages"
+        run: |
+          pnpm install --no-frozen-lockfile
+          git add pnpm-lock.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sync lockfile after publish [skip ci]"
+          fi
+
       - name: "Release: Push tags and commits"
         run: git push --follow-tags
         env:
