@@ -11,7 +11,7 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "files": [
     "dist",
@@ -50,11 +50,11 @@
     "directory": "packages/transform-native"
   },
   "optionalDependencies": {
-    "@typokit/transform-native-darwin-arm64": "0.3.0",
-    "@typokit/transform-native-darwin-x64": "0.3.0",
-    "@typokit/transform-native-linux-arm64-gnu": "0.3.0",
-    "@typokit/transform-native-linux-x64-gnu": "0.3.0",
-    "@typokit/transform-native-linux-x64-musl": "0.3.0",
-    "@typokit/transform-native-win32-x64-msvc": "0.3.0"
+    "@typokit/transform-native-darwin-arm64": "0.3.1",
+    "@typokit/transform-native-darwin-x64": "0.3.1",
+    "@typokit/transform-native-linux-arm64-gnu": "0.3.1",
+    "@typokit/transform-native-linux-x64-gnu": "0.3.1",
+    "@typokit/transform-native-linux-x64-musl": "0.3.1",
+    "@typokit/transform-native-win32-x64-msvc": "0.3.1"
   }
 }
