@@ -29,7 +29,14 @@ const __dirname = join(__filename, "..");
 
 // ─── Types ───────────────────────────────────────────────────
 
-type Scenario = "json" | "validate" | "db" | "middleware" | "startup";
+type Scenario =
+  | "json"
+  | "validate"
+  | "validate-passthrough"
+  | "validate-handwritten"
+  | "db"
+  | "middleware"
+  | "startup";
 
 interface AppDef {
   readonly name: string;
@@ -72,6 +79,8 @@ interface ScenarioDef {
 const ALL_SCENARIOS: ReadonlyArray<Scenario> = [
   "json",
   "validate",
+  "validate-passthrough",
+  "validate-handwritten",
   "db",
   "middleware",
   "startup",
@@ -102,10 +111,28 @@ const SCENARIO_DEFS: Readonly<Record<Scenario, ScenarioDef>> = {
     body: VALID_POST_BODY,
     headers: { "content-type": "application/json" },
   },
+  "validate-passthrough": {
+    path: "/validate-passthrough",
+    method: "POST",
+    body: VALID_POST_BODY,
+    headers: { "content-type": "application/json" },
+  },
+  "validate-handwritten": {
+    path: "/validate-handwritten",
+    method: "POST",
+    body: VALID_POST_BODY,
+    headers: { "content-type": "application/json" },
+  },
   db: { path: "/db/1" },
   middleware: { path: "/middleware" },
   startup: { path: "/startup" },
 };
+
+/** Scenarios that only apply to TypoKit framework apps */
+const TYPOKIT_ONLY_SCENARIOS: ReadonlySet<Scenario> = new Set([
+  "validate-passthrough",
+  "validate-handwritten",
+]);
 
 // ─── App Registry ────────────────────────────────────────────
 
@@ -613,6 +640,13 @@ async function runSuite(config: RunnerConfig): Promise<BenchmarkResult[]> {
 
       // Run each scenario
       for (const scenario of config.scenarios) {
+        // Skip TypoKit-only scenarios for non-TypoKit apps
+        if (
+          TYPOKIT_ONLY_SCENARIOS.has(scenario) &&
+          app.framework !== "typokit"
+        ) {
+          continue;
+        }
         log(`  Benchmarking: ${scenario}`);
         try {
           const avg = await benchmarkScenario(handle.port, scenario, config);

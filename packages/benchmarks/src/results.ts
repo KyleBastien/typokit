@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 
-import type { BenchmarkResult, LatencyPercentiles } from "./types.ts";
+import type {
+  BenchmarkResult,
+  LatencyPercentiles,
+  ValidationAnalysisEntry,
+} from "./types.ts";
 import { getBombardierPath } from "./bombardier.ts";
 
 const execFileAsync = promisify(execFile);
@@ -17,6 +21,7 @@ export interface ResultsFile {
   readonly version: 1;
   readonly generatedAt: string;
   readonly results: ReadonlyArray<BenchmarkResult>;
+  readonly validationAnalysis?: ReadonlyArray<ValidationAnalysisEntry>;
 }
 
 /** A row in the summary table, enriched with ranking data */
@@ -193,12 +198,165 @@ export function printSummaryTable(
     "\n\u2500\u2500\u2500 Benchmark Results Summary \u2500\u2500\u2500",
   );
   console.log(formatSummaryTable(results));
+
+  const analysis = computeValidationAnalysis(results);
+  if (analysis.length > 0) {
+    console.log(formatValidationAnalysis(analysis));
+  }
+
   console.log(
     `\nTotal: ${String(results.length)} benchmark(s) across ${String(new Set(results.map((r) => r.scenario)).size)} scenario(s)`,
   );
 }
 
-// ─── Results File I/O ────────────────────────────────────────
+// ─── Validation Overhead Analysis ────────────────────────────
+
+/**
+ * Computes validation overhead analysis for apps that have all three
+ * validate scenarios (validate, validate-passthrough, validate-handwritten).
+ */
+export function computeValidationAnalysis(
+  results: ReadonlyArray<BenchmarkResult>,
+): ValidationAnalysisEntry[] {
+  // Group results by framework+platform+server
+  const groups = new Map<
+    string,
+    {
+      validate?: BenchmarkResult;
+      passthrough?: BenchmarkResult;
+      handwritten?: BenchmarkResult;
+    }
+  >();
+
+  for (const r of results) {
+    if (
+      r.scenario !== "validate" &&
+      r.scenario !== "validate-passthrough" &&
+      r.scenario !== "validate-handwritten"
+    ) {
+      continue;
+    }
+    const key = `${r.framework}|${r.platform}|${r.server}`;
+    const group = groups.get(key) ?? {};
+    if (r.scenario === "validate") group.validate = r;
+    else if (r.scenario === "validate-passthrough") group.passthrough = r;
+    else if (r.scenario === "validate-handwritten") group.handwritten = r;
+    groups.set(key, group);
+  }
+
+  const entries: ValidationAnalysisEntry[] = [];
+  const round2 = (v: number): number => Math.round(v * 100) / 100;
+
+  for (const group of groups.values()) {
+    if (!group.validate || !group.passthrough || !group.handwritten) continue;
+
+    const vsPassthrough =
+      group.passthrough.reqPerSec > 0
+        ? round2(
+            ((group.validate.reqPerSec - group.passthrough.reqPerSec) /
+              group.passthrough.reqPerSec) *
+              100,
+          )
+        : 0;
+
+    const vsHandwritten =
+      group.handwritten.reqPerSec > 0
+        ? round2(
+            ((group.validate.reqPerSec - group.handwritten.reqPerSec) /
+              group.handwritten.reqPerSec) *
+              100,
+          )
+        : 0;
+
+    entries.push({
+      framework: group.validate.framework,
+      platform: group.validate.platform,
+      server: group.validate.server,
+      passthroughReqPerSec: group.passthrough.reqPerSec,
+      handwrittenReqPerSec: group.handwritten.reqPerSec,
+      typokitReqPerSec: group.validate.reqPerSec,
+      vsPassthroughPct: vsPassthrough,
+      vsHandwrittenPct: vsHandwritten,
+    });
+  }
+
+  return entries;
+}
+
+/**
+ * Formats a markdown validation overhead analysis table.
+ */
+export function formatValidationAnalysis(
+  entries: ReadonlyArray<ValidationAnalysisEntry>,
+): string {
+  if (entries.length === 0) return "";
+
+  const lines: string[] = [];
+  lines.push("\n### Validation Overhead Analysis");
+  lines.push("");
+
+  const W = {
+    framework: 28,
+    platform: 8,
+    server: 12,
+    passthrough: 16,
+    handwritten: 16,
+    typokit: 16,
+    vsPt: 16,
+    vsHw: 16,
+  };
+
+  const header = [
+    padRight("Framework", W.framework),
+    padRight("Platform", W.platform),
+    padRight("Server", W.server),
+    padLeft("Passthrough", W.passthrough),
+    padLeft("Handwritten", W.handwritten),
+    padLeft("TypoKit", W.typokit),
+    padLeft("vs Passthrough", W.vsPt),
+    padLeft("vs Handwritten", W.vsHw),
+  ].join(" | ");
+
+  const sep = [
+    "-".repeat(W.framework),
+    "-".repeat(W.platform),
+    "-".repeat(W.server),
+    "-".repeat(W.passthrough),
+    "-".repeat(W.handwritten),
+    "-".repeat(W.typokit),
+    "-".repeat(W.vsPt),
+    "-".repeat(W.vsHw),
+  ].join(" | ");
+
+  lines.push(`| ${header} |`);
+  lines.push(`| ${sep} |`);
+
+  for (const e of entries) {
+    const vsPtStr =
+      e.vsPassthroughPct >= 0
+        ? `+${e.vsPassthroughPct.toFixed(1)}%`
+        : `${e.vsPassthroughPct.toFixed(1)}%`;
+    const vsHwStr =
+      e.vsHandwrittenPct >= 0
+        ? `+${e.vsHandwrittenPct.toFixed(1)}%`
+        : `${e.vsHandwrittenPct.toFixed(1)}%`;
+
+    lines.push(
+      `| ${[
+        padRight(e.framework, W.framework),
+        padRight(e.platform, W.platform),
+        padRight(e.server, W.server),
+        padLeft(formatNumber(e.passthroughReqPerSec), W.passthrough),
+        padLeft(formatNumber(e.handwrittenReqPerSec), W.handwritten),
+        padLeft(formatNumber(e.typokitReqPerSec), W.typokit),
+        padLeft(vsPtStr, W.vsPt),
+        padLeft(vsHwStr, W.vsHw),
+      ].join(" | ")} |`,
+    );
+  }
+
+  return lines.join("\n");
+}
 
 /**
  * Writes benchmark results to a timestamped JSON file.
@@ -214,10 +372,12 @@ export async function writeTimestampedResults(
   const filename = `${timestamp}.json`;
   const filePath = join(resultsDir, filename);
 
+  const analysis = computeValidationAnalysis(results);
   const file: ResultsFile = {
     version: 1,
     generatedAt: new Date().toISOString(),
     results,
+    ...(analysis.length > 0 ? { validationAnalysis: analysis } : {}),
   };
 
   await writeFile(filePath, JSON.stringify(file, null, 2) + "\n");
@@ -273,10 +433,12 @@ export async function mergeLatestResults(
 
   const mergedArray = [...merged.values()];
 
+  const analysis = computeValidationAnalysis(mergedArray);
   const file: ResultsFile = {
     version: 1,
     generatedAt: new Date().toISOString(),
     results: mergedArray,
+    ...(analysis.length > 0 ? { validationAnalysis: analysis } : {}),
   };
 
   await writeFile(latestPath, JSON.stringify(file, null, 2) + "\n");

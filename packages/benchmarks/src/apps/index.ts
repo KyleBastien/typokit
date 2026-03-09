@@ -2,6 +2,7 @@ export {
   buildRouteTable,
   buildAppResources,
   buildValidatorMap,
+  handwrittenValidate,
 } from "./shared-routes.ts";
 export type { BenchmarkAppResources } from "./shared-routes.ts";
 

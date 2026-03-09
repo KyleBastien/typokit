@@ -38,6 +38,43 @@ pub async fn post_validate(
     }
 }
 
+/// POST /validate-passthrough — returns the body with zero validation.
+pub async fn post_validate_passthrough(
+    Json(body): Json<CreateBenchmarkItemBody>,
+) -> Json<CreateBenchmarkItemBody> {
+    Json(body)
+}
+
+/// POST /validate-handwritten — inline hand-written validation (no framework).
+pub async fn post_validate_handwritten(
+    Json(body): Json<CreateBenchmarkItemBody>,
+) -> Result<Json<CreateBenchmarkItemBody>, (StatusCode, Json<serde_json::Value>)> {
+    if body.title.is_empty() || body.title.len() > 255 {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "title must be 1-255 chars"}))));
+    }
+    if !matches!(body.status.as_str(), "active" | "archived" | "draft") {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid status"}))));
+    }
+    if body.priority < 1 || body.priority > 10 {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "priority must be 1-10"}))));
+    }
+    if body.tags.len() > 10 {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "tags max 10"}))));
+    }
+    if body.author.name.is_empty() || body.author.name.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "author.name must be 1-100 chars"}))));
+    }
+    if !body.author.email.contains('@') {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid email"}))));
+    }
+    if let Some(ref desc) = body.description {
+        if desc.len() > 2000 {
+            return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "description max 2000 chars"}))));
+        }
+    }
+    Ok(Json(body))
+}
+
 /// GET /db/{id} — fetches a benchmark item from SQLite by ID.
 pub async fn get_db(
     State(state): State<AppState>,

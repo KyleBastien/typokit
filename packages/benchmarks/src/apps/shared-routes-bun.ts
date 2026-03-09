@@ -13,12 +13,16 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { BENCHMARK_RESPONSE, SELECT_BY_ID_SQL } from "../shared/index.ts";
 import type { CreateBenchmarkItemBody } from "../shared/index.ts";
-import { buildValidatorMap } from "./shared-routes.ts";
+import { buildValidatorMap, handwrittenValidate } from "./shared-routes.ts";
 import type { BenchmarkAppResources } from "./shared-routes.ts";
 // bun:sqlite types declared in ../bun-sqlite.d.ts
 import { Database } from "bun:sqlite";
 
-export { buildRouteTable, buildValidatorMap } from "./shared-routes.ts";
+export {
+  buildRouteTable,
+  buildValidatorMap,
+  handwrittenValidate,
+} from "./shared-routes.ts";
 export type { BenchmarkAppResources } from "./shared-routes.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -60,6 +64,28 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
         status: 200,
         headers: { "content-type": "application/json" },
         body: body,
+      };
+    },
+
+    "post-validate-passthrough": (req: TypoKitRequest) => ({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: req.body as CreateBenchmarkItemBody,
+    }),
+
+    "post-validate-handwritten": (req: TypoKitRequest) => {
+      const result = handwrittenValidate(req.body);
+      if (!result.ok) {
+        return {
+          status: 400,
+          headers: { "content-type": "application/json" },
+          body: { error: result.error },
+        };
+      }
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: result.data,
       };
     },
 

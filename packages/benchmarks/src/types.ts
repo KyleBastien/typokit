@@ -46,3 +46,17 @@ export interface BenchmarkResult {
   readonly systemInfo: SystemInfo;
   readonly config: BenchmarkConfig;
 }
+
+/** Validation overhead analysis entry computed from validate/passthrough/handwritten scenarios */
+export interface ValidationAnalysisEntry {
+  readonly framework: string;
+  readonly platform: string;
+  readonly server: string;
+  readonly passthroughReqPerSec: number;
+  readonly handwrittenReqPerSec: number;
+  readonly typokitReqPerSec: number;
+  /** % overhead of TypoKit validation vs passthrough (negative = slower) */
+  readonly vsPassthroughPct: number;
+  /** % difference of TypoKit validation vs handwritten (negative = slower) */
+  readonly vsHandwrittenPct: number;
+}

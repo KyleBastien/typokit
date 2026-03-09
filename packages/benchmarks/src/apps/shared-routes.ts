@@ -35,7 +35,7 @@ const DEFAULT_DB_PATH = join(
 
 // ─── Route Table ─────────────────────────────────────────────
 
-/** Build the compiled route table for the 5 benchmark endpoints */
+/** Build the compiled route table for the 7 benchmark endpoints */
 export function buildRouteTable(): CompiledRouteTable {
   return {
     segment: "",
@@ -53,6 +53,24 @@ export function buildRouteTable(): CompiledRouteTable {
             ref: "post-validate",
             middleware: [],
             validators: { body: "validate-body" },
+          },
+        },
+      },
+      "validate-passthrough": {
+        segment: "validate-passthrough",
+        handlers: {
+          POST: {
+            ref: "post-validate-passthrough",
+            middleware: [],
+          },
+        },
+      },
+      "validate-handwritten": {
+        segment: "validate-handwritten",
+        handlers: {
+          POST: {
+            ref: "post-validate-handwritten",
+            middleware: [],
           },
         },
       },
@@ -205,7 +223,62 @@ export interface BenchmarkAppResources {
   close: () => void;
 }
 
-/** Build handler map and associated resources for all 5 benchmark endpoints */
+/** Inline hand-written if/typeof validation (bypasses TypoKit validator framework) */
+export function handwrittenValidate(
+  input: unknown,
+): { ok: true; data: CreateBenchmarkItemBody } | { ok: false; error: string } {
+  if (!input || typeof input !== "object") {
+    return { ok: false, error: "body must be an object" };
+  }
+  const obj = input as Record<string, unknown>;
+  if (
+    typeof obj.title !== "string" ||
+    obj.title.length < 1 ||
+    obj.title.length > 255
+  ) {
+    return { ok: false, error: "title must be string (1-255)" };
+  }
+  if (
+    obj.status !== "active" &&
+    obj.status !== "archived" &&
+    obj.status !== "draft"
+  ) {
+    return { ok: false, error: "status must be active|archived|draft" };
+  }
+  if (
+    typeof obj.priority !== "number" ||
+    obj.priority < 1 ||
+    obj.priority > 10
+  ) {
+    return { ok: false, error: "priority must be number (1-10)" };
+  }
+  if (!Array.isArray(obj.tags) || obj.tags.length > 10) {
+    return { ok: false, error: "tags must be string[] (0-10)" };
+  }
+  if (!obj.author || typeof obj.author !== "object") {
+    return { ok: false, error: "author must be { name, email }" };
+  }
+  const author = obj.author as Record<string, unknown>;
+  if (
+    typeof author.name !== "string" ||
+    author.name.length < 1 ||
+    author.name.length > 100
+  ) {
+    return { ok: false, error: "author.name must be string (1-100)" };
+  }
+  if (typeof author.email !== "string") {
+    return { ok: false, error: "author.email must be string" };
+  }
+  if (
+    obj.description !== undefined &&
+    (typeof obj.description !== "string" || obj.description.length > 2000)
+  ) {
+    return { ok: false, error: "description must be string? (0-2000)" };
+  }
+  return { ok: true, data: input as CreateBenchmarkItemBody };
+}
+
+/** Build handler map and associated resources for all 7 benchmark endpoints */
 export function buildAppResources(dbPath?: string): BenchmarkAppResources {
   const db = new Database(dbPath ?? DEFAULT_DB_PATH, { readonly: true });
   const selectById = db.prepare(SELECT_BY_ID_SQL);
@@ -223,6 +296,28 @@ export function buildAppResources(dbPath?: string): BenchmarkAppResources {
         status: 200,
         headers: { "content-type": "application/json" },
         body: body,
+      };
+    },
+
+    "post-validate-passthrough": (req: TypoKitRequest) => ({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: req.body as CreateBenchmarkItemBody,
+    }),
+
+    "post-validate-handwritten": (req: TypoKitRequest) => {
+      const result = handwrittenValidate(req.body);
+      if (!result.ok) {
+        return {
+          status: 400,
+          headers: { "content-type": "application/json" },
+          body: { error: result.error },
+        };
+      }
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: result.data,
       };
     },
 

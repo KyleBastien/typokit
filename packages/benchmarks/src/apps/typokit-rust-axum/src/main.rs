@@ -60,6 +60,8 @@ async fn main() {
     let app = Router::new()
         .route("/json", get(handlers::get_json))
         .route("/validate", post(handlers::post_validate))
+        .route("/validate-passthrough", post(handlers::post_validate_passthrough))
+        .route("/validate-handwritten", post(handlers::post_validate_handwritten))
         .route("/db/{id}", get(handlers::get_db))
         .route("/startup", get(handlers::get_startup))
         .merge(middleware_router)
