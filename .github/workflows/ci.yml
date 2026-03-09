@@ -327,6 +327,13 @@ jobs:
         env:
           NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
 
+      - name: "Release: Publish native main packages"
+        run: |
+          node --experimental-strip-types scripts/npm-publish.ts packages/transform-native
+          node --experimental-strip-types scripts/npm-publish.ts packages/plugin-axum
+        env:
+          NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+
       - name: "Release: Changelog"
         run: pnpm nx release changelog ${{ steps.version.outputs.version }}
         env:
