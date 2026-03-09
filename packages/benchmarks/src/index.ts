@@ -21,3 +21,12 @@ export type {
   BenchmarkAuthor,
   CreateBenchmarkItemBody,
 } from "./shared/index.ts";
+
+export {
+  getBombardierPath,
+  runBombardier,
+  DEFAULT_CONFIG,
+  CI_CONFIG,
+} from "./bombardier.ts";
+
+export type { BombardierRunConfig, BombardierOutput } from "./bombardier.ts";
