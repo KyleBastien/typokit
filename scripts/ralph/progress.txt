@@ -1,5 +1,19 @@
 # Ralph Progress Log
 Started: 03/08/2026 23:22:45
+
+## Codebase Patterns
+- Benchmarks package uses Nx auto-infer (no project.json needed) — consistent with all packages
+- pnpm-workspace.yaml `packages/*` glob auto-detects new packages
+- Raw baseline apps use hand-written routing (no framework) — same 5 endpoints as TypoKit apps
+- ESLint enforces LF line endings — use `eslint --fix` to auto-convert CRLF on Windows
+- ESLint forbids `import()` type annotations — use explicit `import type` at top of file
+- Server adapter apps follow shared-routes pattern per platform (shared-routes.ts, shared-routes-bun.ts, shared-routes-deno.ts)
+- Root .gitignore has `target/` for Rust and `.typokit/` for generated files
+- Axum 0.8 path params use `{id}` syntax (not `:id`)
+- For rusqlite in Axum, use `Arc<Mutex<Connection>>` + `spawn_blocking` since Connection is Send but not Sync
+- Build target (tsc -p tsconfig.lib.json) fails on Bun/Deno files; typecheck (tsc --noEmit) is the real quality gate
+- Competitor apps use each framework's recommended validation (JSON Schema for Fastify, TypeBox for Elysia, manual for others)
+
 ---
 
 ## 2026-03-09T07:05 - US-005
@@ -37,4 +51,63 @@ Started: 03/08/2026 23:22:45
 - **Learnings for future iterations:**
   - All server adapter apps (node/bun/deno × native/fastify/hono/express) follow shared-routes pattern
   - Each platform has its own shared-routes variant (shared-routes.ts, shared-routes-bun.ts, shared-routes-deno.ts)
+---
+
+## 2026-03-09T07:12 - US-006
+- What was implemented: Rust/Axum benchmark app with 5 endpoints (json, validate, db, middleware, startup)
+- Files changed:
+  - packages/benchmarks/src/apps/typokit-rust-axum/Cargo.toml (new)
+  - packages/benchmarks/src/apps/typokit-rust-axum/Cargo.lock (new)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/main.rs (new: tokio entrypoint with --port/PORT support)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/models.rs (new: BenchmarkResponseShape, CreateBenchmarkItemBody, validation)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/db.rs (new: rusqlite read-only SQLite access)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/handlers.rs (new: 5 endpoint handlers)
+  - packages/benchmarks/src/apps/typokit-rust-axum/src/middleware.rs (new: noop middleware for chain overhead testing)
+- **Learnings for future iterations:**
+  - Axum 0.8 uses {id} path syntax (not :id); Cargo edition 2021 works reliably
+  - rusqlite::Connection is Send but not Sync; use Arc<Mutex<Connection>> with spawn_blocking for Axum State
+  - Root .gitignore already has target/ so Cargo build artifacts are excluded
+  - The alidator crate was NOT needed — manual validation is simpler and avoids the derive dependency
+  - Use OnceLock for static startup time tracking instead of lazy_static
+---
+
+## 2026-03-09T07:16 - US-007
+- What was implemented: Raw baseline benchmark apps for Node.js, Bun, Deno, and Axum - zero framework dependencies
+- Files changed:
+  - packages/benchmarks/src/apps/raw-node.ts (new: raw http.createServer with 5 endpoints)
+  - packages/benchmarks/src/apps/raw-bun.ts (new: raw Bun.serve() with 5 endpoints)
+  - packages/benchmarks/src/apps/raw-deno.ts (new: raw Deno.serve() with 5 endpoints)
+  - packages/benchmarks/src/apps/raw-axum/Cargo.toml (new: identical deps to typokit-rust-axum)
+  - packages/benchmarks/src/apps/raw-axum/src/main.rs (new: tokio entrypoint)
+  - packages/benchmarks/src/apps/raw-axum/src/models.rs (new: same models + validation)
+  - packages/benchmarks/src/apps/raw-axum/src/db.rs (new: rusqlite read-only)
+  - packages/benchmarks/src/apps/raw-axum/src/handlers.rs (new: 5 endpoint handlers)
+  - packages/benchmarks/src/apps/raw-axum/src/middleware.rs (new: noop middleware)
+  - packages/benchmarks/src/apps/index.ts (added raw app exports)
+- **Learnings for future iterations:**
+  - ESLint enforces LF line endings via prettier - files created on Windows need eslint --fix to strip CRLF
+  - ESLint consistent-type-imports forbids import() type annotations - use explicit import type at file top
+  - Raw apps duplicate validation logic from shared-routes.ts by design (no framework code allowed)
+  - Raw Axum structure is identical to typokit-rust-axum - only the package name and log message differ
+  - For the no-op middleware simulation in raw TS apps, a simple for-loop is sufficient (vs Axum layer stacking)
+---
+
+## 2026-03-09T07:23 - US-008
+- What was implemented: Competitor framework benchmark apps for Express 5, Fastify 5, Hono 4, Koa 2, and Elysia (Bun)
+- Files changed:
+  - packages/benchmarks/src/apps/competitor-express.ts (new: standalone Express with 5 endpoints)
+  - packages/benchmarks/src/apps/competitor-fastify.ts (new: standalone Fastify with JSON Schema validation)
+  - packages/benchmarks/src/apps/competitor-hono.ts (new: standalone Hono + @hono/node-server)
+  - packages/benchmarks/src/apps/competitor-koa.ts (new: standalone Koa + @koa/router + @koa/bodyparser)
+  - packages/benchmarks/src/apps/competitor-elysia.ts (new: standalone Elysia with TypeBox validation, bun:sqlite)
+  - packages/benchmarks/src/apps/index.ts (added competitor app exports)
+  - packages/benchmarks/package.json (added koa, elysia, express, fastify, hono, @hono/node-server as direct deps)
+  - pnpm-lock.yaml (updated)
+- **Learnings for future iterations:**
+  - Fastify preHandler hooks require mutable arrays (Array<>), not ReadonlyArray
+  - Fastify recommended validation is JSON Schema (built-in Ajv)
+  - Elysia uses t from elysia (TypeBox wrapper) for built-in validation schemas
+  - Hono on Node.js requires @hono/node-server with serve() function
+  - Koa requires @koa/router for routing and @koa/bodyparser for JSON body parsing
+  - Build target (tsc -p tsconfig.lib.json) fails on Bun/Deno files but typecheck (tsc --noEmit) passes - typecheck is the real quality gate
 ---
