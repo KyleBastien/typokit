@@ -1,202 +1,316 @@
 {
   "project": "TypoKit",
-  "branchName": "ralph/rust-codegen-target",
-  "description": "Rust Codegen Target — Generate a complete Axum server (structs, router, sqlx DB layer, handlers) from TypeScript schemas via typokit build --target rust",
+  "branchName": "ralph/benchmark-suite",
+  "description": "Performance Benchmark Suite — Compare TypoKit across all platform×server combinations against competitor frameworks with bombardier load generation, CI regression detection, and docs site integration",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create rust_codegen module with basic struct generation",
-      "description": "As a developer, I need the foundational rust_codegen module in transform-native that takes a SchemaTypeMap and generates Rust struct files with serde derives, mapping TS primitives to Rust types.",
+      "title": "Benchmark package scaffolding and shared fixtures",
+      "description": "As a developer, I need the packages/benchmarks/ package with shared fixtures, types, and database seed data so that all benchmark apps have a consistent foundation.",
       "acceptanceCriteria": [
-        "Create `transform-native/src/rust_codegen/mod.rs` module with public API for Rust code generation",
-        "Create `transform-native/src/rust_codegen/structs.rs` that accepts a SchemaTypeMap and produces GeneratedOutput[]",
-        "Map TypeScript primitive types to Rust: string → String, number → f64, boolean → bool, Date → chrono::DateTime<Utc>, optional fields → Option<T>",
-        "Generate per-entity `.typokit/models/{entity}.rs` files with `#[derive(Debug, Clone, Serialize, Deserialize)]`",
-        "JSDoc `@table` annotated entities additionally get `#[derive(sqlx::FromRow)]`",
-        "Generate `.typokit/models/mod.rs` that re-exports all entity modules",
-        "All generated model files use GeneratedOutput with overwrite: true",
-        "Register the rust_codegen module in transform-native/src/lib.rs",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/ as a private package with package.json (private: true) and project.json using nx:run-commands executor",
+        "Create packages/benchmarks/src/types.ts with shared TypeScript types: BenchmarkResult (framework, platform, server, scenario, reqPerSec, latency percentiles, errors, timestamp, systemInfo), SystemInfo (os, cpu, ram, runtimeVersions), BenchmarkConfig (connections, duration, warmup, runs)",
+        "Create packages/benchmarks/src/shared/ with: response shape (static JSON object with 8+ fields including nested object, array, enum, optional), validation schema (moderately complex: nested object, string, number, enum, array, optional fields), and database table definition",
+        "Create packages/benchmarks/fixtures/ with: schema.sql (SQLite CREATE TABLE), seed.sql (1,000 rows of test data), and a pre-seeded benchmark.sqlite file",
+        "Create packages/benchmarks/src/shared/validation-schema.ts exporting the validation shape as a TypeScript interface with JSDoc annotations matching TypoKit's schema-first pattern",
+        "Add packages/benchmarks to pnpm-workspace.yaml if not auto-detected",
+        "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "This is the foundational module — all other rust codegen stories depend on it. The module lives at transform-native/src/rust_codegen/ alongside existing generators (openapi_generator.rs, test_stub_generator.rs). Use string-based code generation (not a Rust AST library), matching the pattern used by existing TypeScript codegen."
+      "passes": false,
+      "notes": ""
     },
+    {
       "id": "US-002",
-      "title": "Add validation annotations and utility type resolution to struct codegen",
-      "description": "As a developer, I need the struct generator to map JSDoc validation annotations to validator crate attributes, resolve utility types (Omit/Partial/Pick) to concrete structs, and generate enums from union literals.",
+      "title": "bombardier download and cache module",
+      "description": "As a developer, I need bombardier to be automatically downloaded and cached so that the benchmark suite works out of the box without manual installation.",
       "acceptanceCriteria": [
-        "Map @minLength N → #[validate(length(min = N))], @maxLength N → #[validate(length(max = N))]",
-        "Map @format email → #[validate(email)], @pattern regex → #[validate(regex(path = ...))]",
-        "Map @minimum N → #[validate(range(min = N))], @maximum N → #[validate(range(max = N))]",
-        "Structs with any validation annotations get #[derive(Validate)] added",
-        "Omit<T, K> generates a concrete struct with the omitted fields removed",
-        "Partial<T> generates a concrete struct with all fields wrapped in Option<T>",
-        "Pick<T, K> generates a concrete struct with only the picked fields",
-        "Union literal types (e.g. 'active' | 'archived') generate Rust enums with #[serde(rename_all = \"snake_case\")] or per-variant #[serde(rename = \"...\")]",
-        "Generate shared framework types PaginatedResponse<T> and ErrorResponse in .typokit/models/common.rs",
-        "Infer integer types from context: @id fields use String (UUID), pagination params use u32, general numbers use f64. Support @integer JSDoc override",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/src/bombardier.ts that auto-downloads the bombardier binary from GitHub releases on first run",
+        "Detect platform (linux/darwin/windows) and architecture (amd64/arm64) to download the correct binary",
+        "Cache the binary in node_modules/.cache/benchmarks/bombardier (create directory if needed)",
+        "Skip download if cached binary already exists and is executable",
+        "Export a getBombardierPath() function that returns the path to the cached binary (downloading first if needed)",
+        "Export a runBombardier(url, config) function that spawns bombardier with JSON output, parses results, and returns BenchmarkResult with: req/s avg, latency p50/p95/p99/p99.9, transfer/sec, total requests, errors",
+        "Default config: 100 connections, 30s duration; CI config: 50 connections, 10s duration",
+        "If download fails, exit with clear error message and manual installation instructions",
+        "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Extends US-001's struct generator. The validator crate (v0.19) is the standard Rust validation library. Reference the existing type_extractor.rs SchemaTypeMap which already contains validation rules parsed from JSDoc annotations."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Generate Axum router from CompiledRouteTable",
-      "description": "As a developer, I need the rust_codegen module to generate an Axum router file that maps each route contract to typed Axum handler registrations with proper extractors.",
+      "title": "TypoKit Node.js benchmark apps (4 server adapters)",
+      "description": "As a developer, I need TypoKit benchmark apps for all 4 server adapters on Node.js so that we can measure the Node platform matrix.",
       "acceptanceCriteria": [
-        "Create `transform-native/src/rust_codegen/router.rs` sub-module",
-        "Generate `.typokit/router.rs` containing a `pub fn create_router() -> Router<AppState>` function",
-        "Each route in CompiledRouteTable maps to axum::routing::{get, post, put, patch, delete} registration",
-        "Route path parameters (:id) map to Axum Path<T> extractor in handler signatures",
-        "Query types map to Axum Query<T> extractor referencing generated query structs from models",
-        "Body types map to Axum Json<T> extractor referencing generated input structs from models",
-        "Handler references follow pattern handlers::{entity}::{action} (e.g. handlers::users::list)",
-        "Generated router.rs uses GeneratedOutput with overwrite: true",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/src/apps/typokit-node-native.ts implementing all 5 endpoints: GET /json, POST /validate, GET /db/:id, GET /middleware (5 no-op middleware layers), GET /startup",
+        "Create packages/benchmarks/src/apps/typokit-node-fastify.ts with same 5 endpoints using @typokit/server-fastify",
+        "Create packages/benchmarks/src/apps/typokit-node-hono.ts with same 5 endpoints using @typokit/server-hono",
+        "Create packages/benchmarks/src/apps/typokit-node-express.ts with same 5 endpoints using @typokit/server-express",
+        "All apps use @typokit/platform-node, @typokit/core for app creation, and the shared validation schema and DB fixtures",
+        "All apps use better-sqlite3 for the /db/:id endpoint with the shared benchmark.sqlite",
+        "Each app exports a start() function returning { port: number, close: () => void } with dynamic port allocation (port 0)",
+        "GET /json returns the shared static JSON response shape",
+        "POST /validate validates the request body against the shared schema and returns the validated object",
+        "GET /middleware passes through 5 no-op middleware layers before returning JSON",
+        "GET /startup returns { uptime: process.uptime() }",
+        "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Depends on US-001 (references generated model types). Walk the compiled radix tree from route_compiler.rs and emit Router::new().route(...) chains. Axum uses /:id syntax same as Express."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Generate sqlx database layer with CRUD repository and migrations",
-      "description": "As a developer, I need the rust_codegen module to generate a PostgreSQL database layer using sqlx, including connection pool setup, CRUD repository functions, and SQL migration files from @table annotations.",
+      "title": "TypoKit Bun benchmark apps (4 server adapters)",
+      "description": "As a developer, I need TypoKit benchmark apps for all 4 server adapters on Bun so that we can measure the Bun platform matrix.",
       "acceptanceCriteria": [
-        "Create `transform-native/src/rust_codegen/database.rs` sub-module",
-        "Generate `.typokit/db/mod.rs` with PgPool connection setup and pub async fn connect(database_url: &str) -> PgPool",
-        "Generate `.typokit/db/repository.rs` with CRUD functions for each @table entity: find_all_{entity}, find_{entity}_by_id, create_{entity}, update_{entity}, delete_{entity}",
-        "find_all functions accept pool, page (u32), page_size (u32) and return sqlx::Result<Vec<Entity>>",
-        "find_by_id functions accept pool and id, return sqlx::Result<Option<Entity>>",
-        "create functions accept pool and input struct, return sqlx::Result<Entity>",
-        "@generated uuid fields use uuid::Uuid::new_v4().to_string() in INSERT, not user-supplied",
-        "@generated now fields use chrono::Utc::now() in INSERT",
-        "Generate SQL migration files in .typokit/migrations/ with CREATE TABLE statements, proper PostgreSQL column types, and UNIQUE constraints for @unique fields",
-        "All generated DB files use GeneratedOutput with overwrite: true",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/src/apps/typokit-bun-native.ts implementing all 5 endpoints using @typokit/platform-bun and @typokit/server-native",
+        "Create packages/benchmarks/src/apps/typokit-bun-fastify.ts with same 5 endpoints using @typokit/server-fastify on Bun",
+        "Create packages/benchmarks/src/apps/typokit-bun-hono.ts with same 5 endpoints using @typokit/server-hono on Bun",
+        "Create packages/benchmarks/src/apps/typokit-bun-express.ts with same 5 endpoints using @typokit/server-express via Bun compatibility layer",
+        "All apps use Bun's built-in bun:sqlite for the /db/:id endpoint with the shared benchmark.sqlite",
+        "Each app exports a start() function returning { port: number, close: () => void } with dynamic port allocation",
+        "All 5 endpoints (json, validate, db, middleware, startup) match the same behavior as the Node.js apps",
+        "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Depends on US-001 (references model types for query results). Use sqlx::query_as::<_, Entity>() for runtime-checked queries as default. PostgreSQL only — map string→TEXT, number→DOUBLE PRECISION or BIGINT, boolean→BOOLEAN, Date→TIMESTAMPTZ."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Generate handler stubs wired to repository functions",
-      "description": "As a developer, I need the rust_codegen module to generate per-entity handler files with fully working Axum handler functions pre-wired to repository CRUD functions so the server works on first run.",
+      "title": "TypoKit Deno benchmark apps (4 server adapters)",
+      "description": "As a developer, I need TypoKit benchmark apps for all 4 server adapters on Deno so that we can measure the Deno platform matrix.",
       "acceptanceCriteria": [
-        "Create `transform-native/src/rust_codegen/handlers.rs` sub-module",
-        "Generate `src/handlers/{entity}.rs` per entity with handler functions matching route signatures",
-        "List handlers: extract Query<T>, call repository::find_all_{entity}, return Json(results)",
-        "Create handlers: extract Json<T>, call repository::create_{entity}, return Json(created) with StatusCode::CREATED",
-        "Get-by-ID handlers: extract Path(id), call repository::find_{entity}_by_id, return 404 AppError::not_found if None",
-        "Update handlers: extract Path(id) + Json<T>, call repository::update_{entity}, return 404 if None",
-        "Delete handlers: extract Path(id), call repository::delete_{entity}, return StatusCode::NO_CONTENT",
-        "All handlers take State(state): State<AppState> for database pool access",
-        "Generate src/handlers/mod.rs with pub mod declarations for all entity handler modules",
-        "Handler entity files use GeneratedOutput with overwrite: false (never overwrite user code)",
-        "src/handlers/mod.rs uses GeneratedOutput with overwrite: true (stays in sync with schema)",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/src/apps/typokit-deno-native.ts implementing all 5 endpoints using @typokit/platform-deno and @typokit/server-native",
+        "Create packages/benchmarks/src/apps/typokit-deno-fastify.ts with same 5 endpoints using @typokit/server-fastify on Deno",
+        "Create packages/benchmarks/src/apps/typokit-deno-hono.ts with same 5 endpoints using @typokit/server-hono on Deno",
+        "Create packages/benchmarks/src/apps/typokit-deno-express.ts with same 5 endpoints using @typokit/server-express via Deno npm: compatibility",
+        "All apps use @db/sqlite (or Deno's SQLite module) for the /db/:id endpoint with the shared benchmark.sqlite",
+        "Each app exports a start() function returning { port: number, close: () => void } with dynamic port allocation",
+        "All 5 endpoints (json, validate, db, middleware, startup) match the same behavior as the Node.js apps",
+        "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Depends on US-001 (model types), US-003 (router references these handlers), US-004 (handlers call repository functions). Handlers follow the same pattern as TypeScript example-todo-server: extract → validate → call service/repo → respond."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Generate service and middleware stubs",
-      "description": "As a developer, I need the codegen to generate service-layer and middleware stub files following the same functional pattern as the TypeScript example apps, so user code has a clear place to live.",
+      "title": "TypoKit Rust/Axum benchmark app",
+      "description": "As a developer, I need a TypoKit Rust/Axum benchmark app generated via @typokit/plugin-axum so that we can measure the Rust codegen target performance.",
       "acceptanceCriteria": [
-        "Generate `src/services/mod.rs` with pub mod declarations for all entity service modules (overwrite: true)",
-        "Generate `src/services/{entity}.rs` per entity with placeholder service functions matching CRUD patterns (overwrite: false)",
-        "Service stubs import entity model types and include function signatures for list, get_by_id, create, update, delete",
-        "Generate `src/middleware/mod.rs` with pub mod auth declaration (overwrite: true)",
-        "Generate `src/middleware/auth.rs` stub with an Axum middleware::from_fn pattern for auth checking (overwrite: false)",
-        "Service and middleware stubs compile (no unresolved imports or type errors in generated code)",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/src/apps/typokit-rust-axum/ directory with a Cargo.toml and Rust source files",
+        "Generate the Rust server code from the same TypeScript validation schema used by JS apps via @typokit/plugin-axum codegen",
+        "Implement all 5 endpoints: GET /json, POST /validate, GET /db/:id (using rusqlite), GET /middleware (5 no-op Axum middleware layers), GET /startup",
+        "The app uses the same shared benchmark.sqlite fixture (copied at runtime) and returns identical JSON response shapes",
+        "The app compiles with cargo build --release successfully",
+        "The compiled binary accepts a --port flag or PORT env var for dynamic port allocation",
+        "Add a build step in project.json that runs cargo build --release for the Rust app",
+        "Typecheck passes for any TypeScript wrapper/runner code"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Depends on US-001 (model types for service signatures). Service stubs follow the TypeScript pattern: exported named functions (not classes). Middleware stub uses tower/axum middleware pattern with async fn auth(req, next) -> Response."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Generate project scaffold (Cargo.toml, main.rs, lib.rs, app.rs, error.rs)",
-      "description": "As a developer, I need the codegen to generate the complete Rust project scaffold so that cargo build works immediately after all codegen files are emitted.",
+      "title": "Raw baseline benchmark apps (Node, Bun, Deno, Axum)",
+      "description": "As a developer, I need raw baseline benchmark apps using bare runtime APIs so that we can isolate framework overhead from runtime performance.",
       "acceptanceCriteria": [
-        "Create `transform-native/src/rust_codegen/project.rs` sub-module",
-        "Generate Cargo.toml with dependencies: axum 0.8, tokio 1 (full), serde 1 (derive), serde_json 1, validator 0.19 (derive), chrono 0.4 (serde), uuid 1, sqlx 0.8 (runtime-tokio, postgres), tower-http 0.6 (cors, trace), tracing, tracing-subscriber, dotenvy",
-        "Cargo.toml uses edition = '2024' and has correct [package] metadata",
-        "Generate src/main.rs with: #[tokio::main], dotenvy::dotenv().ok(), database pool from DATABASE_URL env var, router creation, tracing subscriber init, axum::serve on 0.0.0.0:3000",
-        "Generate src/lib.rs with #[path] attributes bridging .typokit/ modules (models, router, db, error, app) plus pub mod handlers/services/middleware",
-        "Generate .typokit/app.rs with #[derive(Clone)] pub struct AppState { pub pool: PgPool }",
-        "Generate .typokit/error.rs with AppError enum (NotFound, BadRequest, Unauthorized, Forbidden, Conflict, Internal) implementing axum::response::IntoResponse with correct HTTP status codes",
-        "Cargo.toml, src/main.rs, src/lib.rs use overwrite: true",
-        ".typokit/app.rs and .typokit/error.rs use overwrite: true",
-        "Typecheck passes (cargo check in transform-native)"
+        "Create packages/benchmarks/src/apps/raw-node.ts using raw Node.js http.createServer with all 5 endpoints (no framework, hand-written routing and JSON parsing)",
+        "Create packages/benchmarks/src/apps/raw-bun.ts using raw Bun.serve() with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/raw-deno.ts using raw Deno.serve() with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/raw-axum/ using hand-written Axum (no TypoKit codegen) with all 5 endpoints and rusqlite",
+        "All apps use the same shared JSON response shape, validation logic (hand-written if/typeof checks), and SQLite fixture",
+        "Each app exports start() or compiles to a binary with the same interface as the TypoKit apps",
+        "Raw Axum app compiles with cargo build --release successfully",
+        "Typecheck passes for TypeScript apps"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Depends on US-001 through US-006 (needs to know all modules and dependencies). The scaffold ties everything together. src/lib.rs uses #[path] attributes to bridge .typokit/ into the Rust module system — same .typokit/ convention as TypeScript projects."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Add --target rust CLI flag to typokit build",
-      "description": "As a developer, I want to run 'typokit build --target rust' to invoke the Rust codegen pipeline from the CLI, hooking into the existing tapable emit phase.",
+      "title": "Competitor framework benchmark apps group 1 (Express, Fastify, Hono, Koa, Elysia)",
+      "description": "As a developer, I need benchmark apps for popular JS frameworks so that we can compare TypoKit against the competition.",
       "acceptanceCriteria": [
-        "Add --target option to the build command in packages/cli with values: 'typescript' (default), 'rust'",
-        "Add --db option accepted when --target rust is used, defaulting to 'sqlx'",
-        "Add --out option for specifying output directory (defaults to current directory)",
-        "When --target rust, invoke rust_codegen generate function in emit phase with SchemaTypeMap and CompiledRouteTable",
-        "When --target typescript (or no flag), existing TypeScript codegen runs as before (no regression)",
-        "CLI --help output documents the new --target, --db, and --out flags",
-        "Show error message if --target rust is used with --db value other than 'sqlx'",
-        "Content-hash caching (.typokit/.cache-hash) applies to Rust codegen",
+        "Create packages/benchmarks/src/apps/competitor-express.ts using standalone Express with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/competitor-fastify.ts using standalone Fastify with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/competitor-hono.ts using standalone Hono with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/competitor-koa.ts using standalone Koa with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/competitor-elysia.ts using standalone Elysia (Bun) with all 5 endpoints",
+        "All apps use the same shared JSON response shape, equivalent validation logic using each framework's recommended approach, and better-sqlite3 (or bun:sqlite for Elysia)",
+        "Each app exports a start() function returning { port, close } with dynamic port allocation",
+        "Add framework dependencies to packages/benchmarks/package.json",
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Depends on US-001 through US-007. The CLI hooks into tapable build pipeline: afterTypeParse + afterRouteTable + emit. The rust_codegen module is called from the napi-rs bridge."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Create example-todo-server-axum reference application",
-      "description": "As a developer evaluating TypoKit, I want a complete reference application in packages/example-todo-server-axum/ demonstrating the Rust codegen target end-to-end.",
+      "title": "Competitor framework benchmark apps group 2 (tRPC, NestJS, Nitro/H3, Adonis)",
+      "description": "As a developer, I need benchmark apps for additional JS frameworks so that the comparison covers the full field.",
       "acceptanceCriteria": [
-        "Create packages/example-todo-server-axum/ directory as a new monorepo package",
-        "Package reuses @typokit/example-todo-schema as the TypeScript type source",
-        ".typokit/ directory contains generated Rust files (checked in for demonstration)",
-        "src/handlers/ contains user-written Rust handlers implementing full todo and users API",
-        "src/services/ contains service-layer functions following the same functional pattern as TypeScript example",
-        "API endpoints match TypeScript example-todo-server: same paths, HTTP methods, request/response shapes",
-        "README.md documents: prerequisites (rustup, cargo, PostgreSQL), build steps, run steps, API examples",
-        "Cargo.toml metadata includes publish = false",
-        "The project compiles with cargo build",
+        "Create packages/benchmarks/src/apps/competitor-trpc.ts using tRPC with all 5 endpoints (using standalone adapter)",
+        "Create packages/benchmarks/src/apps/competitor-nestjs.ts using NestJS with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/competitor-h3.ts using Nitro/H3 with all 5 endpoints",
+        "Create packages/benchmarks/src/apps/competitor-adonis.ts using AdonisJS with all 5 endpoints",
+        "All apps use the same shared JSON response shape, equivalent validation using each framework's recommended approach, and better-sqlite3 for database",
+        "Each app exports a start() function returning { port, close } with dynamic port allocation",
+        "Add framework dependencies to packages/benchmarks/package.json",
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Depends on US-008 (needs CLI --target rust). This is the showpiece: TS schema → typokit build --target rust → cargo run → working Axum API. @typokit/client works against this server identically to the TypeScript server."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Update documentation for Rust codegen target",
-      "description": "As a developer or contributor, I want project documentation to reflect the new Rust codegen target including architecture, type mappings, CLI usage, and file structure.",
+      "title": "Benchmark runner core and Nx CLI targets",
+      "description": "As a developer, I want a benchmark runner that orchestrates server lifecycle and load generation, exposed as Nx targets.",
       "acceptanceCriteria": [
-        "typokit-arch.md has new 'Rust Codegen Target' section explaining architecture and adapter pattern",
-        "Architecture doc includes Axum row in server adapter compatibility matrix",
-        "Document --target rust CLI flag with usage examples",
-        "AGENTS.md scope list updated to include rust_codegen modules",
-        "Document generated file structure: .typokit/ (regen) vs src/ (user-owned) for Rust target",
-        "Document TypeScript → Rust type mapping table",
-        "Document JSDoc annotation → Rust validator/sqlx mapping table",
+        "Create packages/benchmarks/src/runner.ts that orchestrates: start server → poll /json until healthy → run warmup → run bombardier → collect results → stop server → next app",
+        "The runner accepts config: scenario filter (json/validate/db/middleware/startup), framework filter (glob pattern), connections, duration, warmup, number of runs to average",
+        "The runner outputs progress to stdout with framework name, scenario, and a clean summary table at the end",
+        "Results are written to packages/benchmarks/results/ as timestamped JSON files (ISO 8601 in filename)",
+        "Define Nx targets in packages/benchmarks/project.json: bench, bench-ci, bench-baseline, bench-info, bench-reproduce — all using nx:run-commands executor with cwd: '{projectRoot}'",
+        "The bench target declares dependsOn: ['^build'] so all TypoKit packages are built first",
+        "bench-ci uses CI config (50 connections, 10s duration, 5s warmup, 1 run) with a fast subset of frameworks",
+        "Add root package.json scripts: pnpm bench → nx run benchmarks:bench, pnpm bench:ci → nx run benchmarks:bench-ci, pnpm bench:baseline, pnpm bench:info, pnpm bench:reproduce",
+        "Handle cross-runtime process management: Node apps started directly, Bun via 'bun run', Deno via 'deno run', Rust via compiled binary subprocess",
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Depends on US-009. Documentation-only story — no code changes except markdown files."
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Results aggregation and latest.json cumulative merge",
+      "description": "As a developer, I want benchmark results aggregated into structured JSON with cumulative merging so that partial runs preserve previous data.",
+      "acceptanceCriteria": [
+        "Create packages/benchmarks/src/results.ts that aggregates raw bombardier output into BenchmarkResult objects",
+        "Generate a summary markdown table after each run grouped by scenario with columns: Rank, Framework, Platform, Server, Req/s, Latency p50/p95/p99, vs. Fastest (%)",
+        "Implement cumulative latest.json merge: new results overwrite matching framework+platform+server+scenario entries; unmatched entries from existing latest.json are preserved",
+        "Support averaging results from multiple runs (configurable --runs N) to reduce noise",
+        "Results JSON includes systemInfo: OS, CPU model+cores, RAM, runtime versions (Node/Bun/Deno with pinned versions), bombardier version, timestamp",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "System info collection and reproducibility commands",
+      "description": "As a developer, I want bench-info and bench-reproduce commands for transparency and reproducibility.",
+      "acceptanceCriteria": [
+        "Create packages/benchmarks/src/system-info.ts that detects: OS name+version, CPU model+cores, total RAM, Node/Bun/Deno versions (if available), Rust/cargo version (if available), bombardier version",
+        "bench-info Nx target prints system info in JSON format to stdout",
+        "bench-reproduce Nx target prints step-by-step reproduction instructions: prerequisites, install commands, exact pnpm bench invocation with parameters matching published results",
+        "System info is automatically included in every results JSON file",
+        "Deno version is pinned to latest stable at suite creation time and documented in output",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Validation overhead isolation variants",
+      "description": "As an engineer, I need validation variants for TypoKit apps so that we can measure the exact overhead of type-driven validation.",
+      "acceptanceCriteria": [
+        "For each TypoKit benchmark app (all 13 combinations), add two additional /validate endpoint variants: (a) validation disabled/passthrough mode that skips validation and returns the body directly, (b) hand-written if/typeof validation baseline",
+        "The runner supports running these variants as sub-scenarios: --scenario validate-passthrough, --scenario validate-handwritten",
+        "Results clearly show the delta: 'TypoKit validation adds X% overhead vs. passthrough' and 'TypoKit validation is X% faster/slower than hand-written'",
+        "Deltas are included in the results JSON and markdown summary table",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Serialization microbenchmark",
+      "description": "As an engineer, I need a non-HTTP serialization benchmark to measure TypoKit's compiled serializer vs JSON.stringify in isolation.",
+      "acceptanceCriteria": [
+        "Create packages/benchmarks/src/microbench/serialization.ts that benchmarks JSON serialization of a complex nested object (the shared response shape)",
+        "Compare: TypoKit's compiled serializer vs. native JSON.stringify vs. fast-json-stringify",
+        "Run N iterations (configurable, default 1,000,000) and report: ops/sec, mean time, p99 time",
+        "Results are included in the main results JSON under a 'microbenchmarks' key",
+        "Accessible via nx run benchmarks:bench --scenario serialization",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "CI workflow with PR regression and main branch full suite",
+      "description": "As a maintainer, I need a GitHub Actions workflow that catches regressions on PRs and keeps docs benchmarks current on main.",
+      "acceptanceCriteria": [
+        "Create .github/workflows/benchmark.yml with two trigger modes: pull_request and push to main",
+        "Both modes use nx affected to scope benchmarks to only those whose upstream dependencies changed; skip entirely if nothing is affected",
+        "PR mode runs bench-ci (fast subset) and compares results against benchmarks/baseline.json; fails if any TypoKit combination degrades by more than 10% in req/s",
+        "PR mode posts a comment on the PR with a summary table of results vs. baseline",
+        "Main branch mode runs the full bench suite (scoped by nx affected), merges fresh results into existing latest.json, and commits via bot commit: 'chore(benchmarks): update benchmark results [skip ci]'",
+        "Main branch mode triggers the docs deploy workflow only if results actually changed",
+        "Workflow installs Rust toolchain via actions-rust-lang/setup-rust-toolchain in both modes",
+        "Workflow runs on ubuntu-latest with consistent runner specs",
+        "bench-baseline target updates baseline.json and commits it",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Docs site Benchmarks page with Chart.js charts",
+      "description": "As a user visiting the TypoKit docs, I want to see benchmark results with interactive charts on a dedicated Benchmarks page.",
+      "acceptanceCriteria": [
+        "Add a new 'Performance' section to the Starlight sidebar in packages/docs/astro.config.mjs",
+        "Create packages/docs/src/content/docs/performance/benchmarks.md as the Benchmarks overview page",
+        "Create a custom Astro component (e.g., packages/docs/src/components/BenchmarkCharts.astro) that imports latest.json and renders charts using Chart.js",
+        "Charts include: bar chart for JSON scenario req/s (logarithmic scale), bar chart for validation scenario req/s (log scale), bar chart for DB scenario req/s (log scale), bar chart for startup cold-start times, latency percentile comparison table",
+        "Include a TypoKit platform×server heatmap showing all 13 combinations (12 JS + Rust/Axum) with Rust/Axum visually distinguished",
+        "Charts use logarithmic scale for req/s with captions noting the scale",
+        "Charts use a consistent color scheme aligned with TypoKit docs branding",
+        "Pages are responsive and readable on mobile",
+        "Charts are generated at docs build time from latest.json (static, not client-side fetching)",
+        "Add chart.js as a dependency in packages/docs/package.json",
+        "Verify in browser if browser testing tools are available"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Docs site Methodology page",
+      "description": "As a user viewing benchmarks, I want a Methodology page explaining how results were generated so I can reproduce them or understand the context.",
+      "acceptanceCriteria": [
+        "Create packages/docs/src/content/docs/performance/methodology.md",
+        "Document: hardware specs used for published results (CI runner specs), bombardier settings (connections, duration, warmup), what each scenario measures (json, validate, db, middleware, startup, serialization)",
+        "Document: how to reproduce locally (prerequisites, pnpm bench command, expected runtime)",
+        "Document: how nx affected scoping works (partial runs, cumulative latest.json merge, when benchmarks skip)",
+        "Document: how CI regression detection works (baseline.json, 10% threshold, PR comments)",
+        "Document: framework list with links and version numbers",
+        "Add 'Methodology' entry to the Performance sidebar section in astro.config.mjs",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
     }
   ]
-}
+}
