@@ -21,3 +21,20 @@ Started: 03/08/2026 23:22:45
   - Nx sync auto-detected the new @typokit/platform-deno dependency and added the tsconfig reference automatically
   - The Deno apps follow identical pattern to Bun apps - only the DB layer (shared-routes-deno.ts) differs; server adapters work via Deno Node compat
 ---
+
+## 2026-03-09T07:08 - US-001
+- What was implemented: Already fully implemented by prior iteration - verified all acceptance criteria pass
+- Files: No changes needed - all files exist (package.json, types.ts, shared/, fixtures/)
+- **Learnings for future iterations:**
+  - Benchmarks package uses Nx auto-infer (no project.json) consistent with all other packages
+  - pnpm-workspace.yaml uses packages/* glob, so new packages are auto-detected
+  - All quality checks (typecheck, lint) pass for the existing scaffolding
+---
+
+## 2026-03-09T07:09 - US-002, US-003, US-004
+- What was implemented: Already fully implemented by prior iterations - verified all exist and typecheck/lint pass
+- Files: No changes - bombardier.ts, all Node/Bun/Deno app files, shared-routes files all present
+- **Learnings for future iterations:**
+  - All server adapter apps (node/bun/deno × native/fastify/hono/express) follow shared-routes pattern
+  - Each platform has its own shared-routes variant (shared-routes.ts, shared-routes-bun.ts, shared-routes-deno.ts)
+---

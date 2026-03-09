@@ -1,7 +1,7 @@
 {
   "project": "TypoKit",
   "branchName": "ralph/benchmark-suite",
-  "description": "Performance Benchmark Suite — Compare TypoKit across all platform×server combinations against competitor frameworks with bombardier load generation, CI regression detection, and docs site integration",
+  "description": "Performance Benchmark Suite \u00e2\u20ac\u201d Compare TypoKit across all platform\u00c3\u2014server combinations against competitor frameworks with bombardier load generation, CI regression detection, and docs site integration",
   "userStories": [
     {
       "id": "US-001",
@@ -17,7 +17,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -36,7 +36,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -58,7 +58,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -76,7 +76,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -175,14 +175,14 @@
       "title": "Benchmark runner core and Nx CLI targets",
       "description": "As a developer, I want a benchmark runner that orchestrates server lifecycle and load generation, exposed as Nx targets.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/runner.ts that orchestrates: start server → poll /json until healthy → run warmup → run bombardier → collect results → stop server → next app",
+        "Create packages/benchmarks/src/runner.ts that orchestrates: start server \u00e2\u2020\u2019 poll /json until healthy \u00e2\u2020\u2019 run warmup \u00e2\u2020\u2019 run bombardier \u00e2\u2020\u2019 collect results \u00e2\u2020\u2019 stop server \u00e2\u2020\u2019 next app",
         "The runner accepts config: scenario filter (json/validate/db/middleware/startup), framework filter (glob pattern), connections, duration, warmup, number of runs to average",
         "The runner outputs progress to stdout with framework name, scenario, and a clean summary table at the end",
         "Results are written to packages/benchmarks/results/ as timestamped JSON files (ISO 8601 in filename)",
-        "Define Nx targets in packages/benchmarks/project.json: bench, bench-ci, bench-baseline, bench-info, bench-reproduce — all using nx:run-commands executor with cwd: '{projectRoot}'",
+        "Define Nx targets in packages/benchmarks/project.json: bench, bench-ci, bench-baseline, bench-info, bench-reproduce \u00e2\u20ac\u201d all using nx:run-commands executor with cwd: '{projectRoot}'",
         "The bench target declares dependsOn: ['^build'] so all TypoKit packages are built first",
         "bench-ci uses CI config (50 connections, 10s duration, 5s warmup, 1 run) with a fast subset of frameworks",
-        "Add root package.json scripts: pnpm bench → nx run benchmarks:bench, pnpm bench:ci → nx run benchmarks:bench-ci, pnpm bench:baseline, pnpm bench:info, pnpm bench:reproduce",
+        "Add root package.json scripts: pnpm bench \u00e2\u2020\u2019 nx run benchmarks:bench, pnpm bench:ci \u00e2\u2020\u2019 nx run benchmarks:bench-ci, pnpm bench:baseline, pnpm bench:info, pnpm bench:reproduce",
         "Handle cross-runtime process management: Node apps started directly, Bun via 'bun run', Deno via 'deno run', Rust via compiled binary subprocess",
         "Typecheck passes"
       ],
@@ -282,7 +282,7 @@
         "Create packages/docs/src/content/docs/performance/benchmarks.md as the Benchmarks overview page",
         "Create a custom Astro component (e.g., packages/docs/src/components/BenchmarkCharts.astro) that imports latest.json and renders charts using Chart.js",
         "Charts include: bar chart for JSON scenario req/s (logarithmic scale), bar chart for validation scenario req/s (log scale), bar chart for DB scenario req/s (log scale), bar chart for startup cold-start times, latency percentile comparison table",
-        "Include a TypoKit platform×server heatmap showing all 13 combinations (12 JS + Rust/Axum) with Rust/Axum visually distinguished",
+        "Include a TypoKit platform\u00c3\u2014server heatmap showing all 13 combinations (12 JS + Rust/Axum) with Rust/Axum visually distinguished",
         "Charts use logarithmic scale for req/s with captions noting the scale",
         "Charts use a consistent color scheme aligned with TypoKit docs branding",
         "Pages are responsive and readable on mobile",
