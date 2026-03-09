@@ -1,0 +1,42 @@
+{
+  "targets": {
+    "bench": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["^build"],
+      "options": {
+        "command": "npx tsx src/runner.ts",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "bench-ci": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["^build"],
+      "options": {
+        "command": "npx tsx src/runner.ts --connections 50 --duration 10s --warmup 5s --runs 1 --filter \"typokit-node-*,raw-node,competitor-express,competitor-fastify,competitor-hono\"",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "bench-baseline": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["^build"],
+      "options": {
+        "command": "npx tsx src/runner.ts --filter \"raw-*\"",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "bench-info": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx src/runner.ts --info",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "bench-reproduce": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx src/runner.ts --reproduce",
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
+}

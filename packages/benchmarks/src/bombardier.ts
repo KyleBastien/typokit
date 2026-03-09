@@ -14,6 +14,9 @@ const GITHUB_RELEASE_BASE = `https://github.com/codesenberg/bombardier/releases/
 export interface BombardierRunConfig {
   readonly connections: number;
   readonly duration: string;
+  readonly method?: string;
+  readonly body?: string;
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** Parsed output from a bombardier benchmark run */
@@ -249,6 +252,18 @@ export async function runBombardier(
     "json",
     "-l",
   ];
+
+  if (merged.method) {
+    args.push("-m", merged.method);
+  }
+  if (merged.body) {
+    args.push("-b", merged.body);
+  }
+  if (merged.headers) {
+    for (const [key, value] of Object.entries(merged.headers)) {
+      args.push("-H", `${key}: ${value}`);
+    }
+  }
 
   const { stdout } = await execFileAsync(bombardierPath, args, {
     timeout: 300_000,
