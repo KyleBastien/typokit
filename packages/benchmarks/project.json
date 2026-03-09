@@ -20,7 +20,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["^build"],
       "options": {
-        "command": "npx tsx src/runner.ts --filter \"raw-*\"",
+        "command": "rm -f results/latest.json && npx tsx src/runner.ts --connections 50 --duration 10s --warmup 5s --runs 1 --filter \"typokit-node-*,raw-node,competitor-express,competitor-fastify,competitor-hono\" && cp results/latest.json baseline.json && echo 'baseline.json updated'",
         "cwd": "{projectRoot}"
       }
     },
