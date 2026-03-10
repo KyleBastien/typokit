@@ -3,5 +3,6 @@ packages:
 
 onlyBuiltDependencies:
   - '@embedded-postgres/windows-x64'
+  - better-sqlite3
   - esbuild
   - sharp
