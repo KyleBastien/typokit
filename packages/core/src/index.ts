@@ -53,3 +53,4 @@ export {
   createErrorMiddleware,
 } from "./error-middleware.js";
 export { JSON_HEADERS } from "./headers.js";
+export { resolveValidatorMap } from "./validation.js";

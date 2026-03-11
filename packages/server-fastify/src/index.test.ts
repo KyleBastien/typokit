@@ -7,7 +7,7 @@ import type {
   HandlerMap,
   MiddlewareChain,
   TypoKitRequest,
-  ValidatorMap,
+  RawValidatorMap,
   RequestContext,
 } from "@typokit/types";
 import type { FastifyInstance } from "fastify";
@@ -254,7 +254,7 @@ describe("fastifyServer", () => {
       }),
     };
 
-    const validatorMap: ValidatorMap = {
+    const validatorMap: RawValidatorMap = {
       "items#create.body": (input: unknown) => {
         const data = input as Record<string, unknown> | null;
         if (!data || typeof data.title !== "string") {

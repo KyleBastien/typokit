@@ -7,7 +7,7 @@ import type {
   HandlerMap,
   MiddlewareChain,
   TypoKitRequest,
-  ValidatorMap,
+  RawValidatorMap,
   ValidationFieldError,
   ValidationResult,
 } from "@typokit/types";
@@ -200,7 +200,7 @@ function validateCreateBody(input: unknown): ValidationResult {
 }
 
 /** Build the validator map for routes that need validation */
-export function buildValidatorMap(): ValidatorMap {
+export function buildValidatorMap(): RawValidatorMap {
   return {
     "validate-body": validateCreateBody,
   };
@@ -219,7 +219,7 @@ const noopMiddleware: MiddlewareEntry[] = Array.from({ length: 5 }, (_, i) => ({
 
 export interface BenchmarkAppResources {
   handlerMap: HandlerMap;
-  validatorMap: ValidatorMap;
+  validatorMap: RawValidatorMap;
   middlewareChain: MiddlewareChain;
   close: () => void;
 }

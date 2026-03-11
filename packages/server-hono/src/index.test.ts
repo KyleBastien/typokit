@@ -7,7 +7,7 @@ import type {
   HandlerMap,
   MiddlewareChain,
   TypoKitRequest,
-  ValidatorMap,
+  RawValidatorMap,
   RequestContext,
 } from "@typokit/types";
 import type { Server } from "node:http";
@@ -270,7 +270,7 @@ describe("honoServer", () => {
       }),
     };
 
-    const validatorMap: ValidatorMap = {
+    const validatorMap: RawValidatorMap = {
       "items#create.body": (input: unknown) => {
         const data = input as Record<string, unknown> | null;
         if (!data || typeof data.title !== "string") {

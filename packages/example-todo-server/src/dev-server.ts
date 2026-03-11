@@ -11,7 +11,7 @@ import type {
   TypoKitRequest,
   TypoKitResponse,
   RequestContext,
-  ValidatorMap,
+  RawValidatorMap,
   ValidationResult,
   ValidationFieldError,
 } from "@typokit/types";
@@ -264,7 +264,7 @@ function buildHandlerMap(): HandlerMap {
 
 // ─── Validator Map ───────────────────────────────────────────
 
-function buildValidatorMap(): ValidatorMap {
+function buildValidatorMap(): RawValidatorMap {
   return {
     CreateUserInput: validateCreateUser,
     UpdateUserInput: validateUpdateUser,

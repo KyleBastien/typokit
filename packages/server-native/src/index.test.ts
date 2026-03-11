@@ -7,6 +7,7 @@ import type {
   ErrorResponse,
   HandlerMap,
   MiddlewareChain,
+  RawValidatorMap,
   SerializerMap,
   TypoKitRequest,
   ValidatorMap,
@@ -153,7 +154,7 @@ function makeHandlerMap(): HandlerMap {
   };
 }
 
-function makeValidatorMap(): ValidatorMap {
+function makeValidatorMap(): RawValidatorMap {
   return {
     UserIdParams: (input) => {
       const obj = input as Record<string, unknown>;
@@ -306,39 +307,22 @@ describe("validationErrorResponse", () => {
 });
 
 describe("runValidators", () => {
-  it("returns undefined when no validators configured", () => {
-    const result = runValidators({ validators: undefined }, null, {}, {}, null);
-    expect(result).toBeUndefined();
-  });
-
   it("returns undefined when no validatorMap provided", () => {
-    const result = runValidators(
-      { validators: { body: "SomeValidator" } },
-      null,
-      {},
-      {},
-      null,
-    );
+    const result = runValidators("test#route", null, {}, {}, null);
     expect(result).toBeUndefined();
   });
 
-  it("returns undefined when validator ref not found in map", () => {
-    const result = runValidators(
-      { validators: { body: "MissingValidator" } },
-      {},
-      {},
-      {},
-      null,
-    );
+  it("returns undefined when route ref not found in map", () => {
+    const result = runValidators("missing#route", {}, {}, {}, null);
     expect(result).toBeUndefined();
   });
 
   it("returns undefined when all validators pass", () => {
     const validators: ValidatorMap = {
-      BodyValidator: () => ({ success: true, data: {} }),
+      "test#route": { body: () => ({ success: true, data: {} }) },
     };
     const result = runValidators(
-      { validators: { body: "BodyValidator" } },
+      "test#route",
       validators,
       {},
       {},
@@ -349,18 +333,14 @@ describe("runValidators", () => {
 
   it("returns 400 response when body validator fails", () => {
     const validators: ValidatorMap = {
-      BodyValidator: () => ({
-        success: false,
-        errors: [{ path: "name", expected: "string", actual: undefined }],
-      }),
+      "test#route": {
+        body: () => ({
+          success: false,
+          errors: [{ path: "name", expected: "string", actual: undefined }],
+        }),
+      },
     };
-    const result = runValidators(
-      { validators: { body: "BodyValidator" } },
-      validators,
-      {},
-      {},
-      {},
-    );
+    const result = runValidators("test#route", validators, {}, {}, {});
     expect(result).toBeDefined();
     expect(result!.status).toBe(400);
     const body = result!.body as ErrorResponse;
@@ -371,13 +351,15 @@ describe("runValidators", () => {
 
   it("prefixes param errors with params.", () => {
     const validators: ValidatorMap = {
-      ParamVal: () => ({
-        success: false,
-        errors: [{ path: "id", expected: "numeric", actual: "abc" }],
-      }),
+      "test#route": {
+        params: () => ({
+          success: false,
+          errors: [{ path: "id", expected: "numeric", actual: "abc" }],
+        }),
+      },
     };
     const result = runValidators(
-      { validators: { params: "ParamVal" } },
+      "test#route",
       validators,
       { id: "abc" },
       {},
@@ -391,13 +373,15 @@ describe("runValidators", () => {
 
   it("prefixes query errors with query.", () => {
     const validators: ValidatorMap = {
-      QueryVal: () => ({
-        success: false,
-        errors: [{ path: "limit", expected: "number", actual: "abc" }],
-      }),
+      "test#route": {
+        query: () => ({
+          success: false,
+          errors: [{ path: "limit", expected: "number", actual: "abc" }],
+        }),
+      },
     };
     const result = runValidators(
-      { validators: { query: "QueryVal" } },
+      "test#route",
       validators,
       {},
       { limit: "abc" },
@@ -411,17 +395,19 @@ describe("runValidators", () => {
 
   it("aggregates errors from multiple validators", () => {
     const validators: ValidatorMap = {
-      ParamVal: () => ({
-        success: false,
-        errors: [{ path: "id", expected: "numeric", actual: "abc" }],
-      }),
-      BodyVal: () => ({
-        success: false,
-        errors: [{ path: "name", expected: "string", actual: 42 }],
-      }),
+      "test#route": {
+        params: () => ({
+          success: false,
+          errors: [{ path: "id", expected: "numeric", actual: "abc" }],
+        }),
+        body: () => ({
+          success: false,
+          errors: [{ path: "name", expected: "string", actual: 42 }],
+        }),
+      },
     };
     const result = runValidators(
-      { validators: { params: "ParamVal", body: "BodyVal" } },
+      "test#route",
       validators,
       { id: "abc" },
       {},

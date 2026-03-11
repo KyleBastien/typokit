@@ -14,6 +14,7 @@ import type {
   HandlerMap,
   HttpMethod,
   MiddlewareChain,
+  RawValidatorMap,
   SerializerMap,
   ServerHandle,
   TypoKitRequest,
@@ -25,6 +26,7 @@ import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
 import {
   createRequestContext,
   executeMiddlewareChain,
+  resolveValidatorMap,
   JSON_HEADERS,
 } from "@typokit/core";
 
@@ -104,64 +106,58 @@ function validationErrorResponse(
 }
 
 function runValidators(
-  routeHandler: {
-    validators?: { params?: string; query?: string; body?: string };
-  },
+  routeRef: string,
   validatorMap: ValidatorMap | null,
   params: Record<string, string>,
   query: Record<string, string | string[] | undefined>,
   body: unknown,
 ): TypoKitResponse | undefined {
-  if (!validatorMap || !routeHandler.validators) {
+  if (!validatorMap) {
+    return undefined;
+  }
+
+  const validators = validatorMap[routeRef];
+  if (!validators) {
     return undefined;
   }
 
   const allErrors: ValidationFieldError[] = [];
 
-  if (routeHandler.validators.params) {
-    const validator = validatorMap[routeHandler.validators.params];
-    if (validator) {
-      const result = validator(params);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `params.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.params) {
+    const result = validators.params(params);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `params.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
 
-  if (routeHandler.validators.query) {
-    const validator = validatorMap[routeHandler.validators.query];
-    if (validator) {
-      const result = validator(query);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `query.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.query) {
+    const result = validators.query(query);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `query.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
 
-  if (routeHandler.validators.body) {
-    const validator = validatorMap[routeHandler.validators.body];
-    if (validator) {
-      const result = validator(body);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `body.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.body) {
+    const result = validators.body(body);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `body.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
@@ -312,13 +308,15 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
       routeTable: CompiledRouteTable,
       handlerMap: HandlerMap,
       middlewareChain: MiddlewareChain,
-      validatorMap?: ValidatorMap,
+      validatorMap?: RawValidatorMap,
       serializerMap?: SerializerMap,
     ): void {
       state.routeTable = routeTable;
       state.handlerMap = handlerMap;
       state.middlewareChain = middlewareChain;
-      state.validatorMap = validatorMap ?? null;
+      state.validatorMap = validatorMap
+        ? resolveValidatorMap(routeTable, validatorMap)
+        : null;
       state.serializerMap = serializerMap ?? null;
 
       // Collect all routes from the compiled radix tree
@@ -349,11 +347,10 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
 
           const typoReq = normalizeRequest(c);
 
-          // Run request validation pipeline (skip entirely when no validators)
-          const v = route.validators;
-          if (v && (v.params || v.query || v.body)) {
+          // Run request validation pipeline (single lookup by route ref)
+          if (state.validatorMap) {
             const validationError = runValidators(
-              { validators: v },
+              route.handlerRef,
               state.validatorMap,
               typoReq.params,
               typoReq.query,
