@@ -19,7 +19,11 @@ import type {
   ValidatorMap,
   ValidationFieldError,
 } from "@typokit/types";
-import type { ServerAdapter, MiddlewareEntry, CompiledMiddlewareFn } from "@typokit/core";
+import type {
+  ServerAdapter,
+  MiddlewareEntry,
+  CompiledMiddlewareFn,
+} from "@typokit/core";
 import {
   createRequestContext,
   sortMiddlewareEntries,

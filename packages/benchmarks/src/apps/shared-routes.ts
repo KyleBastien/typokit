@@ -2,10 +2,7 @@
 // All 4 server-adapter benchmark apps (native, fastify, hono, express) share this
 // module to ensure identical route definitions and handler logic.
 
-import type {
-  HandlerMap,
-  TypoKitRequest,
-} from "@typokit/types";
+import type { HandlerMap, TypoKitRequest } from "@typokit/types";
 import {
   createRequestContext,
   executeMiddlewareChain,

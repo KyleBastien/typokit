@@ -13,10 +13,7 @@ export interface BenchmarkHandle {
   close: () => Promise<void>;
 }
 
-const WORKER_COUNT = parseInt(
-  process.env["CLUSTER_WORKERS"] ?? "4",
-  10,
-);
+const WORKER_COUNT = parseInt(process.env["CLUSTER_WORKERS"] ?? "4", 10);
 
 /** Start the TypoKit cluster benchmark app with N workers */
 export async function start(dbPath?: string): Promise<BenchmarkHandle> {

@@ -98,9 +98,7 @@ export function createRequestContext(
 export function sortMiddlewareEntries(
   entries: MiddlewareEntry[],
 ): MiddlewareEntry[] {
-  return [...entries].sort(
-    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
-  );
+  return [...entries].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
 }
 
 /**

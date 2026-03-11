@@ -13,7 +13,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { BENCHMARK_RESPONSE, SELECT_BY_ID_SQL } from "../shared/index.ts";
 import type { CreateBenchmarkItemBody } from "../shared/index.ts";
-import { buildValidatorMap, handwrittenValidate } from "./shared-routes-common.ts";
+import {
+  buildValidatorMap,
+  handwrittenValidate,
+} from "./shared-routes-common.ts";
 import type { BenchmarkAppResources } from "./shared-routes-common.ts";
 // @db/sqlite types declared in ../deno-sqlite.d.ts
 import { Database } from "@db/sqlite";

@@ -136,7 +136,10 @@ describe("body collection optimizations", () => {
         if (!addr || typeof addr === "string") return;
         fetch(`http://127.0.0.1:${addr.port}/empty`, {
           method: "POST",
-          headers: { "content-type": "application/json", "content-length": "0" },
+          headers: {
+            "content-type": "application/json",
+            "content-length": "0",
+          },
           body: null,
         }).catch(() => {});
       });

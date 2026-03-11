@@ -172,7 +172,9 @@ describe("AppError lazy stack trace", () => {
     const err = new AppError("CODE", 500, "test");
     // Stack should be empty or minimal (no frame lines) since capture is skipped
     const stack = err.stack ?? "";
-    const frames = stack.split("\n").filter((line) => line.trim().startsWith("at "));
+    const frames = stack
+      .split("\n")
+      .filter((line) => line.trim().startsWith("at "));
     expect(frames.length).toBe(0);
   });
 
@@ -180,7 +182,9 @@ describe("AppError lazy stack trace", () => {
     const err = new AppError("CODE", 500, "test");
     err.captureStack();
     const stack = err.stack ?? "";
-    const frames = stack.split("\n").filter((line) => line.trim().startsWith("at "));
+    const frames = stack
+      .split("\n")
+      .filter((line) => line.trim().startsWith("at "));
     expect(frames.length).toBeGreaterThan(0);
   });
 
@@ -193,7 +197,9 @@ describe("AppError lazy stack trace", () => {
   it("subclasses should also skip stack trace at construction", () => {
     const err = new NotFoundError("NF", "not found");
     const stack = err.stack ?? "";
-    const frames = stack.split("\n").filter((line) => line.trim().startsWith("at "));
+    const frames = stack
+      .split("\n")
+      .filter((line) => line.trim().startsWith("at "));
     expect(frames.length).toBe(0);
   });
 });
