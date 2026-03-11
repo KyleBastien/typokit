@@ -1,9 +1,6 @@
 // @typokit/platform-node — Node.js Platform Adapter
 
-export {
-  createClusterServer,
-  getDefaultWorkerCount,
-} from "./cluster.js";
+export { createClusterServer, getDefaultWorkerCount } from "./cluster.js";
 export type { ClusterServerOptions, ClusterServer } from "./cluster.js";
 
 import { createServer as nodeCreateServer } from "node:http";
@@ -100,9 +97,7 @@ function collectRawBody(req: IncomingMessage): Promise<string | undefined> {
 }
 
 /** Parse a raw query string (without leading '?') into a Record */
-function parseQuery(
-  qs: string,
-): Record<string, string | string[] | undefined> {
+function parseQuery(qs: string): Record<string, string | string[] | undefined> {
   if (!qs) return {};
   const result: Record<string, string | string[] | undefined> = {};
   // Use URLSearchParams only on the query portion — much cheaper than full URL construction
