@@ -19,7 +19,11 @@ import type {
   ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
+import {
+  createRequestContext,
+  executeMiddlewareChain,
+  sortMiddlewareEntries,
+} from "@typokit/core";
 import {
   writeResponse as nodeWriteResponse,
   createServer,
@@ -243,6 +247,7 @@ interface NativeServerState {
   routeTable: CompiledRouteTable | null;
   handlerMap: HandlerMap | null;
   middlewareChain: MiddlewareChain | null;
+  sortedMiddlewareEntries: MiddlewareEntry[] | null;
   validatorMap: ValidatorMap | null;
   serializerMap: SerializerMap | null;
 }
@@ -262,9 +267,13 @@ export function nativeServer(): ServerAdapter {
     routeTable: null,
     handlerMap: null,
     middlewareChain: null,
+    sortedMiddlewareEntries: null,
     validatorMap: null,
     serializerMap: null,
   };
+
+  // Shared reference updated per-request for middleware wrapper closures
+  let currentReq: TypoKitRequest | null = null;
 
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
 
@@ -358,31 +367,10 @@ export function nativeServer(): ServerAdapter {
     // Create request context
     let ctx = createRequestContext();
 
-    // Execute middleware chain if present
-    if (state.middlewareChain && state.middlewareChain.entries.length > 0) {
-      const entries: MiddlewareEntry[] = state.middlewareChain.entries.map(
-        (e) => ({
-          name: e.name,
-          middleware: {
-            handler: async (input) => {
-              const mwReq: TypoKitRequest = {
-                method: enrichedReq.method,
-                path: enrichedReq.path,
-                headers: input.headers,
-                body: input.body,
-                query: input.query,
-                params: input.params,
-              };
-              const response = await e.handler(mwReq, input.ctx, async () => {
-                return { status: 200, headers: {}, body: null };
-              });
-              return response as unknown as Record<string, unknown>;
-            },
-          },
-        }),
-      );
-
-      ctx = await executeMiddlewareChain(enrichedReq, ctx, entries);
+    // Execute pre-sorted middleware chain if present
+    if (state.sortedMiddlewareEntries && state.sortedMiddlewareEntries.length > 0) {
+      currentReq = enrichedReq;
+      ctx = await executeMiddlewareChain(enrichedReq, ctx, state.sortedMiddlewareEntries);
     }
 
     // Call the handler
@@ -411,6 +399,32 @@ export function nativeServer(): ServerAdapter {
       state.middlewareChain = middlewareChain;
       state.validatorMap = validatorMap ?? null;
       state.serializerMap = serializerMap ?? null;
+
+      // Pre-build and sort middleware entries once at registration time
+      if (middlewareChain && middlewareChain.entries.length > 0) {
+        const entries: MiddlewareEntry[] = middlewareChain.entries.map((e) => ({
+          name: e.name,
+          middleware: {
+            handler: async (input) => {
+              const mwReq: TypoKitRequest = {
+                method: currentReq!.method,
+                path: currentReq!.path,
+                headers: input.headers,
+                body: input.body,
+                query: input.query,
+                params: input.params,
+              };
+              const response = await e.handler(mwReq, input.ctx, async () => {
+                return { status: 200, headers: {}, body: null };
+              });
+              return response as unknown as Record<string, unknown>;
+            },
+          },
+        }));
+        state.sortedMiddlewareEntries = sortMiddlewareEntries(entries);
+      } else {
+        state.sortedMiddlewareEntries = null;
+      }
     },
 
     async listen(port: number): Promise<ServerHandle> {

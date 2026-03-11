@@ -71,21 +71,31 @@ export function createRequestContext(
 }
 
 /**
- * Execute a middleware chain in priority order (lower priority runs first).
+ * Sort middleware entries by priority (lower priority runs first).
+ * Call once at registration/startup time, then reuse the sorted array.
+ */
+export function sortMiddlewareEntries(
+  entries: MiddlewareEntry[],
+): MiddlewareEntry[] {
+  return [...entries].sort(
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
+  );
+}
+
+/**
+ * Execute a middleware chain in the order given (entries must be pre-sorted).
  * Each middleware's returned properties are accumulated onto the context.
  * Middleware can short-circuit by throwing an error.
+ *
+ * Use {@link sortMiddlewareEntries} at registration time to pre-sort by priority.
  */
 export async function executeMiddlewareChain(
   req: TypoKitRequest,
   ctx: RequestContext,
   entries: MiddlewareEntry[],
 ): Promise<RequestContext> {
-  const sorted = [...entries].sort(
-    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
-  );
-
   let currentCtx = ctx;
-  for (const entry of sorted) {
+  for (const entry of entries) {
     const added = await entry.middleware.handler({
       headers: req.headers,
       body: req.body,

@@ -32,6 +32,7 @@ export {
   createPlaceholderLogger,
   createRequestContext,
   executeMiddlewareChain,
+  sortMiddlewareEntries,
 } from "./middleware.js";
 export {
   type HandlerInput,

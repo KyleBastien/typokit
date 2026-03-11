@@ -2,6 +2,7 @@ import { describe, it, expect } from "@rstest/core";
 import {
   defineMiddleware,
   executeMiddlewareChain,
+  sortMiddlewareEntries,
   createRequestContext,
 } from "./middleware.js";
 import type { TypoKitRequest } from "@typokit/types";
@@ -105,11 +106,13 @@ describe("executeMiddlewareChain", () => {
     const req = createTestRequest();
     const ctx = createRequestContext();
 
-    await executeMiddlewareChain(req, ctx, [
+    const entries = sortMiddlewareEntries([
       { name: "A", middleware: mwA, priority: 30 },
       { name: "B", middleware: mwB, priority: 10 },
       { name: "C", middleware: mwC, priority: 20 },
     ]);
+
+    await executeMiddlewareChain(req, ctx, entries);
 
     expect(order).toEqual(["B", "C", "A"]);
   });
@@ -129,10 +132,12 @@ describe("executeMiddlewareChain", () => {
     const req = createTestRequest();
     const ctx = createRequestContext();
 
-    await executeMiddlewareChain(req, ctx, [
+    const entries = sortMiddlewareEntries([
       { name: "A", middleware: mwA, priority: 10 },
       { name: "B", middleware: mwB },
     ]);
+
+    await executeMiddlewareChain(req, ctx, entries);
 
     expect(order).toEqual(["B", "A"]);
   });
@@ -182,6 +187,43 @@ describe("executeMiddlewareChain", () => {
     const result = await executeMiddlewareChain(req, ctx, []);
     expect(result).toBeDefined();
     expect(result.requestId).toBe(ctx.requestId);
+  });
+});
+
+describe("sortMiddlewareEntries", () => {
+  it("sorts by priority ascending (lower runs first)", () => {
+    const mw = defineMiddleware(async () => ({}));
+    const entries = sortMiddlewareEntries([
+      { name: "A", middleware: mw, priority: 30 },
+      { name: "B", middleware: mw, priority: 10 },
+      { name: "C", middleware: mw, priority: 20 },
+    ]);
+    expect(entries.map((e) => e.name)).toEqual(["B", "C", "A"]);
+  });
+
+  it("treats undefined priority as 0", () => {
+    const mw = defineMiddleware(async () => ({}));
+    const entries = sortMiddlewareEntries([
+      { name: "A", middleware: mw, priority: 10 },
+      { name: "B", middleware: mw },
+    ]);
+    expect(entries.map((e) => e.name)).toEqual(["B", "A"]);
+  });
+
+  it("does not mutate the original array", () => {
+    const mw = defineMiddleware(async () => ({}));
+    const original = [
+      { name: "A", middleware: mw, priority: 20 },
+      { name: "B", middleware: mw, priority: 10 },
+    ];
+    const sorted = sortMiddlewareEntries(original);
+    expect(original[0].name).toBe("A");
+    expect(sorted[0].name).toBe("B");
+  });
+
+  it("returns empty array for empty input", () => {
+    const entries = sortMiddlewareEntries([]);
+    expect(entries).toEqual([]);
   });
 });
 
