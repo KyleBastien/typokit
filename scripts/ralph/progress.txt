@@ -9,7 +9,8 @@ Started: 03/10/2026 22:46:37
 - Pre-existing CRLF lint failures on Windows — `prettier/prettier` Delete errors are baseline, not regressions
 - Server-native adapter uses `currentReq` shared reference pattern for pre-built middleware wrapper closures that need per-request data
 - All 4 server adapters have identical copy-pasted `runValidators()` — changes must be applied to all 4
-- Guard validator checks with `const v = handler.validators; if (v && (v.params || v.query || v.body))` to skip validation for no-validator routes
+- `runValidators()` now takes a route ref string and performs a single hash lookup into the route-keyed `ValidatorMap` — no more per-field string lookups
+- Use `resolveValidatorMap(routeTable, rawMap)` from `@typokit/core` in `registerRoutes()` to convert `RawValidatorMap` (name→fn) to `ValidatorMap` (routeRef→RouteValidators)
 - Use `JSON_HEADERS` from `@typokit/core` for JSON response headers instead of creating `{ "content-type": "application/json" }` inline
 - All 4 server adapters have identical copy-pasted `serializeResponse()` — changes must be applied to all 4
 - Use `for...in` instead of `Object.entries()` for iterating plain `Record` objects in hot paths (avoids array allocation)
@@ -196,4 +197,30 @@ ormalizeRequest() function
   - eq.method from Node.js HTTP is always uppercase per HTTP/1.1 spec — .toUpperCase() is redundant overhead in all adapters
   - The header copy loop was the biggest waste — it iterated every header key/value pair via Object.entries() and allocated a new object on every request
   - Same .toUpperCase() removal could be applied to other adapters (hono, express, native) for consistency
+---
+
+## 2026-03-11T07:08 - US-014
+- **What was implemented**: Consolidated validator map lookup from three separate hash lookups per request into a single route-keyed lookup. Changed `ValidatorMap` type from `Record<string, ValidatorFn>` (name-keyed) to `Record<string, RouteValidators>` (route-ref-keyed). Added `RawValidatorMap` type for build-system output. Created `resolveValidatorMap()` utility in `@typokit/core` that walks the compiled route table at registration time and pre-resolves validator string references into `RouteValidators` objects. Updated `runValidators()` in all 4 adapters to accept a route ref string and perform a single hash lookup.
+- **Files changed**:
+  - `packages/types/src/index.ts` — Added `RouteValidators` interface, changed `ValidatorMap` type, added `RawValidatorMap` type
+  - `packages/core/src/validation.ts` — New: `resolveValidatorMap()` utility
+  - `packages/core/src/index.ts` — Exported `resolveValidatorMap`
+  - `packages/core/src/adapters/server.ts` — Changed `registerRoutes` to accept `RawValidatorMap`
+  - `packages/server-native/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
+  - `packages/server-hono/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
+  - `packages/server-fastify/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
+  - `packages/server-express/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
+  - `packages/server-native/src/index.test.ts` — Updated runValidators tests to use new signature
+  - `packages/server-hono/src/index.test.ts` — Changed ValidatorMap to RawValidatorMap in test
+  - `packages/server-fastify/src/index.test.ts` — Changed ValidatorMap to RawValidatorMap in test
+  - `packages/server-express/src/index.test.ts` — Changed ValidatorMap to RawValidatorMap in test
+  - `packages/benchmarks/src/apps/shared-routes.ts` — Changed to RawValidatorMap
+  - `packages/example-todo-server/src/test-app.ts` — Changed to RawValidatorMap
+  - `packages/example-todo-server/src/dev-server.ts` — Changed to RawValidatorMap
+  - `packages/testing/src/schema-matcher.ts` — Changed to RawValidatorMap
+- **Learnings for future iterations:**
+  - Breaking type changes to `@typokit/types` propagate to many downstream packages — search all `ValidatorMap` references before committing
+  - The `resolveValidatorMap()` utility in core is now the single place that walks the route tree to resolve validators — any new adapter should import and use it
+  - `registerRoutes()` now accepts `RawValidatorMap` (the build output) and resolves internally — callers don't need to know about the route-keyed format
+  - All 30 affected project tests pass (47 native + 12 hono + 12 fastify + 8 express + 88 core + others)
 ---
