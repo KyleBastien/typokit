@@ -37,14 +37,6 @@ interface LookupResult {
   params: Record<string, string>;
 }
 
-/** Normalize path: strip trailing slash (keep "/" as-is) */
-function normalizePath(path: string): string {
-  if (path.length > 1 && path.endsWith("/")) {
-    return path.slice(0, -1);
-  }
-  return path;
-}
-
 /**
  * Traverse the compiled radix tree to find the route node matching the
  * given path string. Uses index-based scanning to avoid allocating a
@@ -320,10 +312,8 @@ export function nativeServer(): ServerAdapter {
       };
     }
 
-    // Normalize trailing slashes
-    const path = normalizePath(req.path);
-
-    const result = lookupRoute(state.routeTable, path);
+    // Path is already normalized (trailing slash stripped) by platform-node
+    const result = lookupRoute(state.routeTable, req.path);
 
     // 404 — no route matches
     if (!result) {
@@ -397,7 +387,7 @@ export function nativeServer(): ServerAdapter {
     }
 
     // Inject extracted params into the request
-    const enrichedReq: TypoKitRequest = { ...req, params, path };
+    const enrichedReq: TypoKitRequest = { ...req, params };
 
     // Create request context
     let ctx = createRequestContext();

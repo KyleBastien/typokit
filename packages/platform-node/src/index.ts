@@ -136,8 +136,13 @@ export async function normalizeRequest(
 ): Promise<TypoKitRequest> {
   const rawUrl = req.url ?? "/";
   const qIdx = rawUrl.indexOf("?");
-  const path = qIdx === -1 ? rawUrl : rawUrl.substring(0, qIdx);
+  const rawPath = qIdx === -1 ? rawUrl : rawUrl.substring(0, qIdx);
   const queryString = qIdx === -1 ? "" : rawUrl.substring(qIdx + 1);
+  // Strip trailing slash (keep "/" as-is) so downstream routing skips re-normalization
+  const path =
+    rawPath.length > 1 && rawPath.charCodeAt(rawPath.length - 1) === 47
+      ? rawPath.substring(0, rawPath.length - 1)
+      : rawPath;
   const rawBody = await collectRawBody(req);
 
   const request: TypoKitRequest = {
