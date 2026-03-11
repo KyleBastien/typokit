@@ -423,8 +423,11 @@ function startSubprocessApp(
       }
     });
 
-    child.stderr?.on("data", (_chunk: Buffer) => {
-      // Subprocess stderr is suppressed during benchmarking
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      if (!resolved) {
+        stderr += chunk.toString();
+      }
     });
 
     child.on("error", (err: Error) => {
@@ -437,9 +440,12 @@ function startSubprocessApp(
     child.on("exit", (code) => {
       if (!resolved) {
         resolved = true;
+        const detail = stderr.trim()
+          ? `\n  stderr: ${stderr.trim().split("\n").slice(0, 5).join("\n         ")}`
+          : "";
         reject(
           new Error(
-            `${appDef.name} exited with code ${String(code)} before reporting port`,
+            `${appDef.name} exited with code ${String(code)} before reporting port${detail}`,
           ),
         );
       }
