@@ -12,6 +12,8 @@ Started: 03/10/2026 22:46:37
 - Use `JSON_HEADERS` from `@typokit/core` for JSON response headers instead of creating `{ "content-type": "application/json" }` inline
 - All 4 server adapters have identical copy-pasted `serializeResponse()` — changes must be applied to all 4
 - Use `for...in` instead of `Object.entries()` for iterating plain `Record` objects in hot paths (avoids array allocation)
+- V8-specific APIs (`Error.stackTraceLimit`, `Error.captureStackTrace`) need typed alias: `Error as unknown as { stackTraceLimit: number; captureStackTrace(...): void }`
+- AppError skips stack trace at construction; use `captureStack()` if trace is needed for debugging
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -73,4 +75,17 @@ Started: 03/10/2026 22:46:37
   - In the common hot path, handlers already set `"content-type": "application/json"` — so `serializeResponse` can reuse `response.headers` by reference (no spread needed)
   - The 405 response in server-native has `allow` header alongside content-type, so it can't use the shared constant (must create custom headers object)
   - All tests pass: 82 core + 48 native + 12 hono + 12 fastify + 8 express
+---
+
+## 2026-03-11T06:20 - US-005
+- **What was implemented**: Lazy error object construction. Three optimizations: (1) Skip V8 stack trace capture in AppError constructor by setting Error.stackTraceLimit=0 before super() and restoring after — stack is never used in AppError response serialization (toJSON() excludes it). Added captureStack() method for on-demand trace capture. (2) Extracted fail() as shared module-level function instead of per-request closure. (3) Created shared PLACEHOLDER_LOGGER constant to reuse across all request contexts.
+- **Files changed**:
+  - packages/errors/src/index.ts — Added ErrorWithV8 typed alias for V8-specific APIs. Modified AppError constructor to skip stack walk. Added captureStack() method.
+  - packages/errors/src/index.test.ts — Added 4 new tests for lazy stack behavior.
+  - packages/core/src/middleware.ts — Extracted shared NOOP, PLACEHOLDER_LOGGER, and fail() at module level.
+- **Learnings for future iterations:**
+  - Error.stackTraceLimit is V8-specific, not in ES typings — use typed alias via `Error as unknown as { stackTraceLimit: number; ... }`
+  - captureStackTrace(target, constructorOpt) second arg omits frames at/above that function — don't pass this.constructor when calling from a method outside the constructor
+  - AppError toJSON() never includes stack; error middleware only accesses .stack on unknown Error instances — skipping stack capture is safe
+  - All 21 errors + 82 core + 48 server-native tests pass
 ---
