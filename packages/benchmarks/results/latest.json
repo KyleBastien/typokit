@@ -1,0 +1,4082 @@
+{
+  "version": 1,
+  "generatedAt": "2026-03-11T01:40:11.365Z",
+  "results": [
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "json",
+      "reqPerSec": 13585.48,
+      "latency": {
+        "p50": 7.94,
+        "p75": 8.17,
+        "p90": 9.47,
+        "p95": 9.59,
+        "p99": 9.85
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:48:13.133Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "validate",
+      "reqPerSec": 11391.48,
+      "latency": {
+        "p50": 9.29,
+        "p75": 9.45,
+        "p90": 10.79,
+        "p95": 11.06,
+        "p99": 11.45
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:49:43.231Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 11427.67,
+      "latency": {
+        "p50": 9.33,
+        "p75": 9.59,
+        "p90": 10.98,
+        "p95": 11.2,
+        "p99": 11.57
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:51:13.316Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 11458.47,
+      "latency": {
+        "p50": 9.35,
+        "p75": 9.6,
+        "p90": 10.71,
+        "p95": 11.2,
+        "p99": 11.61
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:52:43.400Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "db",
+      "reqPerSec": 9207.42,
+      "latency": {
+        "p50": 10.84,
+        "p75": 12.15,
+        "p90": 12.87,
+        "p95": 13.21,
+        "p99": 13.65
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:54:13.487Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "middleware",
+      "reqPerSec": 12342.66,
+      "latency": {
+        "p50": 8.58,
+        "p75": 8.83,
+        "p90": 10.03,
+        "p95": 10.22,
+        "p99": 10.53
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:55:43.567Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "startup",
+      "reqPerSec": 14119.18,
+      "latency": {
+        "p50": 7.8,
+        "p75": 7.99,
+        "p90": 9.24,
+        "p95": 9.42,
+        "p99": 9.69
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:57:13.645Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "json",
+      "reqPerSec": 17084.29,
+      "latency": {
+        "p50": 4.96,
+        "p75": 7,
+        "p90": 7.8,
+        "p95": 8.48,
+        "p99": 8.79
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T22:58:48.851Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "validate",
+      "reqPerSec": 9474.05,
+      "latency": {
+        "p50": 10.8,
+        "p75": 11.35,
+        "p90": 12.43,
+        "p95": 13.61,
+        "p99": 21.7
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:00:18.963Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 9465.95,
+      "latency": {
+        "p50": 10.83,
+        "p75": 11.29,
+        "p90": 12.44,
+        "p95": 13.72,
+        "p99": 21.74
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:01:49.088Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 9607.37,
+      "latency": {
+        "p50": 10.23,
+        "p75": 11.11,
+        "p90": 12.37,
+        "p95": 13.62,
+        "p99": 21.61
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:03:19.195Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "db",
+      "reqPerSec": 10150.08,
+      "latency": {
+        "p50": 9.8,
+        "p75": 10.98,
+        "p90": 12.06,
+        "p95": 12.18,
+        "p99": 12.51
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:04:49.277Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "middleware",
+      "reqPerSec": 14436.33,
+      "latency": {
+        "p50": 7.48,
+        "p75": 7.7,
+        "p90": 9.01,
+        "p95": 9.15,
+        "p99": 9.61
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:06:19.359Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "startup",
+      "reqPerSec": 17475.47,
+      "latency": {
+        "p50": 4.83,
+        "p75": 6.78,
+        "p90": 8.23,
+        "p95": 8.33,
+        "p99": 8.56
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:07:49.436Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "json",
+      "reqPerSec": 12384.87,
+      "latency": {
+        "p50": 8.59,
+        "p75": 8.88,
+        "p90": 10.2,
+        "p95": 10.41,
+        "p99": 10.69
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:09:24.588Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "validate",
+      "reqPerSec": 6482.69,
+      "latency": {
+        "p50": 16.04,
+        "p75": 16.54,
+        "p90": 17.02,
+        "p95": 17.72,
+        "p99": 23.51
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:10:54.690Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 6643.82,
+      "latency": {
+        "p50": 15.79,
+        "p75": 16.31,
+        "p90": 16.77,
+        "p95": 17.24,
+        "p99": 24.86
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:12:24.795Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 6630,
+      "latency": {
+        "p50": 15.8,
+        "p75": 16.28,
+        "p90": 16.79,
+        "p95": 17.17,
+        "p99": 24.77
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:13:54.902Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "db",
+      "reqPerSec": 8651.82,
+      "latency": {
+        "p50": 11.3,
+        "p75": 12.92,
+        "p90": 13.61,
+        "p95": 13.82,
+        "p99": 14.25
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:15:24.989Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "middleware",
+      "reqPerSec": 11884.57,
+      "latency": {
+        "p50": 8.97,
+        "p75": 9.14,
+        "p90": 10.28,
+        "p95": 10.74,
+        "p99": 11.16
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:16:55.070Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "startup",
+      "reqPerSec": 12626.26,
+      "latency": {
+        "p50": 8.38,
+        "p75": 8.69,
+        "p90": 10.01,
+        "p95": 10.12,
+        "p99": 10.39
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:18:25.148Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "json",
+      "reqPerSec": 9619.53,
+      "latency": {
+        "p50": 10.27,
+        "p75": 11.57,
+        "p90": 12.63,
+        "p95": 12.79,
+        "p99": 13.33
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:20:00.348Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "validate",
+      "reqPerSec": 7480.88,
+      "latency": {
+        "p50": 13.19,
+        "p75": 14.82,
+        "p90": 15.55,
+        "p95": 15.81,
+        "p99": 16.8
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:21:30.442Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 7576.42,
+      "latency": {
+        "p50": 12.48,
+        "p75": 14.82,
+        "p90": 15.53,
+        "p95": 15.84,
+        "p99": 16.99
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:23:00.533Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 7610.43,
+      "latency": {
+        "p50": 12.56,
+        "p75": 14.66,
+        "p90": 15.4,
+        "p95": 15.67,
+        "p99": 17.23
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:24:30.624Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "db",
+      "reqPerSec": 6733.81,
+      "latency": {
+        "p50": 15.71,
+        "p75": 16.14,
+        "p90": 16.52,
+        "p95": 16.73,
+        "p99": 17.54
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:26:00.719Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "middleware",
+      "reqPerSec": 9004.23,
+      "latency": {
+        "p50": 11.2,
+        "p75": 12.33,
+        "p90": 13.27,
+        "p95": 13.47,
+        "p99": 14.2
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:27:30.803Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "startup",
+      "reqPerSec": 9545.84,
+      "latency": {
+        "p50": 10.07,
+        "p75": 11.77,
+        "p90": 12.66,
+        "p95": 12.95,
+        "p99": 13.39
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:29:00.887Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "json",
+      "reqPerSec": 20350.51,
+      "latency": {
+        "p50": 5.11,
+        "p75": 5.83,
+        "p90": 6.56,
+        "p95": 6.94,
+        "p99": 7.62
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:30:36.044Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "validate",
+      "reqPerSec": 14747.29,
+      "latency": {
+        "p50": 7.08,
+        "p75": 7.88,
+        "p90": 8.7,
+        "p95": 9.14,
+        "p99": 9.76
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:32:06.128Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 14906.34,
+      "latency": {
+        "p50": 6.92,
+        "p75": 7.75,
+        "p90": 8.64,
+        "p95": 9.06,
+        "p99": 9.72
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:33:36.208Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 15252.6,
+      "latency": {
+        "p50": 6.84,
+        "p75": 7.57,
+        "p90": 8.49,
+        "p95": 8.89,
+        "p99": 9.55
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:35:06.285Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "db",
+      "reqPerSec": 12087.6,
+      "latency": {
+        "p50": 8.59,
+        "p75": 9.26,
+        "p90": 9.93,
+        "p95": 10.31,
+        "p99": 10.91
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:36:36.363Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "middleware",
+      "reqPerSec": 17916.72,
+      "latency": {
+        "p50": 5.76,
+        "p75": 6.6,
+        "p90": 7.52,
+        "p95": 7.88,
+        "p99": 8.56
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:38:06.443Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "scenario": "startup",
+      "reqPerSec": 20392.8,
+      "latency": {
+        "p50": 5.02,
+        "p75": 5.82,
+        "p90": 6.62,
+        "p95": 6.99,
+        "p99": 7.61
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:39:36.518Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "json",
+      "reqPerSec": 22114.26,
+      "latency": {
+        "p50": 4.81,
+        "p75": 5.24,
+        "p90": 6.09,
+        "p95": 6.36,
+        "p99": 7.05
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:41:11.813Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "validate",
+      "reqPerSec": 12673.47,
+      "latency": {
+        "p50": 8.14,
+        "p75": 9.01,
+        "p90": 9.73,
+        "p95": 10.15,
+        "p99": 10.81
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:42:41.895Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 12405.71,
+      "latency": {
+        "p50": 8.28,
+        "p75": 9.08,
+        "p90": 9.77,
+        "p95": 10.19,
+        "p99": 10.75
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:44:11.978Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 12281.64,
+      "latency": {
+        "p50": 8.35,
+        "p75": 9.18,
+        "p90": 9.84,
+        "p95": 10.28,
+        "p99": 10.77
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:45:42.056Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "db",
+      "reqPerSec": 12097.53,
+      "latency": {
+        "p50": 8.53,
+        "p75": 9.29,
+        "p90": 9.92,
+        "p95": 10.38,
+        "p99": 10.84
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:47:12.132Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "middleware",
+      "reqPerSec": 18757.63,
+      "latency": {
+        "p50": 5.57,
+        "p75": 6.32,
+        "p90": 7.27,
+        "p95": 7.6,
+        "p99": 8.12
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:48:42.205Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "scenario": "startup",
+      "reqPerSec": 22469.06,
+      "latency": {
+        "p50": 4.75,
+        "p75": 5.16,
+        "p90": 5.9,
+        "p95": 6.21,
+        "p99": 6.89
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:50:12.282Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "json",
+      "reqPerSec": 15323.61,
+      "latency": {
+        "p50": 6.84,
+        "p75": 7.54,
+        "p90": 8.62,
+        "p95": 8.94,
+        "p99": 9.53
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:51:47.463Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "validate",
+      "reqPerSec": 7476.55,
+      "latency": {
+        "p50": 13.34,
+        "p75": 14.81,
+        "p90": 15.55,
+        "p95": 16.01,
+        "p99": 17.61
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:53:17.551Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 7516.78,
+      "latency": {
+        "p50": 13.38,
+        "p75": 14.7,
+        "p90": 15.4,
+        "p95": 15.83,
+        "p99": 17.04
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:54:47.638Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 7447.75,
+      "latency": {
+        "p50": 13.58,
+        "p75": 14.77,
+        "p90": 15.49,
+        "p95": 15.91,
+        "p99": 17.39
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:56:17.730Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "db",
+      "reqPerSec": 10138.14,
+      "latency": {
+        "p50": 9.91,
+        "p75": 10.97,
+        "p90": 11.73,
+        "p95": 12.06,
+        "p99": 12.63
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:57:47.807Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "middleware",
+      "reqPerSec": 13164.11,
+      "latency": {
+        "p50": 7.82,
+        "p75": 8.71,
+        "p90": 9.56,
+        "p95": 9.95,
+        "p99": 10.45
+      },
+      "errors": 0,
+      "timestamp": "2026-03-10T23:59:17.884Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "scenario": "startup",
+      "reqPerSec": 14285.52,
+      "latency": {
+        "p50": 7.24,
+        "p75": 8.07,
+        "p90": 8.98,
+        "p95": 9.41,
+        "p99": 10.09
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:00:47.965Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "json",
+      "reqPerSec": 15934.38,
+      "latency": {
+        "p50": 6.57,
+        "p75": 7.35,
+        "p90": 8.24,
+        "p95": 8.66,
+        "p99": 9.21
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:02:23.209Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "validate",
+      "reqPerSec": 10755.66,
+      "latency": {
+        "p50": 9.47,
+        "p75": 10.35,
+        "p90": 11.24,
+        "p95": 11.7,
+        "p99": 12.73
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:03:53.292Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 10881.63,
+      "latency": {
+        "p50": 9.4,
+        "p75": 10.26,
+        "p90": 11.11,
+        "p95": 11.55,
+        "p99": 12.26
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:05:23.378Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 10771.99,
+      "latency": {
+        "p50": 9.55,
+        "p75": 10.33,
+        "p90": 11.16,
+        "p95": 11.55,
+        "p99": 12.22
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:06:53.454Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "db",
+      "reqPerSec": 10543.99,
+      "latency": {
+        "p50": 9.64,
+        "p75": 10.56,
+        "p90": 11.32,
+        "p95": 11.71,
+        "p99": 12.38
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:08:23.535Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "middleware",
+      "reqPerSec": 13941.89,
+      "latency": {
+        "p50": 7.48,
+        "p75": 8.32,
+        "p90": 9.16,
+        "p95": 9.61,
+        "p99": 10.25
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:09:53.616Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "scenario": "startup",
+      "reqPerSec": 16265.23,
+      "latency": {
+        "p50": 6.05,
+        "p75": 7.21,
+        "p90": 8.24,
+        "p95": 8.61,
+        "p99": 9.26
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:11:23.692Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "json",
+      "reqPerSec": 85830.42,
+      "latency": {
+        "p50": 1.08,
+        "p75": 1.46,
+        "p90": 1.91,
+        "p95": 2.23,
+        "p99": 3.08
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:14:05.177Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "validate",
+      "reqPerSec": 81163.43,
+      "latency": {
+        "p50": 1.14,
+        "p75": 1.57,
+        "p90": 2.08,
+        "p95": 2.46,
+        "p99": 3.45
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:15:35.523Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "validate-passthrough",
+      "reqPerSec": 81990.05,
+      "latency": {
+        "p50": 1.13,
+        "p75": 1.54,
+        "p90": 2.05,
+        "p95": 2.43,
+        "p99": 3.43
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:17:05.890Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "validate-handwritten",
+      "reqPerSec": 80577.3,
+      "latency": {
+        "p50": 1.15,
+        "p75": 1.58,
+        "p90": 2.1,
+        "p95": 2.48,
+        "p99": 3.48
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:18:36.255Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "db",
+      "reqPerSec": 32036.21,
+      "latency": {
+        "p50": 2.98,
+        "p75": 4.32,
+        "p90": 6.92,
+        "p95": 8.78,
+        "p99": 13.64
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:20:06.424Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "middleware",
+      "reqPerSec": 74015.37,
+      "latency": {
+        "p50": 1.26,
+        "p75": 1.7,
+        "p90": 2.23,
+        "p95": 2.61,
+        "p99": 3.56
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:21:36.733Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "startup",
+      "reqPerSec": 104979.67,
+      "latency": {
+        "p50": 0.85,
+        "p75": 1.16,
+        "p90": 1.55,
+        "p95": 1.89,
+        "p99": 3.79
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:23:07.112Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "json",
+      "reqPerSec": 18114.87,
+      "latency": {
+        "p50": 5.8,
+        "p75": 6.22,
+        "p90": 7.79,
+        "p95": 7.86,
+        "p99": 8.1
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:24:42.221Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "validate",
+      "reqPerSec": 13743.77,
+      "latency": {
+        "p50": 7.84,
+        "p75": 8.14,
+        "p90": 9.64,
+        "p95": 9.77,
+        "p99": 10.11
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:26:12.301Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "db",
+      "reqPerSec": 10908.57,
+      "latency": {
+        "p50": 9.37,
+        "p75": 10.22,
+        "p90": 11.27,
+        "p95": 11.67,
+        "p99": 11.89
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:27:42.379Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "middleware",
+      "reqPerSec": 18069.44,
+      "latency": {
+        "p50": 5.85,
+        "p75": 6.22,
+        "p90": 7.82,
+        "p95": 7.88,
+        "p99": 8.04
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:29:12.457Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "startup",
+      "reqPerSec": 17893.72,
+      "latency": {
+        "p50": 5.78,
+        "p75": 6.41,
+        "p90": 8.05,
+        "p95": 8.11,
+        "p99": 8.26
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:30:42.534Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-bun",
+      "platform": "bun",
+      "server": "bun-serve",
+      "scenario": "json",
+      "reqPerSec": 42949.1,
+      "latency": {
+        "p50": 2.32,
+        "p75": 2.38,
+        "p90": 2.6,
+        "p95": 2.67,
+        "p99": 2.77
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:32:17.871Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-bun",
+      "platform": "bun",
+      "server": "bun-serve",
+      "scenario": "validate",
+      "reqPerSec": 31049.04,
+      "latency": {
+        "p50": 3.38,
+        "p75": 3.54,
+        "p90": 3.66,
+        "p95": 3.87,
+        "p99": 4.02
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:33:47.947Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-bun",
+      "platform": "bun",
+      "server": "bun-serve",
+      "scenario": "db",
+      "reqPerSec": 21377.65,
+      "latency": {
+        "p50": 4.94,
+        "p75": 5.32,
+        "p90": 6.18,
+        "p95": 6.32,
+        "p99": 6.64
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:35:18.018Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-bun",
+      "platform": "bun",
+      "server": "bun-serve",
+      "scenario": "middleware",
+      "reqPerSec": 43130.67,
+      "latency": {
+        "p50": 2.33,
+        "p75": 2.38,
+        "p90": 2.6,
+        "p95": 2.67,
+        "p99": 2.76
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:36:48.264Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-bun",
+      "platform": "bun",
+      "server": "bun-serve",
+      "scenario": "startup",
+      "reqPerSec": 44392.32,
+      "latency": {
+        "p50": 2.24,
+        "p75": 2.3,
+        "p90": 2.51,
+        "p95": 2.6,
+        "p99": 2.75
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:38:18.549Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "json",
+      "reqPerSec": 83759.88,
+      "latency": {
+        "p50": 1.1,
+        "p75": 1.5,
+        "p90": 1.97,
+        "p95": 2.3,
+        "p99": 3.18
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:40:58.939Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "validate",
+      "reqPerSec": 79800.07,
+      "latency": {
+        "p50": 1.16,
+        "p75": 1.59,
+        "p90": 2.11,
+        "p95": 2.49,
+        "p99": 3.49
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:42:29.291Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "db",
+      "reqPerSec": 31846.05,
+      "latency": {
+        "p50": 2.98,
+        "p75": 4.36,
+        "p90": 6.96,
+        "p95": 8.85,
+        "p99": 13.77
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:43:59.452Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "middleware",
+      "reqPerSec": 72189.79,
+      "latency": {
+        "p50": 1.28,
+        "p75": 1.75,
+        "p90": 2.29,
+        "p95": 2.68,
+        "p99": 3.66
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:45:29.766Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "raw-axum",
+      "platform": "rust",
+      "server": "axum",
+      "scenario": "startup",
+      "reqPerSec": 103369.73,
+      "latency": {
+        "p50": 0.87,
+        "p75": 1.19,
+        "p90": 1.56,
+        "p95": 1.9,
+        "p99": 3.76
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:47:00.184Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 9745.35,
+      "latency": {
+        "p50": 9.62,
+        "p75": 11.61,
+        "p90": 12.68,
+        "p95": 12.91,
+        "p99": 13.43
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:48:35.306Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 7930.04,
+      "latency": {
+        "p50": 11.99,
+        "p75": 14.18,
+        "p90": 14.98,
+        "p95": 15.2,
+        "p99": 16.36
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:50:05.395Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 7039.54,
+      "latency": {
+        "p50": 14.45,
+        "p75": 15.75,
+        "p90": 16.25,
+        "p95": 16.35,
+        "p99": 16.88
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:51:35.488Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 9524.15,
+      "latency": {
+        "p50": 9.89,
+        "p75": 11.92,
+        "p90": 12.67,
+        "p95": 13.16,
+        "p99": 13.49
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:53:05.572Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 9693.83,
+      "latency": {
+        "p50": 10.26,
+        "p75": 11.61,
+        "p90": 12.61,
+        "p95": 12.86,
+        "p99": 13.19
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:54:35.656Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 16028.58,
+      "latency": {
+        "p50": 6.48,
+        "p75": 7.2,
+        "p90": 8.52,
+        "p95": 8.91,
+        "p99": 9.06
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:56:10.801Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 9707.4,
+      "latency": {
+        "p50": 10.34,
+        "p75": 11.05,
+        "p90": 12.35,
+        "p95": 12.84,
+        "p99": 22.16
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:57:40.905Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 10017.2,
+      "latency": {
+        "p50": 10.22,
+        "p75": 11.11,
+        "p90": 12.3,
+        "p95": 12.37,
+        "p99": 12.63
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T00:59:10.990Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 15407.44,
+      "latency": {
+        "p50": 7.03,
+        "p75": 7.29,
+        "p90": 8.9,
+        "p95": 9,
+        "p99": 9.2
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:00:41.067Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 16983.84,
+      "latency": {
+        "p50": 5.93,
+        "p75": 6.79,
+        "p90": 7.64,
+        "p95": 8.59,
+        "p99": 8.72
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:02:11.143Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 12801.13,
+      "latency": {
+        "p50": 8.19,
+        "p75": 8.5,
+        "p90": 9.93,
+        "p95": 10.01,
+        "p99": 10.28
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:03:46.258Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 6567.13,
+      "latency": {
+        "p50": 15.82,
+        "p75": 16.47,
+        "p90": 17.05,
+        "p95": 17.72,
+        "p99": 22.4
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:05:16.362Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 9050.89,
+      "latency": {
+        "p50": 10.81,
+        "p75": 12.39,
+        "p90": 13.16,
+        "p95": 13.45,
+        "p99": 13.83
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:06:46.455Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 12393.12,
+      "latency": {
+        "p50": 8.56,
+        "p75": 8.79,
+        "p90": 10.22,
+        "p95": 10.58,
+        "p99": 10.94
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:08:16.542Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 13425.07,
+      "latency": {
+        "p50": 7.99,
+        "p75": 8.19,
+        "p90": 9.63,
+        "p95": 9.76,
+        "p99": 10.01
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:09:46.623Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-elysia",
+      "platform": "bun",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 51424.32,
+      "latency": {
+        "p50": 1.92,
+        "p75": 2.03,
+        "p90": 2.28,
+        "p95": 2.47,
+        "p99": 3.47
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:11:21.919Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-elysia",
+      "platform": "bun",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 27379.33,
+      "latency": {
+        "p50": 3.61,
+        "p75": 4.12,
+        "p90": 4.29,
+        "p95": 4.55,
+        "p99": 4.81
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:12:51.994Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-elysia",
+      "platform": "bun",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 23826.64,
+      "latency": {
+        "p50": 4.48,
+        "p75": 4.77,
+        "p90": 5.42,
+        "p95": 5.55,
+        "p99": 5.88
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:14:22.062Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-elysia",
+      "platform": "bun",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 51215.83,
+      "latency": {
+        "p50": 1.93,
+        "p75": 2.02,
+        "p90": 2.28,
+        "p95": 2.45,
+        "p99": 3.48
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:15:52.151Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-elysia",
+      "platform": "bun",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 53204.17,
+      "latency": {
+        "p50": 1.86,
+        "p75": 1.95,
+        "p90": 2.21,
+        "p95": 2.4,
+        "p99": 3.42
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:17:22.230Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-trpc",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 11602.85,
+      "latency": {
+        "p50": 9.13,
+        "p75": 9.25,
+        "p90": 10.53,
+        "p95": 10.98,
+        "p99": 11.27
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:18:57.379Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-trpc",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 9544.9,
+      "latency": {
+        "p50": 10.09,
+        "p75": 11.69,
+        "p90": 12.95,
+        "p95": 13.18,
+        "p99": 13.5
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:20:27.464Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-trpc",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 7642.13,
+      "latency": {
+        "p50": 12.8,
+        "p75": 14.59,
+        "p90": 15.3,
+        "p95": 15.45,
+        "p99": 16.09
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:21:57.557Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-trpc",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 11303.4,
+      "latency": {
+        "p50": 9.32,
+        "p75": 9.5,
+        "p90": 10.73,
+        "p95": 11.21,
+        "p99": 11.59
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:23:27.639Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-trpc",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 11687.9,
+      "latency": {
+        "p50": 9.14,
+        "p75": 9.25,
+        "p90": 10.3,
+        "p95": 10.98,
+        "p99": 11.19
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:24:57.722Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 21220.2,
+      "latency": {
+        "p50": 4.44,
+        "p75": 5.44,
+        "p90": 5.51,
+        "p95": 5.54,
+        "p99": 5.69
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:26:32.908Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 20231.76,
+      "latency": {
+        "p50": 5.04,
+        "p75": 5.12,
+        "p90": 5.21,
+        "p95": 5.31,
+        "p99": 5.71
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:28:03.108Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 14223.04,
+      "latency": {
+        "p50": 6.78,
+        "p75": 7.73,
+        "p90": 7.83,
+        "p95": 7.88,
+        "p99": 8.13
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:29:33.303Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 20822.01,
+      "latency": {
+        "p50": 4.54,
+        "p75": 5.52,
+        "p90": 5.58,
+        "p95": 5.62,
+        "p99": 5.89
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:31:03.433Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 21996.1,
+      "latency": {
+        "p50": 4.26,
+        "p75": 5.26,
+        "p90": 5.32,
+        "p95": 5.36,
+        "p99": 5.54
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:32:33.561Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-adonis",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 14478.18,
+      "latency": {
+        "p50": 7.56,
+        "p75": 7.69,
+        "p90": 9,
+        "p95": 9.35,
+        "p99": 9.46
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:34:08.666Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-adonis",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 12293.94,
+      "latency": {
+        "p50": 8.68,
+        "p75": 8.81,
+        "p90": 10.34,
+        "p95": 10.54,
+        "p99": 10.78
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:35:38.748Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-adonis",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "db",
+      "reqPerSec": 9954.41,
+      "latency": {
+        "p50": 10.07,
+        "p75": 11.25,
+        "p90": 12.4,
+        "p95": 12.51,
+        "p99": 12.65
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:37:08.829Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-adonis",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 14301.61,
+      "latency": {
+        "p50": 7.64,
+        "p75": 7.86,
+        "p90": 9.4,
+        "p95": 9.56,
+        "p99": 9.69
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:38:38.906Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    },
+    {
+      "framework": "competitor-adonis",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "startup",
+      "reqPerSec": 14961.2,
+      "latency": {
+        "p50": 7.32,
+        "p75": 7.51,
+        "p90": 9.12,
+        "p95": 9.18,
+        "p99": 9.31
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T01:40:08.985Z",
+      "systemInfo": {
+        "os": "Linux 6.14.0-1017-azure x64",
+        "cpu": "AMD EPYC 7763 64-Core Processor",
+        "cpuCores": 4,
+        "ram": "16 GB",
+        "runtimeVersions": {
+          "node": "v24.14.0",
+          "bun": "1.3.10",
+          "deno": "2.7.4",
+          "rustc": "1.94.0 (cargo 1.94.0)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "30s",
+        "warmup": "5s",
+        "runs": 3
+      }
+    }
+  ],
+  "validationAnalysis": [
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "passthroughReqPerSec": 11427.67,
+      "handwrittenReqPerSec": 11458.47,
+      "typokitReqPerSec": 11391.48,
+      "vsPassthroughPct": -0.32,
+      "vsHandwrittenPct": -0.58
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "passthroughReqPerSec": 9465.95,
+      "handwrittenReqPerSec": 9607.37,
+      "typokitReqPerSec": 9474.05,
+      "vsPassthroughPct": 0.09,
+      "vsHandwrittenPct": -1.39
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "passthroughReqPerSec": 6643.82,
+      "handwrittenReqPerSec": 6630,
+      "typokitReqPerSec": 6482.69,
+      "vsPassthroughPct": -2.43,
+      "vsHandwrittenPct": -2.22
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "passthroughReqPerSec": 7576.42,
+      "handwrittenReqPerSec": 7610.43,
+      "typokitReqPerSec": 7480.88,
+      "vsPassthroughPct": -1.26,
+      "vsHandwrittenPct": -1.7
+    },
+    {
+      "framework": "typokit-bun-native",
+      "platform": "bun",
+      "server": "native",
+      "passthroughReqPerSec": 14906.34,
+      "handwrittenReqPerSec": 15252.6,
+      "typokitReqPerSec": 14747.29,
+      "vsPassthroughPct": -1.07,
+      "vsHandwrittenPct": -3.31
+    },
+    {
+      "framework": "typokit-bun-fastify",
+      "platform": "bun",
+      "server": "fastify",
+      "passthroughReqPerSec": 12405.71,
+      "handwrittenReqPerSec": 12281.64,
+      "typokitReqPerSec": 12673.47,
+      "vsPassthroughPct": 2.16,
+      "vsHandwrittenPct": 3.19
+    },
+    {
+      "framework": "typokit-bun-hono",
+      "platform": "bun",
+      "server": "hono",
+      "passthroughReqPerSec": 7516.78,
+      "handwrittenReqPerSec": 7447.75,
+      "typokitReqPerSec": 7476.55,
+      "vsPassthroughPct": -0.54,
+      "vsHandwrittenPct": 0.39
+    },
+    {
+      "framework": "typokit-bun-express",
+      "platform": "bun",
+      "server": "express",
+      "passthroughReqPerSec": 10881.63,
+      "handwrittenReqPerSec": 10771.99,
+      "typokitReqPerSec": 10755.66,
+      "vsPassthroughPct": -1.16,
+      "vsHandwrittenPct": -0.15
+    },
+    {
+      "framework": "typokit-rust-axum",
+      "platform": "rust",
+      "server": "axum",
+      "passthroughReqPerSec": 81990.05,
+      "handwrittenReqPerSec": 80577.3,
+      "typokitReqPerSec": 81163.43,
+      "vsPassthroughPct": -1.01,
+      "vsHandwrittenPct": 0.73
+    }
+  ],
+  "microbenchmarks": [
+    {
+      "name": "serialization",
+      "serializer": "JSON.stringify",
+      "iterations": 1000000,
+      "opsPerSec": 1025601,
+      "meanTimeNs": 975.04,
+      "p99TimeNs": 1452,
+      "timestamp": "2026-03-11T01:40:08.986Z"
+    },
+    {
+      "name": "serialization",
+      "serializer": "fast-json-stringify",
+      "iterations": 1000000,
+      "opsPerSec": 1280942,
+      "meanTimeNs": 780.68,
+      "p99TimeNs": 1543,
+      "timestamp": "2026-03-11T01:40:08.986Z"
+    },
+    {
+      "name": "serialization",
+      "serializer": "typokit-compiled",
+      "iterations": 1000000,
+      "opsPerSec": 4431973,
+      "meanTimeNs": 225.63,
+      "p99TimeNs": 321,
+      "timestamp": "2026-03-11T01:40:08.986Z"
+    }
+  ]
+}
