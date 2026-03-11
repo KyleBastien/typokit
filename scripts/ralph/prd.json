@@ -258,7 +258,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "First half of the Bun-native work â€” creates the platform adapter. US-016 integrates it into the server."
     },
     {
@@ -274,7 +274,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-015 (Bun-native platform adapter)"
     },
     {

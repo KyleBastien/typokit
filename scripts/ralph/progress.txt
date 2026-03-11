@@ -23,6 +23,10 @@ Started: 03/10/2026 22:46:37
 - In Hono adapter, use `c.req.path`, `c.req.query()`, `c.req.header()` native APIs instead of `new URL(req.url)` — Hono already parsed these during routing
 - Use `WeakMap<object, T>` instead of type-cast `(c as unknown as Record<string, unknown>)._prop` for stashing data on framework context objects
 - In Fastify adapter, `req.headers` is the Node.js IncomingMessage headers object — reuse directly, don't copy
+- server-native auto-detects Bun via `"Bun" in globalThis` and delegates to `createBunServer()` — `handleRequest` signature is shared between Node and Bun paths
+- `getNativeServer()` returns BunServer (has `.port`) on Bun and http.Server (has `.address()`) on Node — callers must handle both
+- platform-bun env.d.ts declares Web API types (Request, Response, Headers, URL, URLSearchParams) — update it when adding new Web API usage
+- Use Proxy-based lazy headers to wrap native `Headers` object — avoids O(N) upfront copy, individual headers resolved on demand via `native.get()`
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -223,4 +227,41 @@ ormalizeRequest() function
   - The `resolveValidatorMap()` utility in core is now the single place that walks the route tree to resolve validators — any new adapter should import and use it
   - `registerRoutes()` now accepts `RawValidatorMap` (the build output) and resolves internally — callers don't need to know about the route-keyed format
   - All 30 affected project tests pass (47 native + 12 hono + 12 fastify + 8 express + 88 core + others)
+---
+
+## 2026-03-11T07:24 - US-015
+- Implemented Bun-native server path in platform-bun adapter
+- Added `createBunServer()` function that uses `Bun.serve({ fetch })` directly (no node:http)
+- Optimized `normalizeRequest()`: indexOf/substring for path extraction instead of `new URL()`
+- Body accessed via `req.json()` (JSON) and `req.text()` (other) — Bun's native zero-copy methods
+- Lazy Proxy-based headers wrapping native `Headers` API — avoids upfront O(N) conversion
+- Changed `parseQuery` to accept raw query string (consistent with platform-node)
+- Kept `createServer` as deprecated backward-compatible alias
+- Files changed:
+  - packages/platform-bun/src/index.ts (main implementation)
+  - packages/platform-bun/src/index.test.ts (24 tests, 7 new)
+  - packages/platform-bun/src/env.d.ts (URLSearchParams constructor)
+- **Learnings for future iterations:**
+  - platform-bun uses env.d.ts for Web API type declarations (Request, Response, Headers, URL, URLSearchParams) since it compiles under Node16 moduleResolution without DOM lib
+  - Proxy-based lazy headers work for `for...in` iteration via `ownKeys` + `getOwnPropertyDescriptor` traps
+  - In Bun.serve, `req.url` is always a full URL (`http://host:port/path?query`), so path extraction must skip the protocol+host prefix
+  - `req.json()` consumes the body stream; if it throws (malformed JSON), you can't fall back to `req.text()` — body becomes undefined
+  - `eslint --fix` resolves prettier formatting issues automatically on Windows (CRLF + other format changes)
+---
+
+## 2026-03-11T07:33 - US-016
+- **What was implemented**: Auto-detection of Bun runtime in `nativeServer()` adapter. When running on Bun, `listen()` dynamically imports `@typokit/platform-bun` and uses `createBunServer()` (Bun.serve) instead of `createServer()` from platform-node, bypassing the node:http compatibility layer for near-native Bun performance. Updated `getNativeServer()` to return a generic reference (BunServer on Bun, http.Server on Node). Updated the benchmark app to handle both server types for port detection.
+- **Files changed**:
+  - `packages/server-native/src/index.ts` — Added `isBun` runtime detection, Bun path in `listen()`, generic `nativeServerRef`
+  - `packages/server-native/package.json` — Added `@typokit/platform-bun` as optional peer dependency
+  - `packages/server-native/tsconfig.lib.json` — Added platform-bun reference for dynamic import resolution
+  - `packages/benchmarks/src/apps/typokit-bun-native.ts` — Updated to detect BunServer (.port) vs http.Server (.address()) from getNativeServer()
+  - `pnpm-lock.yaml` — Updated lockfile
+- **Learnings for future iterations:**
+  - `"Bun" in globalThis` is the canonical way to detect Bun runtime — no need for process.versions or user-agent checks
+  - Dynamic `import()` of platform-bun is needed because static imports would fail on Node.js (platform-bun's env.d.ts declares Web API types). The tsconfig project reference is still needed for type resolution of the dynamic import.
+  - `createBunServer()` takes the same `(req: TypoKitRequest) => Promise<TypoKitResponse>` handler signature as platform-node's `createServer()`, so the `handleRequest` function works unchanged for both paths
+  - `BunServer` has `.port` and `.hostname` directly on the instance; `http.Server` uses `.address()` returning `AddressInfo` — benchmark code must handle both
+  - The `writeResponse()` method on the adapter is only used by the Node.js code path; Bun's `fetch()` pattern returns a `Response` object directly, so writeResponse is never called on Bun
+  - Optional peer dependencies with `peerDependenciesMeta` `optional: true` is the right pattern for runtime-conditional packages — it won't fail install on Node.js where platform-bun isn't needed
 ---
