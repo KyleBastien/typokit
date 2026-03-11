@@ -231,6 +231,12 @@ export type NodeRequestHandler = (
 export interface NodeServerOptions {
   /** Optional hostname to bind to (default: "0.0.0.0") */
   hostname?: string;
+  /** Keep-alive timeout in ms — idle connections close after this (default: 5000) */
+  keepAliveTimeout?: number;
+  /** Max time in ms to receive complete headers — prevents slowloris stalls (default: 10000) */
+  headersTimeout?: number;
+  /** Max number of request headers — lower than Node default (2000) for API workloads (default: 64) */
+  maxHeadersCount?: number;
 }
 
 // ─── Node Server ─────────────────────────────────────────────
@@ -282,6 +288,11 @@ export function createServer(
       }
     },
   );
+
+  // Keep-alive tuning — reduces per-request overhead from connection reuse
+  server.keepAliveTimeout = options.keepAliveTimeout ?? 5_000;
+  server.headersTimeout = options.headersTimeout ?? 10_000;
+  server.maxHeadersCount = options.maxHeadersCount ?? 64;
 
   return {
     server,

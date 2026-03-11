@@ -348,4 +348,31 @@ describe("createServer", () => {
     // Server should no longer be listening
     expect(srv.server.listening).toBe(false);
   });
+
+  it("applies default keep-alive tuning when no options given", () => {
+    const srv = createServer(async () => ({
+      status: 200,
+      headers: {},
+      body: null,
+    }));
+
+    expect(srv.server.keepAliveTimeout).toBe(5_000);
+    expect(srv.server.headersTimeout).toBe(10_000);
+    expect(srv.server.maxHeadersCount).toBe(64);
+  });
+
+  it("respects custom keep-alive options", () => {
+    const srv = createServer(
+      async () => ({ status: 200, headers: {}, body: null }),
+      {
+        keepAliveTimeout: 15_000,
+        headersTimeout: 30_000,
+        maxHeadersCount: 128,
+      },
+    );
+
+    expect(srv.server.keepAliveTimeout).toBe(15_000);
+    expect(srv.server.headersTimeout).toBe(30_000);
+    expect(srv.server.maxHeadersCount).toBe(128);
+  });
 });
