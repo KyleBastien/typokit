@@ -1,20 +1,21 @@
 {
   "project": "TypoKit",
-  "branchName": "ralph/benchmark-suite",
-  "description": "Performance Benchmark Suite â€” Compare TypoKit across all platformÃ—server combinations against competitor frameworks with bombardier load generation, CI regression detection, and docs site integration",
+  "branchName": "ralph/performance-optimization",
+  "description": "TypoKit JS/TS Runtime Performance Optimization â€” Reduce framework overhead to <5% vs raw HTTP baseline on Node.js and Bun across all benchmark scenarios",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Benchmark package scaffolding and shared fixtures",
-      "description": "As a developer, I need the packages/benchmarks/ package with shared fixtures, types, and database seed data so that all benchmark apps have a consistent foundation.",
+      "title": "Pre-sort middleware chain at registration time",
+      "description": "As a framework user, I want middleware execution to add near-zero overhead so that my app performs as close to raw HTTP as possible.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/ as a private package with package.json (private: true) and project.json using nx:run-commands executor",
-        "Create packages/benchmarks/src/types.ts with shared TypeScript types: BenchmarkResult (framework, platform, server, scenario, reqPerSec, latency percentiles, errors, timestamp, systemInfo), SystemInfo (os, cpu, ram, runtimeVersions), BenchmarkConfig (connections, duration, warmup, runs)",
-        "Create packages/benchmarks/src/shared/ with: response shape (static JSON object with 8+ fields including nested object, array, enum, optional), validation schema (moderately complex: nested object, string, number, enum, array, optional fields), and database table definition",
-        "Create packages/benchmarks/fixtures/ with: schema.sql (SQLite CREATE TABLE), seed.sql (1,000 rows of test data), and a pre-seeded benchmark.sqlite file",
-        "Create packages/benchmarks/src/shared/validation-schema.ts exporting the validation shape as a TypeScript interface with JSDoc annotations matching TypoKit's schema-first pattern",
-        "Add packages/benchmarks to pnpm-workspace.yaml if not auto-detected",
-        "Typecheck passes"
+        "executeMiddlewareChain() in packages/core/src/middleware.ts no longer calls Array.sort() on every request",
+        "Middleware entries are sorted once at registration/startup time (in registerRoutes or defineMiddleware)",
+        "Sorted order is stored as a pre-computed array on the route or adapter",
+        "Middleware benchmark scenario overhead drops from 9-15% to <3% vs JSON baseline",
+        "Existing middleware priority ordering behavior is preserved (same sort semantics)",
+        "All existing tests pass: pnpm nx test core && pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck core",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 1,
       "passes": true,
@@ -22,18 +23,16 @@
     },
     {
       "id": "US-002",
-      "title": "bombardier download and cache module",
-      "description": "As a developer, I need bombardier to be automatically downloaded and cached so that the benchmark suite works out of the box without manual installation.",
+      "title": "Replace random request ID with fast counter",
+      "description": "As a framework developer, I want request ID generation to be allocation-free so that it doesn't contribute to per-request overhead.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/bombardier.ts that auto-downloads the bombardier binary from GitHub releases on first run",
-        "Detect platform (linux/darwin/windows) and architecture (amd64/arm64) to download the correct binary",
-        "Cache the binary in node_modules/.cache/benchmarks/bombardier (create directory if needed)",
-        "Skip download if cached binary already exists and is executable",
-        "Export a getBombardierPath() function that returns the path to the cached binary (downloading first if needed)",
-        "Export a runBombardier(url, config) function that spawns bombardier with JSON output, parses results, and returns BenchmarkResult with: req/s avg, latency p50/p95/p99/p99.9, transfer/sec, total requests, errors",
-        "Default config: 100 connections, 30s duration; CI config: 50 connections, 10s duration",
-        "If download fails, exit with clear error message and manual installation instructions",
-        "Typecheck passes"
+        "createRequestContext() in packages/core/src/middleware.ts no longer calls Math.random().toString(36) twice per request",
+        "Request IDs use a monotonically incrementing counter (e.g., BigInt or pre-formatted numeric string)",
+        "IDs remain unique within a process lifetime (no collisions)",
+        "Request ID format change is documented as a breaking change",
+        "All existing tests pass: pnpm nx test core",
+        "Typecheck passes: pnpm nx typecheck core",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 2,
       "passes": true,
@@ -41,21 +40,16 @@
     },
     {
       "id": "US-003",
-      "title": "TypoKit Node.js benchmark apps (4 server adapters)",
-      "description": "As a developer, I need TypoKit benchmark apps for all 4 server adapters on Node.js so that we can measure the Node platform matrix.",
+      "title": "Skip validation pipeline for routes without validators",
+      "description": "As a framework developer, I want the validation pipeline to be completely bypassed for routes that have no validators so that GET endpoints with no params/query validation pay zero cost.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/typokit-node-native.ts implementing all 5 endpoints: GET /json, POST /validate, GET /db/:id, GET /middleware (5 no-op middleware layers), GET /startup",
-        "Create packages/benchmarks/src/apps/typokit-node-fastify.ts with same 5 endpoints using @typokit/server-fastify",
-        "Create packages/benchmarks/src/apps/typokit-node-hono.ts with same 5 endpoints using @typokit/server-hono",
-        "Create packages/benchmarks/src/apps/typokit-node-express.ts with same 5 endpoints using @typokit/server-express",
-        "All apps use @typokit/platform-node, @typokit/core for app creation, and the shared validation schema and DB fixtures",
-        "All apps use better-sqlite3 for the /db/:id endpoint with the shared benchmark.sqlite",
-        "Each app exports a start() function returning { port: number, close: () => void } with dynamic port allocation (port 0)",
-        "GET /json returns the shared static JSON response shape",
-        "POST /validate validates the request body against the shared schema and returns the validated object",
-        "GET /middleware passes through 5 no-op middleware layers before returning JSON",
-        "GET /startup returns { uptime: process.uptime() }",
-        "Typecheck passes"
+        "handleRequest() in server adapters checks handler.validators existence before calling runValidators()",
+        "If handler.validators is undefined or all three fields (params, query, body) are undefined, validation is skipped entirely",
+        "The JSON and startup benchmark scenarios (which have no validators) see a measurable improvement",
+        "Routes with validators continue to work identically",
+        "All existing tests pass across all server adapter packages",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 3,
       "passes": true,
@@ -63,17 +57,16 @@
     },
     {
       "id": "US-004",
-      "title": "TypoKit Bun benchmark apps (4 server adapters)",
-      "description": "As a developer, I need TypoKit benchmark apps for all 4 server adapters on Bun so that we can measure the Bun platform matrix.",
+      "title": "Pre-compute and cache serialized response headers",
+      "description": "As a framework developer, I want common response headers to be pre-computed so that response writing is faster.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/typokit-bun-native.ts implementing all 5 endpoints using @typokit/platform-bun and @typokit/server-native",
-        "Create packages/benchmarks/src/apps/typokit-bun-fastify.ts with same 5 endpoints using @typokit/server-fastify on Bun",
-        "Create packages/benchmarks/src/apps/typokit-bun-hono.ts with same 5 endpoints using @typokit/server-hono on Bun",
-        "Create packages/benchmarks/src/apps/typokit-bun-express.ts with same 5 endpoints using @typokit/server-express via Bun compatibility layer",
-        "All apps use Bun's built-in bun:sqlite for the /db/:id endpoint with the shared benchmark.sqlite",
-        "Each app exports a start() function returning { port: number, close: () => void } with dynamic port allocation",
-        "All 5 endpoints (json, validate, db, middleware, startup) match the same behavior as the Node.js apps",
-        "Typecheck passes"
+        "Common header combinations (e.g., content-type: application/json) are created once as reusable constants",
+        "writeResponse() in platform adapters reuses pre-computed header objects instead of creating new ones per response",
+        "serializeResponse() returns a pre-computed content-type alongside the serialized body",
+        "Node native JSON benchmark shows measurable improvement in p50 latency",
+        "All existing tests pass across platform and server packages",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 4,
       "passes": true,
@@ -81,17 +74,16 @@
     },
     {
       "id": "US-005",
-      "title": "TypoKit Deno benchmark apps (4 server adapters)",
-      "description": "As a developer, I need TypoKit benchmark apps for all 4 server adapters on Deno so that we can measure the Deno platform matrix.",
+      "title": "Lazy error object construction",
+      "description": "As a framework developer, I want error objects to be lazily constructed so that the happy path pays no cost for error handling infrastructure.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/typokit-deno-native.ts implementing all 5 endpoints using @typokit/platform-deno and @typokit/server-native",
-        "Create packages/benchmarks/src/apps/typokit-deno-fastify.ts with same 5 endpoints using @typokit/server-fastify on Deno",
-        "Create packages/benchmarks/src/apps/typokit-deno-hono.ts with same 5 endpoints using @typokit/server-hono on Deno",
-        "Create packages/benchmarks/src/apps/typokit-deno-express.ts with same 5 endpoints using @typokit/server-express via Deno npm: compatibility",
-        "All apps use @db/sqlite (or Deno's SQLite module) for the /db/:id endpoint with the shared benchmark.sqlite",
-        "Each app exports a start() function returning { port: number, close: () => void } with dynamic port allocation",
-        "All 5 endpoints (json, validate, db, middleware, startup) match the same behavior as the Node.js apps",
-        "Typecheck passes"
+        "createRequestContext() provides fail() as a lightweight function that doesn't pre-allocate error metadata",
+        "AppError construction (stack trace capture, source file resolution, related test lookup) is deferred until the error is actually serialized for the response",
+        "Error middleware in packages/core/src/ avoids instanceof checks on the hot path when no error occurred",
+        "The process.env.NODE_ENV check for development mode is cached once at startup, not evaluated per-error",
+        "All existing error handling tests pass: pnpm nx test errors && pnpm nx test core",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 5,
       "passes": true,
@@ -99,17 +91,16 @@
     },
     {
       "id": "US-006",
-      "title": "TypoKit Rust/Axum benchmark app",
-      "description": "As a developer, I need a TypoKit Rust/Axum benchmark app generated via @typokit/plugin-axum so that we can measure the Rust codegen target performance.",
+      "title": "Eliminate per-request context object allocation",
+      "description": "As a framework developer, I want request context to be created without N object spread allocations so that GC pressure is minimized under high concurrency.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/typokit-rust-axum/ directory with a Cargo.toml and Rust source files",
-        "Generate the Rust server code from the same TypeScript validation schema used by JS apps via @typokit/plugin-axum codegen",
-        "Implement all 5 endpoints: GET /json, POST /validate, GET /db/:id (using rusqlite), GET /middleware (5 no-op Axum middleware layers), GET /startup",
-        "The app uses the same shared benchmark.sqlite fixture (copied at runtime) and returns identical JSON response shapes",
-        "The app compiles with cargo build --release successfully",
-        "The compiled binary accepts a --port flag or PORT env var for dynamic port allocation",
-        "Add a build step in project.json that runs cargo build --release for the Rust app",
-        "Typecheck passes for any TypeScript wrapper/runner code"
+        "executeMiddlewareChain() no longer creates a new object via { ...currentCtx, ...added } per middleware layer",
+        "Context is mutated in-place using Object.assign() or direct property assignment on a single pre-allocated object",
+        "RequestContext type contract is preserved (downstream handlers see the same shape)",
+        "p99 latency on Fastify validation scenario drops below 15ms (currently 21.7ms)",
+        "All existing tests pass: pnpm nx test core",
+        "Typecheck passes: pnpm nx typecheck core",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 6,
       "passes": true,
@@ -117,17 +108,17 @@
     },
     {
       "id": "US-007",
-      "title": "Raw baseline benchmark apps (Node, Bun, Deno, Axum)",
-      "description": "As a developer, I need raw baseline benchmark apps using bare runtime APIs so that we can isolate framework overhead from runtime performance.",
+      "title": "Optimize request normalization â€” avoid URL constructor",
+      "description": "As a framework developer, I want request normalization to avoid expensive new URL() construction so that the Node.js native server closes the gap with raw node:http.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/raw-node.ts using raw Node.js http.createServer with all 5 endpoints (no framework, hand-written routing and JSON parsing)",
-        "Create packages/benchmarks/src/apps/raw-bun.ts using raw Bun.serve() with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/raw-deno.ts using raw Deno.serve() with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/raw-axum/ using hand-written Axum (no TypoKit codegen) with all 5 endpoints and rusqlite",
-        "All apps use the same shared JSON response shape, validation logic (hand-written if/typeof checks), and SQLite fixture",
-        "Each app exports start() or compiles to a binary with the same interface as the TypoKit apps",
-        "Raw Axum app compiles with cargo build --release successfully",
-        "Typecheck passes for TypeScript apps"
+        "normalizeRequest() in packages/platform-node/src/index.ts no longer constructs a URL object",
+        "Path extraction uses req.url.indexOf('?') with substring() instead",
+        "Query string parsing uses a lightweight custom parser or URLSearchParams only on the query portion",
+        "Header normalization avoids creating intermediate objects where possible",
+        "Node.js native JSON benchmark improves by at least 10% (from 13,585 to >14,900 req/s)",
+        "All existing tests pass: pnpm nx test platform-node && pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck platform-node",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 7,
       "passes": true,
@@ -135,18 +126,16 @@
     },
     {
       "id": "US-008",
-      "title": "Competitor framework benchmark apps group 1 (Express, Fastify, Hono, Koa, Elysia)",
-      "description": "As a developer, I need benchmark apps for popular JS frameworks so that we can compare TypoKit against the competition.",
+      "title": "Optimize body collection â€” single Buffer.concat",
+      "description": "As a framework developer, I want body collection to minimize allocations so that POST/PUT request handling is faster.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/competitor-express.ts using standalone Express with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/competitor-fastify.ts using standalone Fastify with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/competitor-hono.ts using standalone Hono with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/competitor-koa.ts using standalone Koa with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/competitor-elysia.ts using standalone Elysia (Bun) with all 5 endpoints",
-        "All apps use the same shared JSON response shape, equivalent validation logic using each framework's recommended approach, and better-sqlite3 (or bun:sqlite for Elysia)",
-        "Each app exports a start() function returning { port, close } with dynamic port allocation",
-        "Add framework dependencies to packages/benchmarks/package.json",
-        "Typecheck passes"
+        "collectBody() in packages/platform-node/src/index.ts uses Buffer.concat() with a pre-allocated size hint when content-length header is available",
+        "For small bodies (<16KB), use a single pre-allocated buffer instead of collecting chunks into an array",
+        "JSON parsing is deferred until the handler or validator actually needs the parsed body (lazy parsing)",
+        "Validation benchmark scenario on Node native improves by at least 5%",
+        "All existing tests pass: pnpm nx test platform-node",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 8,
       "passes": true,
@@ -154,17 +143,15 @@
     },
     {
       "id": "US-009",
-      "title": "Competitor framework benchmark apps group 2 (tRPC, NestJS, Nitro/H3, Adonis)",
-      "description": "As a developer, I need benchmark apps for additional JS frameworks so that the comparison covers the full field.",
+      "title": "Avoid path segment array allocation in route lookup",
+      "description": "As a framework developer, I want route lookup to avoid creating a string array per request so that routing overhead is minimized.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/apps/competitor-trpc.ts using tRPC with all 5 endpoints (using standalone adapter)",
-        "Create packages/benchmarks/src/apps/competitor-nestjs.ts using NestJS with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/competitor-h3.ts using Nitro/H3 with all 5 endpoints",
-        "Create packages/benchmarks/src/apps/competitor-adonis.ts using AdonisJS with all 5 endpoints",
-        "All apps use the same shared JSON response shape, equivalent validation using each framework's recommended approach, and better-sqlite3 for database",
-        "Each app exports a start() function returning { port, close } with dynamic port allocation",
-        "Add framework dependencies to packages/benchmarks/package.json",
-        "Typecheck passes"
+        "lookupRoute() in packages/server-native/src/index.ts no longer calls path.split('/') to create a segments array",
+        "Route lookup uses index-based traversal: scan the path string character-by-character, matching segments against the radix tree without allocating an array",
+        "decodeURIComponent() is only called on parameter captures, not on static segments",
+        "All existing routing tests pass including parameterized and wildcard routes",
+        "Typecheck passes: pnpm nx typecheck server-native",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 9,
       "passes": true,
@@ -172,51 +159,50 @@
     },
     {
       "id": "US-010",
-      "title": "Benchmark runner core and Nx CLI targets",
-      "description": "As a developer, I want a benchmark runner that orchestrates server lifecycle and load generation, exposed as Nx targets.",
+      "title": "Compile middleware chain into single function at registration",
+      "description": "As a framework developer, I want middleware chains to be compiled into a single callable function at route registration time so that per-request middleware dispatch has zero loop overhead.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/runner.ts that orchestrates: start server â†’ poll /json until healthy â†’ run warmup â†’ run bombardier â†’ collect results â†’ stop server â†’ next app",
-        "The runner accepts config: scenario filter (json/validate/db/middleware/startup), framework filter (glob pattern), connections, duration, warmup, number of runs to average",
-        "The runner outputs progress to stdout with framework name, scenario, and a clean summary table at the end",
-        "Results are written to packages/benchmarks/results/ as timestamped JSON files (ISO 8601 in filename)",
-        "Define Nx targets in packages/benchmarks/project.json: bench, bench-ci, bench-baseline, bench-info, bench-reproduce â€” all using nx:run-commands executor with cwd: '{projectRoot}'",
-        "The bench target declares dependsOn: ['^build'] so all TypoKit packages are built first",
-        "bench-ci uses CI config (50 connections, 10s duration, 5s warmup, 1 run) with a fast subset of frameworks",
-        "Add root package.json scripts: pnpm bench â†’ nx run benchmarks:bench, pnpm bench:ci â†’ nx run benchmarks:bench-ci, pnpm bench:baseline, pnpm bench:info, pnpm bench:reproduce",
-        "Handle cross-runtime process management: Node apps started directly, Bun via 'bun run', Deno via 'deno run', Rust via compiled binary subprocess",
-        "Typecheck passes"
+        "A new compileMiddlewareChain(entries: MiddlewareEntry[]) function in packages/core/src/middleware.ts produces a single (req, ctx) => Promise<ctx> function",
+        "The compiled function has the middleware calls inlined or chained without array iteration at runtime",
+        "For routes with 0 middleware, the compiled function is a no-op pass-through (identity function)",
+        "For routes with 1 middleware, the compiled function is just that middleware handler directly",
+        "Middleware benchmark overhead drops to <2% vs JSON baseline",
+        "All existing middleware tests pass",
+        "Typecheck passes: pnpm nx typecheck core",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 10,
       "passes": true,
-      "notes": ""
+      "notes": "Depends on US-001 (pre-sorted middleware) being completed first"
     },
     {
       "id": "US-011",
-      "title": "Results aggregation and latest.json cumulative merge",
-      "description": "As a developer, I want benchmark results aggregated into structured JSON with cumulative merging so that partial runs preserve previous data.",
+      "title": "Eliminate redundant path parsing between normalization and routing",
+      "description": "As a framework developer, I want the URL path to be parsed exactly once and shared between request normalization and route lookup.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/results.ts that aggregates raw bombardier output into BenchmarkResult objects",
-        "Generate a summary markdown table after each run grouped by scenario with columns: Rank, Framework, Platform, Server, Req/s, Latency p50/p95/p99, vs. Fastest (%)",
-        "Implement cumulative latest.json merge: new results overwrite matching framework+platform+server+scenario entries; unmatched entries from existing latest.json are preserved",
-        "Support averaging results from multiple runs (configurable --runs N) to reduce noise",
-        "Results JSON includes systemInfo: OS, CPU model+cores, RAM, runtime versions (Node/Bun/Deno with pinned versions), bombardier version, timestamp",
-        "Typecheck passes"
+        "In the native server adapter's handleRequest(), the path string is extracted once during normalization",
+        "The same path string (or pre-split segments) is passed directly to lookupRoute() without re-parsing",
+        "Query string separation happens once, not in both normalization and routing",
+        "All existing routing and normalization tests pass",
+        "Typecheck passes: pnpm nx typecheck server-native && pnpm nx typecheck platform-node",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 11,
       "passes": true,
-      "notes": ""
+      "notes": "Pairs naturally with US-007 (URL avoidance) and US-009 (route lookup)"
     },
     {
       "id": "US-012",
-      "title": "System info collection and reproducibility commands",
-      "description": "As a developer, I want bench-info and bench-reproduce commands for transparency and reproducibility.",
+      "title": "Optimize Hono adapter â€” eliminate URL object construction",
+      "description": "As a Hono adapter user, I want request handling to avoid constructing new URL() per request so that Hono performance matches the standalone Hono framework.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/system-info.ts that detects: OS name+version, CPU model+cores, total RAM, Node/Bun/Deno versions (if available), Rust/cargo version (if available), bombardier version",
-        "bench-info Nx target prints system info in JSON format to stdout",
-        "bench-reproduce Nx target prints step-by-step reproduction instructions: prerequisites, install commands, exact pnpm bench invocation with parameters matching published results",
-        "System info is automatically included in every results JSON file",
-        "Deno version is pinned to latest stable at suite creation time and documented in output",
-        "Typecheck passes"
+        "packages/server-hono/src/index.ts no longer constructs new URL(req.url) in the request handler",
+        "Path and query extraction uses Hono's native c.req.path and c.req.query() APIs instead",
+        "Response handling eliminates the type-cast anti-pattern ((c as unknown as Record<string, unknown>)._typoResponse)",
+        "TypoKit Hono on Node.js JSON benchmark improves from 12,385 to at least 13,500 req/s",
+        "All existing Hono adapter tests pass",
+        "Typecheck passes: pnpm nx typecheck server-hono",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 12,
       "passes": true,
@@ -224,14 +210,18 @@
     },
     {
       "id": "US-013",
-      "title": "Validation overhead isolation variants",
-      "description": "As an engineer, I need validation variants for TypoKit apps so that we can measure the exact overhead of type-driven validation.",
+      "title": "Optimize Fastify adapter â€” use native request properties",
+      "description": "As a Fastify adapter user, I want request normalization to use Fastify's pre-parsed request properties so that double-parsing is eliminated.",
       "acceptanceCriteria": [
-        "For each TypoKit benchmark app (all 13 combinations), add two additional /validate endpoint variants: (a) validation disabled/passthrough mode that skips validation and returns the body directly, (b) hand-written if/typeof validation baseline",
-        "The runner supports running these variants as sub-scenarios: --scenario validate-passthrough, --scenario validate-handwritten",
-        "Results clearly show the delta: 'TypoKit validation adds X% overhead vs. passthrough' and 'TypoKit validation is X% faster/slower than hand-written'",
-        "Deltas are included in the results JSON and markdown summary table",
-        "Typecheck passes"
+        "normalizeRequest() in packages/server-fastify/src/index.ts no longer calls req.url.split('?')[0] for path extraction",
+        "Uses req.routeOptions.url or Fastify's parsed route path directly",
+        "Query parameters use req.query directly without re-parsing",
+        "Header access uses req.headers object directly without enumeration into a new object",
+        "p99 latency on Fastify validation scenario drops from 21.7ms to <12ms",
+        "TypoKit Fastify on Node.js JSON benchmark reaches at least 18,000 req/s",
+        "All existing Fastify adapter tests pass",
+        "Typecheck passes: pnpm nx typecheck server-fastify",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 13,
       "passes": true,
@@ -239,78 +229,104 @@
     },
     {
       "id": "US-014",
-      "title": "Serialization microbenchmark",
-      "description": "As an engineer, I need a non-HTTP serialization benchmark to measure TypoKit's compiled serializer vs JSON.stringify in isolation.",
+      "title": "Consolidate validator map lookup into single route-keyed access",
+      "description": "As a framework developer, I want validator lookups to be a single hash map access per route instead of three separate lookups so that validation dispatch is faster.",
       "acceptanceCriteria": [
-        "Create packages/benchmarks/src/microbench/serialization.ts that benchmarks JSON serialization of a complex nested object (the shared response shape)",
-        "Compare: TypoKit's compiled serializer vs. native JSON.stringify vs. fast-json-stringify",
-        "Run N iterations (configurable, default 1,000,000) and report: ops/sec, mean time, p99 time",
-        "Results are included in the main results JSON under a 'microbenchmarks' key",
-        "Accessible via nx run benchmarks:bench --scenario serialization",
-        "Typecheck passes"
+        "ValidatorMap structure is changed from Record<string, ValidatorFn> (keyed by validator name) to a route-keyed structure: Record<routeRef, { params?: ValidatorFn, query?: ValidatorFn, body?: ValidatorFn }>",
+        "runValidators() performs a single hash lookup to get all three validators for a route",
+        "The registerRoutes() call pre-resolves validator references into the consolidated map at startup",
+        "Validation benchmark scenario on all adapters shows improvement",
+        "This is documented as a breaking change to the ValidatorMap type in @typokit/types",
+        "All existing tests pass across all server adapters",
+        "Typecheck passes: pnpm nx typecheck types",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 14,
       "passes": true,
-      "notes": ""
+      "notes": "Breaking change â€” gate behind major version bump"
     },
     {
       "id": "US-015",
-      "title": "CI workflow with PR regression and main branch full suite",
-      "description": "As a maintainer, I need a GitHub Actions workflow that catches regressions on PRs and keeps docs benchmarks current on main.",
+      "title": "Implement Bun-native server path â€” platform-bun adapter",
+      "description": "As a Bun user, I want TypoKit to use Bun.serve() directly so that I get near-native Bun performance instead of being routed through Node.js compatibility layers.",
       "acceptanceCriteria": [
-        "Create .github/workflows/benchmark.yml with two trigger modes: pull_request and push to main",
-        "Both modes use nx affected to scope benchmarks to only those whose upstream dependencies changed; skip entirely if nothing is affected",
-        "PR mode runs bench-ci (fast subset) and compares results against benchmarks/baseline.json; fails if any TypoKit combination degrades by more than 10% in req/s",
-        "PR mode posts a comment on the PR with a summary table of results vs. baseline",
-        "Main branch mode runs the full bench suite (scoped by nx affected), merges fresh results into existing latest.json, and commits via bot commit: 'chore(benchmarks): update benchmark results [skip ci]'",
-        "Main branch mode triggers the docs deploy workflow only if results actually changed",
-        "Workflow installs Rust toolchain via actions-rust-lang/setup-rust-toolchain in both modes",
-        "Workflow runs on ubuntu-latest with consistent runner specs",
-        "bench-baseline target updates baseline.json and commits it",
-        "Typecheck passes"
+        "packages/platform-bun/src/index.ts provides a createBunServer() function that uses Bun.serve({ fetch }) directly",
+        "The Bun native path avoids node:http entirely â€” uses the Web Fetch API (Request/Response) natively",
+        "Body is accessed via request.json() / request.text() (Bun's native zero-copy methods)",
+        "Headers are accessed via the native Headers API without conversion to plain objects",
+        "Typecheck passes: pnpm nx typecheck platform-bun",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 15,
       "passes": true,
-      "notes": ""
+      "notes": "First half of the Bun-native work â€” creates the platform adapter. US-016 integrates it into the server."
     },
     {
       "id": "US-016",
-      "title": "Docs site Benchmarks page with Chart.js charts",
-      "description": "As a user visiting the TypoKit docs, I want to see benchmark results with interactive charts on a dedicated Benchmarks page.",
+      "title": "Integrate Bun-native server path into server-native adapter",
+      "description": "As a Bun user, I want the native server adapter to automatically detect Bun and use the Bun-native path so that I get near-native Bun performance without configuration.",
       "acceptanceCriteria": [
-        "Add a new 'Performance' section to the Starlight sidebar in packages/docs/astro.config.mjs",
-        "Create packages/docs/src/content/docs/performance/benchmarks.md as the Benchmarks overview page",
-        "Create a custom Astro component (e.g., packages/docs/src/components/BenchmarkCharts.astro) that imports latest.json and renders charts using Chart.js",
-        "Charts include: bar chart for JSON scenario req/s (logarithmic scale), bar chart for validation scenario req/s (log scale), bar chart for DB scenario req/s (log scale), bar chart for startup cold-start times, latency percentile comparison table",
-        "Include a TypoKit platformÃ—server heatmap showing all 13 combinations (12 JS + Rust/Axum) with Rust/Axum visually distinguished",
-        "Charts use logarithmic scale for req/s with captions noting the scale",
-        "Charts use a consistent color scheme aligned with TypoKit docs branding",
-        "Pages are responsive and readable on mobile",
-        "Charts are generated at docs build time from latest.json (static, not client-side fetching)",
-        "Add chart.js as a dependency in packages/docs/package.json",
-        "Verify in browser if browser testing tools are available"
+        "packages/server-native/src/index.ts detects Bun runtime and delegates to the Bun-native path from platform-bun",
+        "New benchmark app typokit-bun-native-direct (or update existing) uses this path",
+        "Bun JSON benchmark reaches at least 35,000 req/s (from 20,351), closing >50% of the gap to raw Bun (42,949)",
+        "All existing Bun benchmark scenarios continue to work",
+        "Typecheck passes: pnpm nx typecheck server-native",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 16,
       "passes": true,
-      "notes": ""
+      "notes": "Depends on US-015 (Bun-native platform adapter)"
     },
     {
       "id": "US-017",
-      "title": "Docs site Methodology page",
-      "description": "As a user viewing benchmarks, I want a Methodology page explaining how results were generated so I can reproduce them or understand the context.",
+      "title": "Implement connection keep-alive tuning for native server",
+      "description": "As a framework user running the native server, I want HTTP keep-alive to be properly configured so that connection reuse reduces per-request overhead.",
       "acceptanceCriteria": [
-        "Create packages/docs/src/content/docs/performance/methodology.md",
-        "Document: hardware specs used for published results (CI runner specs), bombardier settings (connections, duration, warmup), what each scenario measures (json, validate, db, middleware, startup, serialization)",
-        "Document: how to reproduce locally (prerequisites, pnpm bench command, expected runtime)",
-        "Document: how nx affected scoping works (partial runs, cumulative latest.json merge, when benchmarks skip)",
-        "Document: how CI regression detection works (baseline.json, 10% threshold, PR comments)",
-        "Document: framework list with links and version numbers",
-        "Add 'Methodology' entry to the Performance sidebar section in astro.config.mjs",
-        "Typecheck passes"
+        "packages/platform-node/src/index.ts sets server.keepAliveTimeout to an appropriate value (e.g., 5000ms)",
+        "server.maxHeadersCount is tuned for the common case",
+        "server.headersTimeout is set to prevent slowloris-style stalls",
+        "Node native startup benchmark shows measurable improvement",
+        "All existing tests pass: pnpm nx test platform-node",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 17,
       "passes": true,
       "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Add Node.js cluster mode â€” createClusterServer export",
+      "description": "As a production user, I want TypoKit to optionally utilize all available CPU cores so that throughput scales linearly with core count on multi-core machines.",
+      "acceptanceCriteria": [
+        "@typokit/platform-node exports a createClusterServer() function that uses node:cluster to fork workers",
+        "Worker count defaults to os.availableParallelism() (or os.cpus().length as fallback)",
+        "Workers share the same port via the cluster module's built-in load balancing",
+        "Graceful shutdown sends SIGTERM to all workers and waits for in-flight requests",
+        "All existing tests pass: pnpm nx test platform-node",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "First half of cluster mode â€” exports the function. US-019 adds app config and benchmarks."
+    },
+    {
+      "id": "US-019",
+      "title": "Add cluster mode app config and benchmark scenario",
+      "description": "As a production user, I want createApp() to accept a cluster config option so that enabling cluster mode is a single config flag.",
+      "acceptanceCriteria": [
+        "createApp() accepts an optional cluster: true | { workers: number } configuration",
+        "Single-core (non-cluster) mode remains the default with no behavior change",
+        "A new benchmark scenario startup-cluster demonstrates multi-core throughput",
+        "On 4-core CI machines, cluster mode achieves at least 3x single-core throughput",
+        "All existing tests pass: pnpm nx test platform-node && pnpm nx test core",
+        "Typecheck passes",
+        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": "Depends on US-018 (createClusterServer export)"
     }
   ]
 }

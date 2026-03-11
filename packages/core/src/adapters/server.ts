@@ -2,11 +2,11 @@ import type {
   CompiledRouteTable,
   HandlerMap,
   MiddlewareChain,
+  RawValidatorMap,
   SerializerMap,
   ServerHandle,
   TypoKitRequest,
   TypoKitResponse,
-  ValidatorMap,
 } from "@typokit/types";
 
 export interface ServerAdapter {
@@ -18,12 +18,15 @@ export interface ServerAdapter {
    * The adapter translates the route table into framework-native registrations.
    * Each route handler receives a normalized TypoKitRequest and must return
    * a TypoKitResponse.
+   *
+   * The adapter pre-resolves validator references from the RawValidatorMap
+   * into a route-keyed ValidatorMap at registration time.
    */
   registerRoutes(
     routeTable: CompiledRouteTable,
     handlerMap: HandlerMap,
     middlewareChain: MiddlewareChain,
-    validatorMap?: ValidatorMap,
+    validatorMap?: RawValidatorMap,
     serializerMap?: SerializerMap,
   ): void;
 

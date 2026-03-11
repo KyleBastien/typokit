@@ -14,6 +14,7 @@ import type {
   HandlerMap,
   HttpMethod,
   MiddlewareChain,
+  RawValidatorMap,
   SerializerMap,
   ServerHandle,
   TypoKitRequest,
@@ -22,7 +23,12 @@ import type {
   ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
+import {
+  createRequestContext,
+  executeMiddlewareChain,
+  resolveValidatorMap,
+  JSON_HEADERS,
+} from "@typokit/core";
 
 // ─── Route Traversal ─────────────────────────────────────────
 
@@ -94,70 +100,64 @@ function validationErrorResponse(
   };
   return {
     status: 400,
-    headers: { "content-type": "application/json" },
+    headers: JSON_HEADERS,
     body,
   };
 }
 
 function runValidators(
-  routeHandler: {
-    validators?: { params?: string; query?: string; body?: string };
-  },
+  routeRef: string,
   validatorMap: ValidatorMap | null,
   params: Record<string, string>,
   query: Record<string, string | string[] | undefined>,
   body: unknown,
 ): TypoKitResponse | undefined {
-  if (!validatorMap || !routeHandler.validators) {
+  if (!validatorMap) {
+    return undefined;
+  }
+
+  const validators = validatorMap[routeRef];
+  if (!validators) {
     return undefined;
   }
 
   const allErrors: ValidationFieldError[] = [];
 
-  if (routeHandler.validators.params) {
-    const validator = validatorMap[routeHandler.validators.params];
-    if (validator) {
-      const result = validator(params);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `params.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.params) {
+    const result = validators.params(params);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `params.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
 
-  if (routeHandler.validators.query) {
-    const validator = validatorMap[routeHandler.validators.query];
-    if (validator) {
-      const result = validator(query);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `query.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.query) {
+    const result = validators.query(query);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `query.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
 
-  if (routeHandler.validators.body) {
-    const validator = validatorMap[routeHandler.validators.body];
-    if (validator) {
-      const result = validator(body);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `body.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.body) {
+    const result = validators.body(body);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `body.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
@@ -170,6 +170,12 @@ function runValidators(
 }
 
 // ─── Response Serialization Pipeline ──────────────────────────
+
+/** Fast check whether an object has any own enumerable keys (no array allocation). */
+function hasOwnKeys(obj: Record<string, unknown>): boolean {
+  for (const _k in obj) return true;
+  return false;
+}
 
 function serializeResponse(
   response: TypoKitResponse,
@@ -184,16 +190,18 @@ function serializeResponse(
     return response;
   }
 
-  const headers = { ...response.headers };
-  if (!headers["content-type"]) {
-    headers["content-type"] = "application/json";
-  }
+  // Reuse pre-computed headers when possible to avoid per-request allocation
+  const headers = response.headers["content-type"]
+    ? response.headers
+    : hasOwnKeys(response.headers)
+      ? { ...response.headers, "content-type": "application/json" as const }
+      : JSON_HEADERS;
 
   if (serializerRef && serializerMap) {
     const serializer = serializerMap[serializerRef];
     if (serializer) {
       return {
-        ...response,
+        status: response.status,
         headers,
         body: serializer(response.body),
       };
@@ -201,13 +209,17 @@ function serializeResponse(
   }
 
   return {
-    ...response,
+    status: response.status,
     headers,
     body: JSON.stringify(response.body),
   };
 }
 
 // ─── Hono Server Adapter ─────────────────────────────────────
+
+// WeakMap stores replace type-cast anti-patterns for stashing data on Hono context
+const bodyStore = new WeakMap<object, unknown>();
+const responseStore = new WeakMap<object, TypoKitResponse>();
 
 interface HonoServerState {
   routeTable: CompiledRouteTable | null;
@@ -240,48 +252,24 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
 
   const _basePath = options?.basePath;
 
-  /** Convert Hono context to TypoKitRequest */
+  /** Convert Hono context to TypoKitRequest using native Hono APIs */
   function normalizeRequest(raw: unknown): TypoKitRequest {
     const c = raw as HonoContext;
     const req = c.req;
 
-    const headers: Record<string, string | string[] | undefined> = {};
-    req.raw.headers.forEach((value: string, key: string) => {
-      headers[key] = value;
-    });
-
-    // Parse query parameters from URL
-    const url = new URL(req.url);
-    const query: Record<string, string | string[] | undefined> = {};
-    url.searchParams.forEach((value, key) => {
-      const existing = query[key];
-      if (existing !== undefined) {
-        if (Array.isArray(existing)) {
-          existing.push(value);
-        } else {
-          query[key] = [existing, value];
-        }
-      } else {
-        query[key] = value;
-      }
-    });
-
     return {
       method: req.method.toUpperCase() as HttpMethod,
-      path: url.pathname,
-      headers,
-      body: (c as unknown as Record<string, unknown>)._typoBody,
-      query,
-      params: c.req.param() as Record<string, string>,
+      path: req.path,
+      headers: req.header() as Record<string, string | string[] | undefined>,
+      body: bodyStore.get(c),
+      query: req.query() as Record<string, string | string[] | undefined>,
+      params: req.param() as Record<string, string>,
     };
   }
 
-  /** Write TypoKitResponse to Hono context — returns a Response */
+  /** Store TypoKitResponse for the Hono context */
   function writeResponse(raw: unknown, response: TypoKitResponse): void {
-    // In Hono, responses are returned, not written imperatively.
-    // We store the response on the context for the route handler to return.
-    const c = raw as HonoContext;
-    (c as unknown as Record<string, unknown>)._typoResponse = response;
+    responseStore.set(raw as object, response);
   }
 
   function buildHonoResponse(response: TypoKitResponse): Response {
@@ -293,7 +281,9 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
           : JSON.stringify(response.body);
 
     const headers = new Headers();
-    for (const [key, value] of Object.entries(response.headers)) {
+    const responseHeaders = response.headers;
+    for (const key in responseHeaders) {
+      const value = responseHeaders[key];
       if (value !== undefined) {
         if (Array.isArray(value)) {
           for (const v of value) {
@@ -318,13 +308,15 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
       routeTable: CompiledRouteTable,
       handlerMap: HandlerMap,
       middlewareChain: MiddlewareChain,
-      validatorMap?: ValidatorMap,
+      validatorMap?: RawValidatorMap,
       serializerMap?: SerializerMap,
     ): void {
       state.routeTable = routeTable;
       state.handlerMap = handlerMap;
       state.middlewareChain = middlewareChain;
-      state.validatorMap = validatorMap ?? null;
+      state.validatorMap = validatorMap
+        ? resolveValidatorMap(routeTable, validatorMap)
+        : null;
       state.serializerMap = serializerMap ?? null;
 
       // Collect all routes from the compiled radix tree
@@ -350,28 +342,30 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
             }
           }
 
-          // Stash body on context for normalizeRequest
-          (c as unknown as Record<string, unknown>)._typoBody = body;
+          // Store body for normalizeRequest via WeakMap
+          bodyStore.set(c, body);
 
           const typoReq = normalizeRequest(c);
 
-          // Run request validation pipeline
-          const validationError = runValidators(
-            { validators: route.validators },
-            state.validatorMap,
-            typoReq.params,
-            typoReq.query,
-            typoReq.body,
-          );
-          if (validationError) {
-            return buildHonoResponse(validationError);
+          // Run request validation pipeline (single lookup by route ref)
+          if (state.validatorMap) {
+            const validationError = runValidators(
+              route.handlerRef,
+              state.validatorMap,
+              typoReq.params,
+              typoReq.query,
+              typoReq.body,
+            );
+            if (validationError) {
+              return buildHonoResponse(validationError);
+            }
           }
 
           const handlerFn = state.handlerMap![route.handlerRef];
           if (!handlerFn) {
             const errorResp: TypoKitResponse = {
               status: 500,
-              headers: { "content-type": "application/json" },
+              headers: JSON_HEADERS,
               body: JSON.stringify({
                 error: "Internal Server Error",
                 message: `Handler not found: ${route.handlerRef}`,

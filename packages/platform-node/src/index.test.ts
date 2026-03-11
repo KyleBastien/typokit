@@ -84,6 +84,168 @@ describe("normalizeRequest", () => {
   });
 });
 
+// ─── body collection optimizations ──────────────────────────────
+
+describe("body collection optimizations", () => {
+  it("uses pre-allocated buffer for small JSON body with content-length", async () => {
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
+      const server = nodeCreateServer(
+        async (req: IncomingMessage, res: ServerResponse) => {
+          try {
+            resolve(await normalizeRequest(req));
+          } catch (e) {
+            reject(e);
+          }
+          res.end();
+          server.close();
+        },
+      );
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (!addr || typeof addr === "string") return;
+        fetch(`http://127.0.0.1:${addr.port}/small`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ x: 1 }),
+        }).catch(() => {});
+      });
+    });
+
+    expect(normalized.body).toEqual({ x: 1 });
+  });
+
+  it("handles empty body (content-length: 0)", async () => {
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
+      const server = nodeCreateServer(
+        async (req: IncomingMessage, res: ServerResponse) => {
+          try {
+            resolve(await normalizeRequest(req));
+          } catch (e) {
+            reject(e);
+          }
+          res.end();
+          server.close();
+        },
+      );
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (!addr || typeof addr === "string") return;
+        fetch(`http://127.0.0.1:${addr.port}/empty`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "content-length": "0",
+          },
+          body: null,
+        }).catch(() => {});
+      });
+    });
+
+    expect(normalized.body).toBeUndefined();
+  });
+
+  it("defers JSON parsing until body is accessed (lazy parsing)", async () => {
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
+      const server = nodeCreateServer(
+        async (req: IncomingMessage, res: ServerResponse) => {
+          try {
+            resolve(await normalizeRequest(req));
+          } catch (e) {
+            reject(e);
+          }
+          res.end();
+          server.close();
+        },
+      );
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (!addr || typeof addr === "string") return;
+        fetch(`http://127.0.0.1:${addr.port}/lazy`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lazy: true }),
+        }).catch(() => {});
+      });
+    });
+
+    // Body is a lazy getter — verify property descriptor
+    const desc = Object.getOwnPropertyDescriptor(normalized, "body");
+    expect(desc?.get).toBeDefined();
+    // Accessing body triggers lazy parse
+    expect(normalized.body).toEqual({ lazy: true });
+    // Second access returns cached value
+    expect(normalized.body).toEqual({ lazy: true });
+  });
+
+  it("returns raw string for non-JSON content-type without lazy getter", async () => {
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
+      const server = nodeCreateServer(
+        async (req: IncomingMessage, res: ServerResponse) => {
+          try {
+            resolve(await normalizeRequest(req));
+          } catch (e) {
+            reject(e);
+          }
+          res.end();
+          server.close();
+        },
+      );
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (!addr || typeof addr === "string") return;
+        fetch(`http://127.0.0.1:${addr.port}/text`, {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body: "hello world",
+        }).catch(() => {});
+      });
+    });
+
+    expect(normalized.body).toBe("hello world");
+    // Non-JSON body is a plain value property, not a getter
+    const desc = Object.getOwnPropertyDescriptor(normalized, "body");
+    expect(desc?.get).toBeUndefined();
+  });
+
+  it("falls back to raw string when JSON parsing fails", async () => {
+    const normalized = await new Promise<
+      Awaited<ReturnType<typeof normalizeRequest>>
+    >((resolve, reject) => {
+      const server = nodeCreateServer(
+        async (req: IncomingMessage, res: ServerResponse) => {
+          try {
+            resolve(await normalizeRequest(req));
+          } catch (e) {
+            reject(e);
+          }
+          res.end();
+          server.close();
+        },
+      );
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (!addr || typeof addr === "string") return;
+        fetch(`http://127.0.0.1:${addr.port}/bad`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "not valid json{{{",
+        }).catch(() => {});
+      });
+    });
+
+    // Lazy getter falls back to raw string when JSON.parse fails
+    expect(normalized.body).toBe("not valid json{{{");
+  });
+});
+
 // ─── writeResponse ───────────────────────────────────────────
 
 describe("writeResponse", () => {
@@ -188,5 +350,32 @@ describe("createServer", () => {
 
     // Server should no longer be listening
     expect(srv.server.listening).toBe(false);
+  });
+
+  it("applies default keep-alive tuning when no options given", () => {
+    const srv = createServer(async () => ({
+      status: 200,
+      headers: {},
+      body: null,
+    }));
+
+    expect(srv.server.keepAliveTimeout).toBe(5_000);
+    expect(srv.server.headersTimeout).toBe(10_000);
+    expect(srv.server.maxHeadersCount).toBe(64);
+  });
+
+  it("respects custom keep-alive options", () => {
+    const srv = createServer(
+      async () => ({ status: 200, headers: {}, body: null }),
+      {
+        keepAliveTimeout: 15_000,
+        headersTimeout: 30_000,
+        maxHeadersCount: 128,
+      },
+    );
+
+    expect(srv.server.keepAliveTimeout).toBe(15_000);
+    expect(srv.server.headersTimeout).toBe(30_000);
+    expect(srv.server.maxHeadersCount).toBe(128);
   });
 });

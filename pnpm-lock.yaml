@@ -538,6 +538,9 @@ importers:
       '@typokit/core':
         specifier: workspace:*
         version: link:../core
+      '@typokit/platform-bun':
+        specifier: workspace:*
+        version: link:../platform-bun
       '@typokit/platform-node':
         specifier: workspace:*
         version: link:../platform-node

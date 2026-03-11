@@ -11,6 +11,7 @@ import type {
   HandlerMap,
   HttpMethod,
   MiddlewareChain,
+  RawValidatorMap,
   SerializerMap,
   ServerHandle,
   TypoKitRequest,
@@ -18,8 +19,18 @@ import type {
   ValidatorMap,
   ValidationFieldError,
 } from "@typokit/types";
-import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
+import type {
+  ServerAdapter,
+  MiddlewareEntry,
+  CompiledMiddlewareFn,
+} from "@typokit/core";
+import {
+  createRequestContext,
+  sortMiddlewareEntries,
+  compileMiddlewareChain,
+  resolveValidatorMap,
+  JSON_HEADERS,
+} from "@typokit/core";
 import {
   writeResponse as nodeWriteResponse,
   createServer,
@@ -32,50 +43,64 @@ interface LookupResult {
   params: Record<string, string>;
 }
 
-/** Normalize path: strip trailing slash (keep "/" as-is) */
-function normalizePath(path: string): string {
-  if (path.length > 1 && path.endsWith("/")) {
-    return path.slice(0, -1);
-  }
-  return path;
-}
-
 /**
  * Traverse the compiled radix tree to find the route node matching the
- * given path segments. Returns the matching node and extracted params,
- * or undefined if no route matches.
+ * given path string. Uses index-based scanning to avoid allocating a
+ * segments array — each segment is extracted via substring().
+ * decodeURIComponent() is only called on parameter captures.
  */
 function lookupRoute(
   root: CompiledRoute,
-  segments: string[],
+  path: string,
 ): LookupResult | undefined {
+  // "/" maps to the root node with no segment traversal
+  if (path === "/") return { node: root, params: {} };
+
   let current = root;
   const params: Record<string, string> = {};
+  const len = path.length;
+  // Start after the leading '/'
+  let pos = 1;
 
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
+  while (pos < len) {
+    // Find the next '/' or end-of-string
+    let end = pos;
+    while (end < len && path.charCodeAt(end) !== 47 /* '/' */) end++;
+
+    const seg = path.substring(pos, end);
 
     // 1. Try static child match first (O(1) hash lookup)
     if (current.children?.[seg]) {
       current = current.children[seg];
+      pos = end + 1;
       continue;
     }
 
-    // 2. Try parameterized child (:id)
+    // 2. Try parameterized child (:id) — decode only param values
     if (current.paramChild) {
       const paramNode = current.paramChild;
       params[paramNode.paramName] = decodeURIComponent(seg);
       current = paramNode;
+      pos = end + 1;
       continue;
     }
 
-    // 3. Try wildcard child (*path) — captures remaining segments
+    // 3. Try wildcard child (*path) — capture rest of path, decode each segment
     if (current.wildcardChild) {
       const wildcardNode = current.wildcardChild;
-      params[wildcardNode.paramName] = segments
-        .slice(i)
-        .map(decodeURIComponent)
-        .join("/");
+      // Decode each remaining segment individually (preserving '/' separators)
+      let rest = "";
+      let wpos = pos;
+      let first = true;
+      while (wpos < len) {
+        let wend = wpos;
+        while (wend < len && path.charCodeAt(wend) !== 47) wend++;
+        if (!first) rest += "/";
+        rest += decodeURIComponent(path.substring(wpos, wend));
+        first = false;
+        wpos = wend + 1;
+      }
+      params[wildcardNode.paramName] = rest;
       return { node: wildcardNode, params };
     }
 
@@ -108,77 +133,72 @@ function validationErrorResponse(
   };
   return {
     status: 400,
-    headers: { "content-type": "application/json" },
+    headers: JSON_HEADERS,
     body,
   };
 }
 
 /**
  * Run the request validation pipeline for params, query, and body.
+ * Uses the pre-resolved route-keyed ValidatorMap for a single hash lookup.
  * Returns a 400 TypoKitResponse on validation failure, or undefined if all pass.
  */
 function runValidators(
-  routeHandler: {
-    validators?: { params?: string; query?: string; body?: string };
-  },
+  routeRef: string,
   validatorMap: ValidatorMap | null,
   params: Record<string, string>,
   query: Record<string, string | string[] | undefined>,
   body: unknown,
 ): TypoKitResponse | undefined {
-  if (!validatorMap || !routeHandler.validators) {
+  if (!validatorMap) {
+    return undefined;
+  }
+
+  const validators = validatorMap[routeRef];
+  if (!validators) {
     return undefined;
   }
 
   const allErrors: ValidationFieldError[] = [];
 
   // Validate params
-  if (routeHandler.validators.params) {
-    const validator = validatorMap[routeHandler.validators.params];
-    if (validator) {
-      const result = validator(params);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `params.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.params) {
+    const result = validators.params(params);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `params.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
 
   // Validate query
-  if (routeHandler.validators.query) {
-    const validator = validatorMap[routeHandler.validators.query];
-    if (validator) {
-      const result = validator(query);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `query.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.query) {
+    const result = validators.query(query);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `query.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
 
   // Validate body
-  if (routeHandler.validators.body) {
-    const validator = validatorMap[routeHandler.validators.body];
-    if (validator) {
-      const result = validator(body);
-      if (!result.success && result.errors) {
-        for (const e of result.errors) {
-          allErrors.push({
-            path: `body.${e.path}`,
-            expected: e.expected,
-            actual: e.actual,
-          });
-        }
+  if (validators.body) {
+    const result = validators.body(body);
+    if (!result.success && result.errors) {
+      for (const e of result.errors) {
+        allErrors.push({
+          path: `body.${e.path}`,
+          expected: e.expected,
+          actual: e.actual,
+        });
       }
     }
   }
@@ -192,10 +212,19 @@ function runValidators(
 
 // ─── Response Serialization Pipeline ──────────────────────────
 
+/** Fast check whether an object has any own enumerable keys (no array allocation). */
+function hasOwnKeys(obj: Record<string, unknown>): boolean {
+  for (const _k in obj) return true;
+  return false;
+}
+
 /**
  * Serialize the response body using a compiled fast-json-stringify schema
  * if available, otherwise fall back to the default (JSON.stringify via writeResponse).
  * Automatically sets Content-Type to application/json for JSON bodies.
+ *
+ * Optimized to reuse pre-computed JSON_HEADERS when the response has no
+ * custom headers, avoiding per-request object allocation.
  */
 function serializeResponse(
   response: TypoKitResponse,
@@ -211,18 +240,19 @@ function serializeResponse(
     return response;
   }
 
-  // Ensure content-type is set for JSON bodies
-  const headers = { ...response.headers };
-  if (!headers["content-type"]) {
-    headers["content-type"] = "application/json";
-  }
+  // Reuse pre-computed headers when possible to avoid per-request allocation
+  const headers = response.headers["content-type"]
+    ? response.headers
+    : hasOwnKeys(response.headers)
+      ? { ...response.headers, "content-type": "application/json" as const }
+      : JSON_HEADERS;
 
   // Try compiled serializer first
   if (serializerRef && serializerMap) {
     const serializer = serializerMap[serializerRef];
     if (serializer) {
       return {
-        ...response,
+        status: response.status,
         headers,
         body: serializer(response.body),
       };
@@ -231,11 +261,16 @@ function serializeResponse(
 
   // Fall back to JSON.stringify
   return {
-    ...response,
+    status: response.status,
     headers,
     body: JSON.stringify(response.body),
   };
 }
+
+// ─── Runtime Detection ───────────────────────────────────────
+
+/** True when running inside a Bun process */
+const isBun = "Bun" in globalThis;
 
 // ─── Native Server Adapter ───────────────────────────────────
 
@@ -243,12 +278,17 @@ interface NativeServerState {
   routeTable: CompiledRouteTable | null;
   handlerMap: HandlerMap | null;
   middlewareChain: MiddlewareChain | null;
+  compiledMiddleware: CompiledMiddlewareFn | null;
   validatorMap: ValidatorMap | null;
   serializerMap: SerializerMap | null;
 }
 
 /**
  * Create the native server adapter — TypoKit's built-in HTTP server.
+ *
+ * Automatically detects the Bun runtime and delegates to the Bun-native
+ * server path (`@typokit/platform-bun`) for near-native Bun performance.
+ * On Node.js, uses `@typokit/platform-node` as before.
  *
  * ```ts
  * import { nativeServer } from "@typokit/server-native";
@@ -262,33 +302,37 @@ export function nativeServer(): ServerAdapter {
     routeTable: null,
     handlerMap: null,
     middlewareChain: null,
+    compiledMiddleware: null,
     validatorMap: null,
     serializerMap: null,
   };
 
+  // Shared reference updated per-request for middleware wrapper closures
+  let currentReq: TypoKitRequest | null = null;
+
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
+
+  // Generic reference to the underlying server (http.Server on Node, BunServer on Bun)
+  let nativeServerRef: unknown = null;
 
   /** Handle a single incoming request */
   async function handleRequest(req: TypoKitRequest): Promise<TypoKitResponse> {
     if (!state.routeTable || !state.handlerMap) {
       return {
         status: 500,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: { error: "Server not configured" },
       };
     }
 
-    // Normalize trailing slashes
-    const path = normalizePath(req.path);
-    const segments = path === "/" ? [] : path.slice(1).split("/");
-
-    const result = lookupRoute(state.routeTable, segments);
+    // Path is already normalized (trailing slash stripped) by platform-node
+    const result = lookupRoute(state.routeTable, req.path);
 
     // 404 — no route matches
     if (!result) {
       return {
         status: 404,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: {
           error: "Not Found",
           message: `No route matches ${req.method} ${req.path}`,
@@ -305,7 +349,7 @@ export function nativeServer(): ServerAdapter {
       if (allowed.length === 0) {
         return {
           status: 404,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body: {
             error: "Not Found",
             message: `No route matches ${req.method} ${req.path}`,
@@ -327,16 +371,18 @@ export function nativeServer(): ServerAdapter {
 
     const routeHandler = node.handlers[method]!;
 
-    // ── Request Validation Pipeline ──
-    const validationError = runValidators(
-      routeHandler,
-      state.validatorMap,
-      params,
-      req.query,
-      req.body,
-    );
-    if (validationError) {
-      return validationError;
+    // ── Request Validation Pipeline (single lookup by route ref) ──
+    if (state.validatorMap) {
+      const validationError = runValidators(
+        routeHandler.ref,
+        state.validatorMap,
+        params,
+        req.query,
+        req.body,
+      );
+      if (validationError) {
+        return validationError;
+      }
     }
 
     const handlerFn = state.handlerMap[routeHandler.ref];
@@ -344,7 +390,7 @@ export function nativeServer(): ServerAdapter {
     if (!handlerFn) {
       return {
         status: 500,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: {
           error: "Internal Server Error",
           message: `Handler not found: ${routeHandler.ref}`,
@@ -353,36 +399,15 @@ export function nativeServer(): ServerAdapter {
     }
 
     // Inject extracted params into the request
-    const enrichedReq: TypoKitRequest = { ...req, params, path };
+    const enrichedReq: TypoKitRequest = { ...req, params };
 
     // Create request context
     let ctx = createRequestContext();
 
-    // Execute middleware chain if present
-    if (state.middlewareChain && state.middlewareChain.entries.length > 0) {
-      const entries: MiddlewareEntry[] = state.middlewareChain.entries.map(
-        (e) => ({
-          name: e.name,
-          middleware: {
-            handler: async (input) => {
-              const mwReq: TypoKitRequest = {
-                method: enrichedReq.method,
-                path: enrichedReq.path,
-                headers: input.headers,
-                body: input.body,
-                query: input.query,
-                params: input.params,
-              };
-              const response = await e.handler(mwReq, input.ctx, async () => {
-                return { status: 200, headers: {}, body: null };
-              });
-              return response as unknown as Record<string, unknown>;
-            },
-          },
-        }),
-      );
-
-      ctx = await executeMiddlewareChain(enrichedReq, ctx, entries);
+    // Execute compiled middleware chain if present
+    if (state.compiledMiddleware) {
+      currentReq = enrichedReq;
+      ctx = await state.compiledMiddleware(enrichedReq, ctx);
     }
 
     // Call the handler
@@ -403,19 +428,61 @@ export function nativeServer(): ServerAdapter {
       routeTable: CompiledRouteTable,
       handlerMap: HandlerMap,
       middlewareChain: MiddlewareChain,
-      validatorMap?: ValidatorMap,
+      validatorMap?: RawValidatorMap,
       serializerMap?: SerializerMap,
     ): void {
       state.routeTable = routeTable;
       state.handlerMap = handlerMap;
       state.middlewareChain = middlewareChain;
-      state.validatorMap = validatorMap ?? null;
+      state.validatorMap = validatorMap
+        ? resolveValidatorMap(routeTable, validatorMap)
+        : null;
       state.serializerMap = serializerMap ?? null;
+
+      // Compile middleware chain once at registration time
+      if (middlewareChain && middlewareChain.entries.length > 0) {
+        const entries: MiddlewareEntry[] = middlewareChain.entries.map((e) => ({
+          name: e.name,
+          middleware: {
+            handler: async (input) => {
+              const mwReq: TypoKitRequest = {
+                method: currentReq!.method,
+                path: currentReq!.path,
+                headers: input.headers,
+                body: input.body,
+                query: input.query,
+                params: input.params,
+              };
+              const response = await e.handler(mwReq, input.ctx, async () => {
+                return { status: 200, headers: {}, body: null };
+              });
+              return response as unknown as Record<string, unknown>;
+            },
+          },
+        }));
+        state.compiledMiddleware = compileMiddlewareChain(
+          sortMiddlewareEntries(entries),
+        );
+      } else {
+        state.compiledMiddleware = null;
+      }
     },
 
     async listen(port: number): Promise<ServerHandle> {
+      if (isBun) {
+        // Bun runtime: use Bun.serve() via platform-bun for near-native performance
+        const { createBunServer } = await import("@typokit/platform-bun");
+        const bunInstance = createBunServer(handleRequest);
+        const handle = await bunInstance.listen(port);
+        nativeServerRef = bunInstance.server;
+        return handle;
+      }
+
+      // Node.js runtime: use node:http via platform-node
       nativeServerInstance = createServer(handleRequest);
-      return nativeServerInstance.listen(port);
+      const handle = await nativeServerInstance.listen(port);
+      nativeServerRef = nativeServerInstance.server;
+      return handle;
     },
 
     normalizeRequest(raw: unknown): TypoKitRequest {
@@ -438,7 +505,7 @@ export function nativeServer(): ServerAdapter {
     },
 
     getNativeServer(): unknown {
-      return nativeServerInstance?.server ?? null;
+      return nativeServerRef;
     },
   };
 

@@ -2,9 +2,24 @@
 
 import type { ErrorResponse } from "@typokit/types";
 
+// V8/Node.js-specific Error extensions (not in standard ES typings)
+const ErrorWithV8 = Error as unknown as {
+  stackTraceLimit: number;
+  captureStackTrace(
+    target: object,
+    constructorOpt?: (...args: unknown[]) => unknown,
+  ): void;
+  new (message?: string): Error;
+  prototype: Error;
+};
+
 /**
  * Base error class for all TypoKit errors.
  * Extends native Error with structured fields for status, code, and details.
+ *
+ * Stack trace capture is skipped at construction time for performance.
+ * AppError stack is never used in response serialization (toJSON() excludes it).
+ * Call captureStack() if you need the trace for debugging.
  */
 export class AppError extends Error {
   constructor(
@@ -13,9 +28,19 @@ export class AppError extends Error {
     message: string,
     public readonly details?: Record<string, unknown>,
   ) {
+    // Skip expensive V8 stack walk — restore limit after super()
+    const prevLimit = ErrorWithV8.stackTraceLimit;
+    ErrorWithV8.stackTraceLimit = 0;
     super(message);
+    ErrorWithV8.stackTraceLimit = prevLimit;
     this.name = "AppError";
     Object.setPrototypeOf(this, new.target.prototype);
+  }
+
+  /** Lazily capture stack trace (skipped at construction for performance) */
+  captureStack(): this {
+    ErrorWithV8.captureStackTrace(this);
+    return this;
   }
 
   /** Serialize to the ErrorResponse schema from @typokit/types */

@@ -102,8 +102,26 @@ export interface ValidationResult {
 /** A validator function that validates input and returns a result */
 export type ValidatorFn = (input: unknown) => ValidationResult;
 
-/** Maps validator references to their runtime validator functions */
-export type ValidatorMap = Record<string, ValidatorFn>;
+/** Pre-resolved validators for a single route (one hash lookup per request) */
+export interface RouteValidators {
+  params?: ValidatorFn;
+  query?: ValidatorFn;
+  body?: ValidatorFn;
+}
+
+/**
+ * Maps route references to their pre-resolved validator functions.
+ * Built at registration time by resolving RawValidatorMap references
+ * against the compiled route table — one hash lookup per request.
+ */
+export type ValidatorMap = Record<string, RouteValidators>;
+
+/**
+ * Maps validator names to their runtime validator functions.
+ * This is the build-system output format (e.g. from Typia codegen).
+ * Passed to registerRoutes() and resolved into a ValidatorMap at startup.
+ */
+export type RawValidatorMap = Record<string, ValidatorFn>;
 
 // ─── Serialization Types ──────────────────────────────────────
 

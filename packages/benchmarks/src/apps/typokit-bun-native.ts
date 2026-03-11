@@ -1,5 +1,7 @@
 // TypoKit benchmark app — Bun + native server adapter
-// Uses @typokit/server-native on Bun runtime with bun:sqlite for DB.
+// Uses @typokit/server-native on Bun runtime. The native adapter auto-detects
+// Bun and delegates to @typokit/platform-bun's Bun.serve() path for
+// near-native Bun performance (no node:http compat layer).
 
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -28,11 +30,24 @@ export async function start(dbPath?: string): Promise<BenchmarkHandle> {
 
   const handle = await adapter.listen(0);
 
-  const server = adapter.getNativeServer!() as Server;
-  const addr = server.address() as AddressInfo;
+  // getNativeServer() returns BunServer on Bun (has .port) or http.Server on Node (has .address())
+  const nativeServerRef = adapter.getNativeServer!();
+  let port: number;
+  if (
+    nativeServerRef !== null &&
+    typeof nativeServerRef === "object" &&
+    "port" in (nativeServerRef as Record<string, unknown>)
+  ) {
+    // Bun path: BunServer has a .port property
+    port = (nativeServerRef as { port: number }).port;
+  } else {
+    // Node path: http.Server has .address()
+    const addr = (nativeServerRef as Server).address() as AddressInfo;
+    port = addr.port;
+  }
 
   return {
-    port: addr.port,
+    port,
     async close() {
       await handle.close();
       resources.close();

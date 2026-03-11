@@ -5,7 +5,7 @@ import type {
   CompiledRouteTable,
   HandlerMap,
   MiddlewareChain,
-  ValidatorMap,
+  RawValidatorMap,
   TypoKitRequest,
   TypoKitResponse,
   RequestContext,
@@ -237,7 +237,7 @@ describe("expressServer integration", () => {
       }),
     };
 
-    const validatorMap: ValidatorMap = {
+    const validatorMap: RawValidatorMap = {
       validateBody: (data: unknown) => {
         const body = data as Record<string, unknown>;
         if (!body || !body.name) {

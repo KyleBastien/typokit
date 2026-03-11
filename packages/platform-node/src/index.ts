@@ -1,8 +1,10 @@
 // @typokit/platform-node — Node.js Platform Adapter
 
+export { createClusterServer, getDefaultWorkerCount } from "./cluster.js";
+export type { ClusterServerOptions, ClusterServer } from "./cluster.js";
+
 import { createServer as nodeCreateServer } from "node:http";
 import type { IncomingMessage, ServerResponse, Server } from "node:http";
-import { URL } from "node:url";
 import type {
   HttpMethod,
   ServerHandle,
@@ -28,38 +30,79 @@ export function getPlatformInfo(): PlatformInfo {
 
 // ─── Request / Response Helpers ──────────────────────────────
 
-/** Collect the body of an IncomingMessage into a buffer, then parse as JSON or return raw string */
-function collectBody(req: IncomingMessage): Promise<unknown> {
+const SMALL_BODY_THRESHOLD = 16 * 1024; // 16 KB
+
+/**
+ * Collect the raw body of an IncomingMessage into a UTF-8 string.
+ * - When content-length is known and ≤ 16 KB, uses a single pre-allocated buffer (no chunk array).
+ * - When content-length is known and > 16 KB, passes size hint to Buffer.concat.
+ * - Falls back to standard chunk array when content-length is absent.
+ * JSON parsing is NOT done here — it is deferred lazily in normalizeRequest().
+ */
+function collectRawBody(req: IncomingMessage): Promise<string | undefined> {
   return new Promise((resolve, reject) => {
+    const contentLength = req.headers["content-length"];
+
+    if (contentLength !== undefined) {
+      const size = parseInt(contentLength, 10);
+
+      if (size === 0 || Number.isNaN(size)) {
+        // Drain stream so Node.js fires "end" properly, but resolve immediately
+        req.resume();
+        resolve(undefined);
+        return;
+      }
+
+      if (size <= SMALL_BODY_THRESHOLD) {
+        // Small body: single pre-allocated buffer, copy in place
+        const buf = Buffer.allocUnsafe(size);
+        let offset = 0;
+        req.on("data", (chunk: Buffer) => {
+          chunk.copy(buf, offset);
+          offset += chunk.length;
+        });
+        req.on("error", reject);
+        req.on("end", () => {
+          resolve(offset > 0 ? buf.toString("utf-8", 0, offset) : undefined);
+        });
+        return;
+      }
+
+      // Larger body with known size: chunk array + size-hinted concat
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("error", reject);
+      req.on("end", () => {
+        if (chunks.length === 0) {
+          resolve(undefined);
+          return;
+        }
+        resolve(Buffer.concat(chunks, size).toString("utf-8"));
+      });
+      return;
+    }
+
+    // No content-length (chunked transfer): standard collection
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("error", reject);
     req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf-8");
-      if (!raw) {
+      if (chunks.length === 0) {
         resolve(undefined);
         return;
       }
-      const contentType = req.headers["content-type"] ?? "";
-      if (contentType.includes("application/json")) {
-        try {
-          resolve(JSON.parse(raw));
-        } catch {
-          resolve(raw);
-        }
-      } else {
-        resolve(raw);
-      }
+      resolve(Buffer.concat(chunks).toString("utf-8"));
     });
   });
 }
 
-/** Parse query string from a URL into a Record */
-function parseQuery(
-  searchParams: URLSearchParams,
-): Record<string, string | string[] | undefined> {
+/** Parse a raw query string (without leading '?') into a Record */
+function parseQuery(qs: string): Record<string, string | string[] | undefined> {
+  if (!qs) return {};
   const result: Record<string, string | string[] | undefined> = {};
-  for (const [key, value] of searchParams.entries()) {
+  // Use URLSearchParams only on the query portion — much cheaper than full URL construction
+  const searchParams = new URLSearchParams(qs);
+  for (const [key, value] of searchParams) {
     const existing = result[key];
     if (existing === undefined) {
       result[key] = value;
@@ -72,13 +115,13 @@ function parseQuery(
   return result;
 }
 
-/** Normalize Node.js headers into a flat Record */
+/** Normalize Node.js headers into a flat Record — uses for...in to avoid Object.entries() allocation */
 function normalizeHeaders(
   raw: IncomingMessage["headers"],
 ): Record<string, string | string[] | undefined> {
   const result: Record<string, string | string[] | undefined> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    result[key] = value;
+  for (const key in raw) {
+    result[key] = raw[key];
   }
   return result;
 }
@@ -86,24 +129,59 @@ function normalizeHeaders(
 /**
  * Normalize a Node.js IncomingMessage into a TypoKitRequest.
  * Body is collected asynchronously from the stream.
+ * JSON parsing is deferred lazily — only runs when .body is first accessed.
+ * Uses indexOf/substring for path extraction instead of expensive new URL().
  */
 export async function normalizeRequest(
   req: IncomingMessage,
 ): Promise<TypoKitRequest> {
-  const url = new URL(
-    req.url ?? "/",
-    `http://${req.headers.host ?? "localhost"}`,
-  );
-  const body = await collectBody(req);
+  const rawUrl = req.url ?? "/";
+  const qIdx = rawUrl.indexOf("?");
+  const rawPath = qIdx === -1 ? rawUrl : rawUrl.substring(0, qIdx);
+  const queryString = qIdx === -1 ? "" : rawUrl.substring(qIdx + 1);
+  // Strip trailing slash (keep "/" as-is) so downstream routing skips re-normalization
+  const path =
+    rawPath.length > 1 && rawPath.charCodeAt(rawPath.length - 1) === 47
+      ? rawPath.substring(0, rawPath.length - 1)
+      : rawPath;
+  const rawBody = await collectRawBody(req);
 
-  return {
+  const request: TypoKitRequest = {
     method: (req.method ?? "GET").toUpperCase() as HttpMethod,
-    path: url.pathname,
+    path,
     headers: normalizeHeaders(req.headers),
-    body,
-    query: parseQuery(url.searchParams),
+    body: undefined,
+    query: parseQuery(queryString),
     params: {},
   };
+
+  if (rawBody !== undefined) {
+    const contentType = req.headers["content-type"] ?? "";
+    if (contentType.includes("application/json")) {
+      // Lazy JSON parsing: defer JSON.parse until .body is actually accessed
+      let parsed: unknown;
+      let isParsed = false;
+      Object.defineProperty(request, "body", {
+        get() {
+          if (!isParsed) {
+            isParsed = true;
+            try {
+              parsed = JSON.parse(rawBody);
+            } catch {
+              parsed = rawBody;
+            }
+          }
+          return parsed;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    } else {
+      request.body = rawBody;
+    }
+  }
+
+  return request;
 }
 
 /**
@@ -113,8 +191,10 @@ export function writeResponse(
   res: ServerResponse,
   response: TypoKitResponse,
 ): void {
-  // Set headers
-  for (const [key, value] of Object.entries(response.headers)) {
+  // Set headers — for...in avoids Object.entries() array allocation
+  const headers = response.headers;
+  for (const key in headers) {
+    const value = headers[key];
     if (value !== undefined) {
       res.setHeader(key, value);
     }
@@ -152,6 +232,12 @@ export type NodeRequestHandler = (
 export interface NodeServerOptions {
   /** Optional hostname to bind to (default: "0.0.0.0") */
   hostname?: string;
+  /** Keep-alive timeout in ms — idle connections close after this (default: 5000) */
+  keepAliveTimeout?: number;
+  /** Max time in ms to receive complete headers — prevents slowloris stalls (default: 10000) */
+  headersTimeout?: number;
+  /** Max number of request headers — lower than Node default (2000) for API workloads (default: 64) */
+  maxHeadersCount?: number;
 }
 
 // ─── Node Server ─────────────────────────────────────────────
@@ -203,6 +289,11 @@ export function createServer(
       }
     },
   );
+
+  // Keep-alive tuning — reduces per-request overhead from connection reuse
+  server.keepAliveTimeout = options.keepAliveTimeout ?? 5_000;
+  server.headersTimeout = options.headersTimeout ?? 10_000;
+  server.maxHeadersCount = options.maxHeadersCount ?? 64;
 
   return {
     server,

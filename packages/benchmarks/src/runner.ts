@@ -53,7 +53,7 @@ interface AppDef {
   readonly framework: string;
   readonly platform: string;
   readonly server: string;
-  readonly mode: "direct" | "bun" | "deno" | "rust";
+  readonly mode: "direct" | "bun" | "deno" | "rust" | "node-subprocess";
   readonly binaryName?: string;
 }
 
@@ -180,6 +180,15 @@ const APP_REGISTRY: ReadonlyArray<AppDef> = [
     platform: "node",
     server: "express",
     mode: "direct",
+  },
+
+  // TypoKit × Node.js (cluster)
+  {
+    name: "typokit-node-native-cluster",
+    framework: "typokit",
+    platform: "node",
+    server: "native-cluster",
+    mode: "node-subprocess",
   },
 
   // TypoKit × Bun
@@ -414,8 +423,11 @@ function startSubprocessApp(
       }
     });
 
-    child.stderr?.on("data", (_chunk: Buffer) => {
-      // Subprocess stderr is suppressed during benchmarking
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      if (!resolved) {
+        stderr += chunk.toString();
+      }
     });
 
     child.on("error", (err: Error) => {
@@ -428,9 +440,12 @@ function startSubprocessApp(
     child.on("exit", (code) => {
       if (!resolved) {
         resolved = true;
+        const detail = stderr.trim()
+          ? `\n  stderr: ${stderr.trim().split("\n").slice(0, 5).join("\n         ")}`
+          : "";
         reject(
           new Error(
-            `${appDef.name} exited with code ${String(code)} before reporting port`,
+            `${appDef.name} exited with code ${String(code)} before reporting port${detail}`,
           ),
         );
       }
@@ -517,6 +532,10 @@ async function startApp(appDef: AppDef): Promise<AppHandle> {
   switch (appDef.mode) {
     case "direct":
       return startDirectApp(appDef);
+    case "node-subprocess":
+      return startSubprocessApp(appDef, process.execPath, [
+        ...process.execArgv,
+      ]);
     case "bun":
       return startSubprocessApp(appDef, "bun", ["run"]);
     case "deno":

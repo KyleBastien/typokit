@@ -3,14 +3,14 @@
 
 import type {
   ValidatorFn,
-  ValidatorMap,
+  RawValidatorMap,
   ValidationFieldError,
 } from "@typokit/types";
 
 // ─── Schema Registry ─────────────────────────────────────────
 
 /** Global registry of compiled validators keyed by schema name */
-let validatorRegistry: ValidatorMap = {};
+let validatorRegistry: RawValidatorMap = {};
 
 /**
  * Register compiled validators for use with toMatchSchema().
@@ -24,7 +24,7 @@ let validatorRegistry: ValidatorMap = {};
  * });
  * ```
  */
-export function registerSchemaValidators(validators: ValidatorMap): void {
+export function registerSchemaValidators(validators: RawValidatorMap): void {
   validatorRegistry = { ...validatorRegistry, ...validators };
 }
 

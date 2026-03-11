@@ -28,10 +28,13 @@ export {
   type MiddlewareInput,
   type Middleware,
   type MiddlewareEntry,
+  type CompiledMiddlewareFn,
   defineMiddleware,
   createPlaceholderLogger,
   createRequestContext,
   executeMiddlewareChain,
+  sortMiddlewareEntries,
+  compileMiddlewareChain,
 } from "./middleware.js";
 export {
   type HandlerInput,
@@ -40,6 +43,7 @@ export {
   defineHandlers,
 } from "./handler.js";
 export {
+  type ClusterConfig,
   type RouteGroup,
   type CreateAppOptions,
   type TypoKitApp,
@@ -49,3 +53,5 @@ export {
   type ErrorMiddlewareOptions,
   createErrorMiddleware,
 } from "./error-middleware.js";
+export { JSON_HEADERS } from "./headers.js";
+export { resolveValidatorMap } from "./validation.js";

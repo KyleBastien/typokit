@@ -3,6 +3,21 @@
 import type { TypoKitRequest, RequestContext, Logger } from "@typokit/types";
 import { createAppError } from "@typokit/errors";
 
+/**
+ * Monotonically incrementing request ID counter.
+ * Uses a simple numeric counter with base-36 encoding for compact string IDs.
+ * Unique within a process lifetime — resets on restart.
+ *
+ * BREAKING CHANGE: Request IDs are now sequential (e.g., "1", "2", "a", "1z")
+ * instead of random (e.g., "a1b2c3d4e5f6g7h8"). This is intentional for
+ * performance — avoids two Math.random() calls and string allocations per request.
+ */
+let requestIdCounter = 0;
+
+function nextRequestId(): string {
+  return (++requestIdCounter).toString(36);
+}
+
 /** Input received by a defineMiddleware handler */
 export interface MiddlewareInput {
   headers: TypoKitRequest["headers"];
@@ -36,17 +51,31 @@ export function defineMiddleware<TAdded extends Record<string, unknown>>(
   return { handler };
 }
 
+const NOOP = () => {};
+
+/** Shared no-op logger instance — avoids per-request object allocation */
+const PLACEHOLDER_LOGGER: Logger = {
+  trace: NOOP,
+  debug: NOOP,
+  info: NOOP,
+  warn: NOOP,
+  error: NOOP,
+  fatal: NOOP,
+};
+
 /** Create a no-op placeholder logger (actual implementation in observability phase) */
 export function createPlaceholderLogger(): Logger {
-  const noop = () => {};
-  return {
-    trace: noop,
-    debug: noop,
-    info: noop,
-    warn: noop,
-    error: noop,
-    fatal: noop,
-  };
+  return PLACEHOLDER_LOGGER;
+}
+
+/** Shared fail function — avoids per-request closure allocation */
+function fail(
+  status: number,
+  code: string,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
+  throw createAppError(status, code, message, details);
 }
 
 /** Create a RequestContext with ctx.fail() and ctx.log placeholder */
@@ -54,47 +83,110 @@ export function createRequestContext(
   overrides?: Partial<RequestContext>,
 ): RequestContext {
   return {
-    log: createPlaceholderLogger(),
-    fail(
-      status: number,
-      code: string,
-      message: string,
-      details?: Record<string, unknown>,
-    ): never {
-      throw createAppError(status, code, message, details);
-    },
+    log: PLACEHOLDER_LOGGER,
+    fail,
     services: {},
-    requestId:
-      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+    requestId: nextRequestId(),
     ...overrides,
   };
 }
 
 /**
- * Execute a middleware chain in priority order (lower priority runs first).
+ * Sort middleware entries by priority (lower priority runs first).
+ * Call once at registration/startup time, then reuse the sorted array.
+ */
+export function sortMiddlewareEntries(
+  entries: MiddlewareEntry[],
+): MiddlewareEntry[] {
+  return [...entries].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+}
+
+/**
+ * Execute a middleware chain in the order given (entries must be pre-sorted).
  * Each middleware's returned properties are accumulated onto the context.
  * Middleware can short-circuit by throwing an error.
+ *
+ * Use {@link sortMiddlewareEntries} at registration time to pre-sort by priority.
  */
 export async function executeMiddlewareChain(
   req: TypoKitRequest,
   ctx: RequestContext,
   entries: MiddlewareEntry[],
 ): Promise<RequestContext> {
-  const sorted = [...entries].sort(
-    (a, b) => (a.priority ?? 0) - (b.priority ?? 0),
-  );
-
-  let currentCtx = ctx;
-  for (const entry of sorted) {
+  for (const entry of entries) {
     const added = await entry.middleware.handler({
       headers: req.headers,
       body: req.body,
       query: req.query,
       params: req.params,
-      ctx: currentCtx,
+      ctx,
     });
-    currentCtx = { ...currentCtx, ...added } as RequestContext;
+    Object.assign(ctx, added);
   }
 
-  return currentCtx;
+  return ctx;
+}
+
+/**
+ * A pre-compiled middleware chain function.
+ * Call once per request — returns the enriched context.
+ */
+export type CompiledMiddlewareFn = (
+  req: TypoKitRequest,
+  ctx: RequestContext,
+) => Promise<RequestContext>;
+
+/**
+ * Compile a pre-sorted middleware chain into a single callable function.
+ * Call at registration time; the returned function is invoked per-request
+ * with zero loop/dispatch overhead for 0–1 middleware entries.
+ *
+ * - 0 entries → identity (pass-through, no async overhead)
+ * - 1 entry  → direct handler call (no loop)
+ * - N entries → flat indexed loop over pre-extracted handler references
+ */
+export function compileMiddlewareChain(
+  entries: MiddlewareEntry[],
+): CompiledMiddlewareFn {
+  if (entries.length === 0) {
+    // No middleware — synchronous identity wrapped in a resolved promise
+    return (_req, ctx) => Promise.resolve(ctx);
+  }
+
+  if (entries.length === 1) {
+    // Single middleware — direct call, no loop
+    const handler = entries[0].middleware.handler;
+    return async (req, ctx) => {
+      const added = await handler({
+        headers: req.headers,
+        body: req.body,
+        query: req.query,
+        params: req.params,
+        ctx,
+      });
+      Object.assign(ctx, added);
+      return ctx;
+    };
+  }
+
+  // N middleware — flat loop over pre-extracted handler functions.
+  // Avoids per-iteration property chain (.middleware.handler) and
+  // for...of iterator protocol overhead.
+  const handlers = entries.map((e) => e.middleware.handler);
+  const len = handlers.length;
+
+  return async (req, ctx) => {
+    const input: MiddlewareInput = {
+      headers: req.headers,
+      body: req.body,
+      query: req.query,
+      params: req.params,
+      ctx,
+    };
+    for (let i = 0; i < len; i++) {
+      const added = await handlers[i](input);
+      Object.assign(ctx, added);
+    }
+    return ctx;
+  };
 }
