@@ -51,17 +51,31 @@ export function defineMiddleware<TAdded extends Record<string, unknown>>(
   return { handler };
 }
 
+const NOOP = () => {};
+
+/** Shared no-op logger instance — avoids per-request object allocation */
+const PLACEHOLDER_LOGGER: Logger = {
+  trace: NOOP,
+  debug: NOOP,
+  info: NOOP,
+  warn: NOOP,
+  error: NOOP,
+  fatal: NOOP,
+};
+
 /** Create a no-op placeholder logger (actual implementation in observability phase) */
 export function createPlaceholderLogger(): Logger {
-  const noop = () => {};
-  return {
-    trace: noop,
-    debug: noop,
-    info: noop,
-    warn: noop,
-    error: noop,
-    fatal: noop,
-  };
+  return PLACEHOLDER_LOGGER;
+}
+
+/** Shared fail function — avoids per-request closure allocation */
+function fail(
+  status: number,
+  code: string,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
+  throw createAppError(status, code, message, details);
 }
 
 /** Create a RequestContext with ctx.fail() and ctx.log placeholder */
@@ -69,15 +83,8 @@ export function createRequestContext(
   overrides?: Partial<RequestContext>,
 ): RequestContext {
   return {
-    log: createPlaceholderLogger(),
-    fail(
-      status: number,
-      code: string,
-      message: string,
-      details?: Record<string, unknown>,
-    ): never {
-      throw createAppError(status, code, message, details);
-    },
+    log: PLACEHOLDER_LOGGER,
+    fail,
     services: {},
     requestId: nextRequestId(),
     ...overrides,

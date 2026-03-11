@@ -166,3 +166,34 @@ describe("createAppError", () => {
     expect(err.details).toEqual({ field: "name" });
   });
 });
+
+describe("AppError lazy stack trace", () => {
+  it("should skip stack trace capture at construction time", () => {
+    const err = new AppError("CODE", 500, "test");
+    // Stack should be empty or minimal (no frame lines) since capture is skipped
+    const stack = err.stack ?? "";
+    const frames = stack.split("\n").filter((line) => line.trim().startsWith("at "));
+    expect(frames.length).toBe(0);
+  });
+
+  it("should capture stack trace on demand via captureStack()", () => {
+    const err = new AppError("CODE", 500, "test");
+    err.captureStack();
+    const stack = err.stack ?? "";
+    const frames = stack.split("\n").filter((line) => line.trim().startsWith("at "));
+    expect(frames.length).toBeGreaterThan(0);
+  });
+
+  it("captureStack() should return the error instance for chaining", () => {
+    const err = new AppError("CODE", 500, "test");
+    const result = err.captureStack();
+    expect(result).toBe(err);
+  });
+
+  it("subclasses should also skip stack trace at construction", () => {
+    const err = new NotFoundError("NF", "not found");
+    const stack = err.stack ?? "";
+    const frames = stack.split("\n").filter((line) => line.trim().startsWith("at "));
+    expect(frames.length).toBe(0);
+  });
+});
