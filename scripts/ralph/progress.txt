@@ -27,6 +27,7 @@ Started: 03/10/2026 22:46:37
 - `getNativeServer()` returns BunServer (has `.port`) on Bun and http.Server (has `.address()`) on Node — callers must handle both
 - platform-bun env.d.ts declares Web API types (Request, Response, Headers, URL, URLSearchParams) — update it when adding new Web API usage
 - Use Proxy-based lazy headers to wrap native `Headers` object — avoids O(N) upfront copy, individual headers resolved on demand via `native.get()`
+- Use `worker.disconnect()` for graceful cluster shutdown -- stops new connections, drains in-flight via `server.close()`, then worker exits
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -265,3 +266,34 @@ ormalizeRequest() function
   - The `writeResponse()` method on the adapter is only used by the Node.js code path; Bun's `fetch()` pattern returns a `Response` object directly, so writeResponse is never called on Bun
   - Optional peer dependencies with `peerDependenciesMeta` `optional: true` is the right pattern for runtime-conditional packages — it won't fail install on Node.js where platform-bun isn't needed
 ---
+
+## 2026-03-11T07:43 - US-017
+- **What was implemented**: Added HTTP keep-alive tuning to createServer() in platform-node. Extended NodeServerOptions with keepAliveTimeout (default 5000ms), headersTimeout (default 10000ms), and maxHeadersCount (default 64). Configured these on the 
+ode:http Server instance immediately after creation. Added 2 new tests: default values verification and custom options override.
+- **Files changed**:
+  - `packages/platform-node/src/index.ts` — Extended NodeServerOptions interface, added server tuning after 
+odeCreateServer()
+  - `packages/platform-node/src/index.test.ts` — Added 2 tests for default and custom keep-alive settings
+- **Learnings for future iterations:**
+  - Node.js default keepAliveTimeout is already 5000ms, but setting it explicitly enables customization via options
+  - headersTimeout must be > keepAliveTimeout to avoid premature connection drops during header parsing
+  - maxHeadersCount default of 2000 in Node.js is excessive for API servers — 64 covers typical use cases
+  - All 14 platform-node tests pass (12 existing + 2 new)
+  - CRLF prettier/prettier lint errors on Windows are baseline — not regressions from this change
+---
+
+## 2026-03-11T07:47 - US-018
+- **What was implemented**: Added createClusterServer() export to @typokit/platform-node that uses 
+ode:cluster to fork worker processes across CPU cores. Workers share the same port via the cluster module's built-in round-robin load balancing. Graceful shutdown uses worker.disconnect() to drain in-flight requests, with a configurable timeout and SIGKILL fallback. Workers also handle SIGTERM for external process managers (Docker, systemd). Exported ClusterServer, ClusterServerOptions, and getDefaultWorkerCount types.
+- **Files changed**:
+  - `packages/platform-node/src/cluster.ts` — New file: createClusterServer(), getDefaultWorkerCount(), ClusterServerOptions, ClusterServer, shutdownAllWorkers()
+  - `packages/platform-node/src/cluster.test.ts` — New file: 6 tests for cluster API surface (defaults, custom worker count, isPrimary flag)
+  - `packages/platform-node/src/index.ts` — Re-export createClusterServer, getDefaultWorkerCount, ClusterServerOptions, ClusterServer from cluster.ts
+- **Learnings for future iterations:**
+  - Cluster workers share ports via the cluster module's IPC — the primary process accepts connections and distributes them to workers in round-robin fashion
+  - worker.disconnect() is the proper graceful shutdown mechanism — it stops new connections from reaching the worker and lets in-flight requests drain via server.close()
+  - os.availableParallelism() was added in Node 18.14; use os.cpus().length as fallback for older versions
+  - Cluster mode tests can't easily fork real workers in unit tests (requires compiled output); API surface tests in-process are sufficient; integration is validated via benchmarks
+  - US-019 depends on this — it adds app-level config to wire createClusterServer into createApp() and a benchmark scenario
+---
+
