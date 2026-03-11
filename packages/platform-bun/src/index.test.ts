@@ -5,6 +5,7 @@ import {
   normalizeRequest,
   buildResponse,
   getPlatformInfo,
+  createBunServer,
   createServer,
 } from "./index.js";
 import type { TypoKitResponse } from "@typokit/types";
@@ -50,7 +51,7 @@ describe("normalizeRequest", () => {
     expect(normalized.params).toEqual({});
   });
 
-  it("collects JSON body when content-type is application/json", async () => {
+  it("collects JSON body via req.json() when content-type is application/json", async () => {
     const req = new Request("http://localhost:3000/data", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -90,6 +91,86 @@ describe("normalizeRequest", () => {
 
     const normalized = await normalizeRequest(req);
     expect(normalized.query["tag"]).toEqual(["a", "b"]);
+  });
+
+  it("strips trailing slash from path", async () => {
+    const req = new Request("http://localhost:3000/hello/", {
+      method: "GET",
+    });
+
+    const normalized = await normalizeRequest(req);
+    expect(normalized.path).toBe("/hello");
+  });
+
+  it("preserves root path as /", async () => {
+    const req = new Request("http://localhost:3000/", {
+      method: "GET",
+    });
+
+    const normalized = await normalizeRequest(req);
+    expect(normalized.path).toBe("/");
+  });
+
+  it("returns undefined body for malformed JSON", async () => {
+    const req = new Request("http://localhost:3000/bad-json", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "not valid json{",
+    });
+
+    const normalized = await normalizeRequest(req);
+    expect(normalized.body).toBeUndefined();
+  });
+
+  it("uses lazy headers — accesses native Headers on demand", async () => {
+    const req = new Request("http://localhost:3000/lazy", {
+      method: "GET",
+      headers: { "x-lazy": "value", accept: "text/html" },
+    });
+
+    const normalized = await normalizeRequest(req);
+
+    // Individual access via native Headers API
+    expect(normalized.headers["x-lazy"]).toBe("value");
+    expect(normalized.headers["accept"]).toBe("text/html");
+    // Non-existent header returns undefined
+    expect(normalized.headers["x-missing"]).toBeUndefined();
+  });
+
+  it("lazy headers supports has check", async () => {
+    const req = new Request("http://localhost:3000/has-check", {
+      method: "GET",
+      headers: { "x-present": "yes" },
+    });
+
+    const normalized = await normalizeRequest(req);
+    expect("x-present" in normalized.headers).toBe(true);
+    expect("x-absent" in normalized.headers).toBe(false);
+  });
+
+  it("lazy headers supports for...in iteration", async () => {
+    const req = new Request("http://localhost:3000/iterate", {
+      method: "GET",
+      headers: { "x-a": "1", "x-b": "2" },
+    });
+
+    const normalized = await normalizeRequest(req);
+    const keys: string[] = [];
+    for (const key in normalized.headers) {
+      keys.push(key);
+    }
+    expect(keys).toContain("x-a");
+    expect(keys).toContain("x-b");
+  });
+
+  it("handles HEAD requests without body", async () => {
+    const req = new Request("http://localhost:3000/head", {
+      method: "HEAD",
+    });
+
+    const normalized = await normalizeRequest(req);
+    expect(normalized.method).toBe("HEAD");
+    expect(normalized.body).toBeUndefined();
   });
 });
 
@@ -147,11 +228,11 @@ describe("buildResponse", () => {
   });
 });
 
-// ─── createServer ────────────────────────────────────────────
+// ─── createBunServer ─────────────────────────────────────────
 
-describe("createServer", () => {
+describe("createBunServer", () => {
   it("creates a server instance with listen method", () => {
-    const srv = createServer(async () => ({
+    const srv = createBunServer(async () => ({
       status: 200,
       headers: {},
       body: null,
@@ -175,7 +256,7 @@ describe("createServer", () => {
     };
 
     try {
-      const srv = createServer(async () => ({
+      const srv = createBunServer(async () => ({
         status: 200,
         headers: {},
         body: { ok: true },
@@ -192,7 +273,7 @@ describe("createServer", () => {
   });
 
   it("rejects when Bun global is not available", async () => {
-    const srv = createServer(async () => ({
+    const srv = createBunServer(async () => ({
       status: 200,
       headers: {},
       body: null,
@@ -225,7 +306,7 @@ describe("createServer", () => {
     };
 
     try {
-      const srv = createServer(async (req) => ({
+      const srv = createBunServer(async (req) => ({
         status: 200,
         headers: { "content-type": "application/json" },
         body: { echo: req.path },
@@ -266,7 +347,7 @@ describe("createServer", () => {
     };
 
     try {
-      const srv = createServer(async () => {
+      const srv = createBunServer(async () => {
         throw new Error("boom");
       });
 
@@ -285,5 +366,13 @@ describe("createServer", () => {
     } finally {
       delete g["Bun"];
     }
+  });
+});
+
+// ─── createServer (backward compat alias) ────────────────────
+
+describe("createServer", () => {
+  it("is an alias for createBunServer", () => {
+    expect(createServer).toBe(createBunServer);
   });
 });

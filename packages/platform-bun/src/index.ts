@@ -50,11 +50,11 @@ export function getPlatformInfo(): PlatformInfo {
 
 // ─── Request / Response Helpers ──────────────────────────────
 
-/** Parse query string from a URL into a Record */
-function parseQuery(
-  searchParams: URLSearchParams,
-): Record<string, string | string[] | undefined> {
+/** Parse a raw query string (without leading '?') into a Record */
+function parseQuery(qs: string): Record<string, string | string[] | undefined> {
+  if (!qs) return {};
   const result: Record<string, string | string[] | undefined> = {};
+  const searchParams = new URLSearchParams(qs);
   for (const [key, value] of searchParams.entries()) {
     const existing = result[key];
     if (existing === undefined) {
@@ -68,35 +68,123 @@ function parseQuery(
   return result;
 }
 
-/** Normalize Web API headers into a flat Record */
-function normalizeHeaders(
-  headers: Headers,
+/**
+ * Create a lazy headers proxy wrapping a native Headers object.
+ * Avoids upfront conversion — individual headers are read via the
+ * native Headers API on demand, skipping the O(N) copy.
+ */
+function lazyHeaders(
+  native: Headers,
 ): Record<string, string | string[] | undefined> {
-  const result: Record<string, string | string[] | undefined> = {};
-  headers.forEach((value, key) => {
-    result[key] = value;
+  const overrides = Object.create(null) as Record<
+    string,
+    string | string[] | undefined
+  >;
+  return new Proxy(overrides, {
+    get(
+      target: Record<string, string | string[] | undefined>,
+      prop: string | symbol,
+    ) {
+      if (typeof prop === "string") {
+        if (prop in target) return target[prop];
+        return native.get(prop) ?? undefined;
+      }
+      return undefined;
+    },
+    set(
+      target: Record<string, string | string[] | undefined>,
+      prop: string | symbol,
+      value: unknown,
+    ) {
+      if (typeof prop === "string") {
+        target[prop] = value as string | string[] | undefined;
+      }
+      return true;
+    },
+    has(
+      target: Record<string, string | string[] | undefined>,
+      prop: string | symbol,
+    ) {
+      if (typeof prop === "string") {
+        return prop in target || native.has(prop);
+      }
+      return false;
+    },
+    ownKeys(target: Record<string, string | string[] | undefined>) {
+      const keys = new Set<string>(Object.keys(target));
+      native.forEach((_v: string, k: string) => keys.add(k));
+      return [...keys];
+    },
+    getOwnPropertyDescriptor(
+      target: Record<string, string | string[] | undefined>,
+      prop: string | symbol,
+    ) {
+      if (typeof prop === "string") {
+        if (prop in target) {
+          return {
+            configurable: true,
+            enumerable: true,
+            value: target[prop],
+          };
+        }
+        if (native.has(prop)) {
+          return {
+            configurable: true,
+            enumerable: true,
+            value: native.get(prop) ?? undefined,
+          };
+        }
+      }
+      return undefined;
+    },
   });
-  return result;
 }
 
 /**
  * Normalize a Web API Request (used by Bun.serve) into a TypoKitRequest.
+ *
+ * Optimized for Bun's native APIs:
+ * - Uses indexOf/substring for path extraction instead of `new URL()`
+ * - Uses `req.json()` for JSON bodies (Bun's native zero-copy parser)
+ * - Uses `req.text()` for non-JSON bodies
+ * - Uses lazy Proxy-based headers to avoid upfront Headers → Record conversion
  */
 export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
-  const url = new URL(req.url);
+  // Fast path extraction: avoid new URL() constructor.
+  // In Bun.serve, req.url is a full URL like "http://host:port/path?query"
+  const rawUrl = req.url;
+  const protoEnd = rawUrl.indexOf("//");
+  const pathStart = protoEnd !== -1 ? rawUrl.indexOf("/", protoEnd + 2) : 0;
+  const start = pathStart !== -1 ? pathStart : rawUrl.length;
+  const qIdx = rawUrl.indexOf("?", start);
+  const rawPath =
+    start >= rawUrl.length
+      ? "/"
+      : qIdx === -1
+        ? rawUrl.substring(start)
+        : rawUrl.substring(start, qIdx);
+  const queryString = qIdx === -1 ? "" : rawUrl.substring(qIdx + 1);
 
+  // Strip trailing slash (keep "/" as-is) for consistent routing
+  const path =
+    rawPath.length > 1 && rawPath.charCodeAt(rawPath.length - 1) === 47
+      ? rawPath.substring(0, rawPath.length - 1)
+      : rawPath;
+
+  // Body: use Bun-native zero-copy methods
   let body: unknown = undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
     const contentType = req.headers.get("content-type") ?? "";
-    const raw = await req.text();
-    if (raw) {
-      if (contentType.includes("application/json")) {
-        try {
-          body = JSON.parse(raw);
-        } catch {
-          body = raw;
-        }
-      } else {
+    if (contentType.includes("application/json")) {
+      try {
+        body = await req.json();
+      } catch {
+        // Malformed JSON — body stays undefined
+        body = undefined;
+      }
+    } else {
+      const raw = await req.text();
+      if (raw) {
         body = raw;
       }
     }
@@ -104,10 +192,10 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
 
   return {
     method: req.method.toUpperCase() as HttpMethod,
-    path: url.pathname,
-    headers: normalizeHeaders(req.headers),
+    path,
+    headers: lazyHeaders(req.headers),
     body,
-    query: parseQuery(url.searchParams),
+    query: parseQuery(queryString),
     params: {},
   };
 }
@@ -165,7 +253,7 @@ export interface BunServerOptions {
 
 // ─── Bun Server ─────────────────────────────────────────────
 
-/** Result of createServer — provides listen/close and access to the underlying Bun server */
+/** Result of createBunServer — provides listen/close and access to the underlying Bun server */
 export interface BunServerInstance {
   /** Start listening on the given port. Returns a handle for graceful shutdown. */
   listen(port: number): Promise<ServerHandle>;
@@ -174,11 +262,12 @@ export interface BunServerInstance {
 }
 
 /**
- * Create a Bun HTTP server that dispatches to a TypoKit request handler.
+ * Create a Bun-native HTTP server that dispatches to a TypoKit request handler.
+ * Uses `Bun.serve({ fetch })` directly — avoids node:http entirely.
  *
  * Usage:
  * ```ts
- * const srv = createServer(async (req) => ({
+ * const srv = createBunServer(async (req) => ({
  *   status: 200,
  *   headers: {},
  *   body: { ok: true },
@@ -188,7 +277,7 @@ export interface BunServerInstance {
  * await handle.close();
  * ```
  */
-export function createServer(
+export function createBunServer(
   handler: BunRequestHandler,
   options: BunServerOptions = {},
 ): BunServerInstance {
@@ -244,3 +333,8 @@ export function createServer(
 
   return instance;
 }
+
+/**
+ * @deprecated Use `createBunServer` instead. This alias is kept for backward compatibility.
+ */
+export const createServer = createBunServer;

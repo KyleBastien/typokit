@@ -9,6 +9,7 @@ declare class URL {
 }
 
 declare class URLSearchParams {
+  constructor(init?: string);
   entries(): IterableIterator<[string, string]>;
 }
 
