@@ -17,6 +17,7 @@ Started: 03/10/2026 22:46:37
 - Avoid `new URL()` for request path extraction — use `indexOf('?')` + `substring()` instead; use `new URLSearchParams(qs)` only on the query portion
 - `collectRawBody()` returns raw UTF-8 string; JSON parsing is lazy via `Object.defineProperty` getter on `request.body`
 - Use `Buffer.allocUnsafe(size)` for small pre-allocated buffers when data will be immediately copied; use `Buffer.concat(chunks, totalLength)` with size hint for larger known-size bodies
+- Use `compileMiddlewareChain()` to pre-compile middleware entries into a single function at registration — returns specialized implementations for 0, 1, and N entries
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -136,4 +137,19 @@ Started: 03/10/2026 22:46:37
   - `substring(start, end)` does not allocate when V8 can use a "sliced string" representation — cheaper than split() which allocates an array + N strings
   - The root path "/" is a special case — early return avoids entering the traversal loop entirely
   - All 48 server-native tests pass without modification, confirming behavioral equivalence
+---
+
+## 2026-03-11T06:47 - US-010
+- **What was implemented**: Added `compileMiddlewareChain()` function that pre-compiles a sorted `MiddlewareEntry[]` into a single `CompiledMiddlewareFn` callable. Three specializations: identity (0 entries), direct call (1 entry), flat indexed loop over pre-extracted handler references (N entries). The N-entry path creates a shared `MiddlewareInput` object per request (not per middleware). Updated server-native adapter to store and invoke compiled middleware instead of calling `executeMiddlewareChain()` per-request.
+- **Files changed**:
+  - `packages/core/src/middleware.ts` — Added `CompiledMiddlewareFn` type and `compileMiddlewareChain()` function
+  - `packages/core/src/index.ts` — Exported `CompiledMiddlewareFn` and `compileMiddlewareChain`
+  - `packages/server-native/src/index.ts` — Replaced `sortedMiddlewareEntries` with `compiledMiddleware`, uses `compileMiddlewareChain()` at registration time
+  - `packages/core/src/middleware.test.ts` — Added 6 new tests: identity, single middleware, multi-chain ordering, short-circuit on throw, input properties, in-place mutation
+- **Learnings for future iterations:**
+  - `Promise.resolve(ctx)` for the 0-entry identity avoids async function overhead (no microtask tick)
+  - The shared `MiddlewareInput` object works because `ctx` is mutated in-place via `Object.assign` — subsequent middleware see updated context through the same reference
+  - Pre-extracting handler functions (`entries.map(e => e.middleware.handler)`) avoids per-iteration property chain access
+  - Other server adapters (hono, fastify, express) could adopt the same `compileMiddlewareChain` pattern
+  - All 88 core + 48 server-native tests pass
 ---
