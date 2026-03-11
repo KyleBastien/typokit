@@ -2,7 +2,6 @@
 
 import { createServer as nodeCreateServer } from "node:http";
 import type { IncomingMessage, ServerResponse, Server } from "node:http";
-import { URL } from "node:url";
 import type {
   HttpMethod,
   ServerHandle,
@@ -54,12 +53,15 @@ function collectBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-/** Parse query string from a URL into a Record */
+/** Parse a raw query string (without leading '?') into a Record */
 function parseQuery(
-  searchParams: URLSearchParams,
+  qs: string,
 ): Record<string, string | string[] | undefined> {
+  if (!qs) return {};
   const result: Record<string, string | string[] | undefined> = {};
-  for (const [key, value] of searchParams.entries()) {
+  // Use URLSearchParams only on the query portion — much cheaper than full URL construction
+  const searchParams = new URLSearchParams(qs);
+  for (const [key, value] of searchParams) {
     const existing = result[key];
     if (existing === undefined) {
       result[key] = value;
@@ -72,13 +74,13 @@ function parseQuery(
   return result;
 }
 
-/** Normalize Node.js headers into a flat Record */
+/** Normalize Node.js headers into a flat Record — uses for...in to avoid Object.entries() allocation */
 function normalizeHeaders(
   raw: IncomingMessage["headers"],
 ): Record<string, string | string[] | undefined> {
   const result: Record<string, string | string[] | undefined> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    result[key] = value;
+  for (const key in raw) {
+    result[key] = raw[key];
   }
   return result;
 }
@@ -86,22 +88,23 @@ function normalizeHeaders(
 /**
  * Normalize a Node.js IncomingMessage into a TypoKitRequest.
  * Body is collected asynchronously from the stream.
+ * Uses indexOf/substring for path extraction instead of expensive new URL().
  */
 export async function normalizeRequest(
   req: IncomingMessage,
 ): Promise<TypoKitRequest> {
-  const url = new URL(
-    req.url ?? "/",
-    `http://${req.headers.host ?? "localhost"}`,
-  );
+  const rawUrl = req.url ?? "/";
+  const qIdx = rawUrl.indexOf("?");
+  const path = qIdx === -1 ? rawUrl : rawUrl.substring(0, qIdx);
+  const queryString = qIdx === -1 ? "" : rawUrl.substring(qIdx + 1);
   const body = await collectBody(req);
 
   return {
     method: (req.method ?? "GET").toUpperCase() as HttpMethod,
-    path: url.pathname,
+    path,
     headers: normalizeHeaders(req.headers),
     body,
-    query: parseQuery(url.searchParams),
+    query: parseQuery(queryString),
     params: {},
   };
 }
