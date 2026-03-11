@@ -221,6 +221,10 @@ function serializeResponse(
 
 // ─── Hono Server Adapter ─────────────────────────────────────
 
+// WeakMap stores replace type-cast anti-patterns for stashing data on Hono context
+const bodyStore = new WeakMap<object, unknown>();
+const responseStore = new WeakMap<object, TypoKitResponse>();
+
 interface HonoServerState {
   routeTable: CompiledRouteTable | null;
   handlerMap: HandlerMap | null;
@@ -252,48 +256,24 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
 
   const _basePath = options?.basePath;
 
-  /** Convert Hono context to TypoKitRequest */
+  /** Convert Hono context to TypoKitRequest using native Hono APIs */
   function normalizeRequest(raw: unknown): TypoKitRequest {
     const c = raw as HonoContext;
     const req = c.req;
 
-    const headers: Record<string, string | string[] | undefined> = {};
-    req.raw.headers.forEach((value: string, key: string) => {
-      headers[key] = value;
-    });
-
-    // Parse query parameters from URL
-    const url = new URL(req.url);
-    const query: Record<string, string | string[] | undefined> = {};
-    url.searchParams.forEach((value, key) => {
-      const existing = query[key];
-      if (existing !== undefined) {
-        if (Array.isArray(existing)) {
-          existing.push(value);
-        } else {
-          query[key] = [existing, value];
-        }
-      } else {
-        query[key] = value;
-      }
-    });
-
     return {
       method: req.method.toUpperCase() as HttpMethod,
-      path: url.pathname,
-      headers,
-      body: (c as unknown as Record<string, unknown>)._typoBody,
-      query,
-      params: c.req.param() as Record<string, string>,
+      path: req.path,
+      headers: req.header() as Record<string, string | string[] | undefined>,
+      body: bodyStore.get(c),
+      query: req.query() as Record<string, string | string[] | undefined>,
+      params: req.param() as Record<string, string>,
     };
   }
 
-  /** Write TypoKitResponse to Hono context — returns a Response */
+  /** Store TypoKitResponse for the Hono context */
   function writeResponse(raw: unknown, response: TypoKitResponse): void {
-    // In Hono, responses are returned, not written imperatively.
-    // We store the response on the context for the route handler to return.
-    const c = raw as HonoContext;
-    (c as unknown as Record<string, unknown>)._typoResponse = response;
+    responseStore.set(raw as object, response);
   }
 
   function buildHonoResponse(response: TypoKitResponse): Response {
@@ -364,8 +344,8 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
             }
           }
 
-          // Stash body on context for normalizeRequest
-          (c as unknown as Record<string, unknown>)._typoBody = body;
+          // Store body for normalizeRequest via WeakMap
+          bodyStore.set(c, body);
 
           const typoReq = normalizeRequest(c);
 
