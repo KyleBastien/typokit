@@ -314,17 +314,20 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
           handler: async (req: FastifyRequest, reply: FastifyReply) => {
             const typoReq = normalizeRequest(req);
 
-            // Run request validation pipeline
-            const validationError = runValidators(
-              { validators: route.validators },
-              state.validatorMap,
-              typoReq.params,
-              typoReq.query,
-              typoReq.body,
-            );
-            if (validationError) {
-              writeResponse(reply, validationError);
-              return;
+            // Run request validation pipeline (skip entirely when no validators)
+            const v = route.validators;
+            if (v && (v.params || v.query || v.body)) {
+              const validationError = runValidators(
+                { validators: v },
+                state.validatorMap,
+                typoReq.params,
+                typoReq.query,
+                typoReq.body,
+              );
+              if (validationError) {
+                writeResponse(reply, validationError);
+                return;
+              }
             }
 
             const handlerFn = state.handlerMap![route.handlerRef];

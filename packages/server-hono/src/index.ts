@@ -355,16 +355,19 @@ export function honoServer(options?: { basePath?: string }): ServerAdapter {
 
           const typoReq = normalizeRequest(c);
 
-          // Run request validation pipeline
-          const validationError = runValidators(
-            { validators: route.validators },
-            state.validatorMap,
-            typoReq.params,
-            typoReq.query,
-            typoReq.body,
-          );
-          if (validationError) {
-            return buildHonoResponse(validationError);
+          // Run request validation pipeline (skip entirely when no validators)
+          const v = route.validators;
+          if (v && (v.params || v.query || v.body)) {
+            const validationError = runValidators(
+              { validators: v },
+              state.validatorMap,
+              typoReq.params,
+              typoReq.query,
+              typoReq.body,
+            );
+            if (validationError) {
+              return buildHonoResponse(validationError);
+            }
           }
 
           const handlerFn = state.handlerMap![route.handlerRef];

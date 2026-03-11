@@ -7,6 +7,8 @@ Started: 03/10/2026 22:46:37
 - Server adapters receive `MiddlewareChain` (no priority field) from `@typokit/types`; priority only exists on `MiddlewareEntry` from `@typokit/core`
 - Pre-existing CRLF lint failures on Windows — `prettier/prettier` Delete errors are baseline, not regressions
 - Server-native adapter uses `currentReq` shared reference pattern for pre-built middleware wrapper closures that need per-request data
+- All 4 server adapters have identical copy-pasted `runValidators()` — changes must be applied to all 4
+- Guard validator checks with `const v = handler.validators; if (v && (v.params || v.query || v.body))` to skip validation for no-validator routes
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -20,4 +22,29 @@ Started: 03/10/2026 22:46:37
   - Server-native wraps `MiddlewareFn` (takes full request) into `Middleware` handler (takes `MiddlewareInput` subset). Method/path aren't in `MiddlewareInput`, so pre-built wrappers need a shared `currentReq` reference set per-request.
   - Other server adapters (hono, fastify, express) have the same middleware wrapping pattern and would benefit from the same optimization.
   - Lint (`eslint .`) fails on baseline due to CRLF line endings on Windows — not a regression.
+---
+
+## 2026-03-11T05:58 - US-002
+- **What was implemented**: Replaced `Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)` with a monotonically incrementing counter using base-36 encoding (`(++counter).toString(36)`). Added module-level `requestIdCounter` and `nextRequestId()` helper. Added 2 new tests: uniqueness across 1000 calls, and monotonic ordering.
+- **Files changed**:
+  - `packages/core/src/middleware.ts` — Added `requestIdCounter` and `nextRequestId()`, replaced Math.random() in `createRequestContext()`
+  - `packages/core/src/middleware.test.ts` — Added uniqueness and monotonic ordering tests
+- **Learnings for future iterations:**
+  - The counter approach is simple and safe for single-process use. For multi-process (cluster mode), request IDs would need a worker prefix to avoid collisions (relevant for US-018/US-019).
+  - `requestId` is used as `traceId` in error responses via `error-middleware.ts` — format changes are user-visible.
+  - All 82 core tests pass with the change, including the 2 new ones.
+---
+
+## 2026-03-11T06:01 - US-003
+- **What was implemented**: Added guard checks before unValidators() in all 4 server adapters (native, hono, fastify, express) to completely bypass the validation pipeline for routes without validators. The guard checks outeHandler.validators existence AND whether any of params/query/body fields are defined before calling unValidators().
+- **Files changed**:
+  - `packages/server-native/src/index.ts` — Added validator guard at line 339
+  - `packages/server-hono/src/index.ts` — Added validator guard at line 358
+  - `packages/server-fastify/src/index.ts` — Added validator guard at line 317
+  - `packages/server-express/src/index.ts` — Added validator guard at line 329
+- **Learnings for future iterations:**
+  - unValidators() already had an internal short-circuit (if (!validatorMap || !routeHandler.validators) return undefined), but the function call overhead itself (5 args, stack frame) was wasteful for no-validator routes
+  - In hono/fastify/express adapters, the call site was also creating an intermediate { validators: route.validators } object — the guard avoids this allocation too
+  - All 4 adapters have identical unValidators implementations (copy-pasted). A future refactor could extract this to @typokit/core as a shared utility
+  - All 80 adapter tests pass (48 native + 12 hono + 12 fastify + 8 express) plus 82 core tests
 ---

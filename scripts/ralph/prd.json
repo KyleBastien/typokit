@@ -1,7 +1,7 @@
 {
   "project": "TypoKit",
   "branchName": "ralph/performance-optimization",
-  "description": "TypoKit JS/TS Runtime Performance Optimization \u00e2\u20ac\u201d Reduce framework overhead to <5% vs raw HTTP baseline on Node.js and Bun across all benchmark scenarios",
+  "description": "TypoKit JS/TS Runtime Performance Optimization â€” Reduce framework overhead to <5% vs raw HTTP baseline on Node.js and Bun across all benchmark scenarios",
   "userStories": [
     {
       "id": "US-001",
@@ -35,7 +35,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -52,7 +52,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -108,7 +108,7 @@
     },
     {
       "id": "US-007",
-      "title": "Optimize request normalization \u00e2\u20ac\u201d avoid URL constructor",
+      "title": "Optimize request normalization â€” avoid URL constructor",
       "description": "As a framework developer, I want request normalization to avoid expensive new URL() construction so that the Node.js native server closes the gap with raw node:http.",
       "acceptanceCriteria": [
         "normalizeRequest() in packages/platform-node/src/index.ts no longer constructs a URL object",
@@ -126,7 +126,7 @@
     },
     {
       "id": "US-008",
-      "title": "Optimize body collection \u00e2\u20ac\u201d single Buffer.concat",
+      "title": "Optimize body collection â€” single Buffer.concat",
       "description": "As a framework developer, I want body collection to minimize allocations so that POST/PUT request handling is faster.",
       "acceptanceCriteria": [
         "collectBody() in packages/platform-node/src/index.ts uses Buffer.concat() with a pre-allocated size hint when content-length header is available",
@@ -193,7 +193,7 @@
     },
     {
       "id": "US-012",
-      "title": "Optimize Hono adapter \u00e2\u20ac\u201d eliminate URL object construction",
+      "title": "Optimize Hono adapter â€” eliminate URL object construction",
       "description": "As a Hono adapter user, I want request handling to avoid constructing new URL() per request so that Hono performance matches the standalone Hono framework.",
       "acceptanceCriteria": [
         "packages/server-hono/src/index.ts no longer constructs new URL(req.url) in the request handler",
@@ -210,7 +210,7 @@
     },
     {
       "id": "US-013",
-      "title": "Optimize Fastify adapter \u00e2\u20ac\u201d use native request properties",
+      "title": "Optimize Fastify adapter â€” use native request properties",
       "description": "As a Fastify adapter user, I want request normalization to use Fastify's pre-parsed request properties so that double-parsing is eliminated.",
       "acceptanceCriteria": [
         "normalizeRequest() in packages/server-fastify/src/index.ts no longer calls req.url.split('?')[0] for path extraction",
@@ -243,15 +243,15 @@
       ],
       "priority": 14,
       "passes": false,
-      "notes": "Breaking change \u00e2\u20ac\u201d gate behind major version bump"
+      "notes": "Breaking change â€” gate behind major version bump"
     },
     {
       "id": "US-015",
-      "title": "Implement Bun-native server path \u00e2\u20ac\u201d platform-bun adapter",
+      "title": "Implement Bun-native server path â€” platform-bun adapter",
       "description": "As a Bun user, I want TypoKit to use Bun.serve() directly so that I get near-native Bun performance instead of being routed through Node.js compatibility layers.",
       "acceptanceCriteria": [
         "packages/platform-bun/src/index.ts provides a createBunServer() function that uses Bun.serve({ fetch }) directly",
-        "The Bun native path avoids node:http entirely \u00e2\u20ac\u201d uses the Web Fetch API (Request/Response) natively",
+        "The Bun native path avoids node:http entirely â€” uses the Web Fetch API (Request/Response) natively",
         "Body is accessed via request.json() / request.text() (Bun's native zero-copy methods)",
         "Headers are accessed via the native Headers API without conversion to plain objects",
         "Typecheck passes: pnpm nx typecheck platform-bun",
@@ -259,7 +259,7 @@
       ],
       "priority": 15,
       "passes": false,
-      "notes": "First half of the Bun-native work \u00e2\u20ac\u201d creates the platform adapter. US-016 integrates it into the server."
+      "notes": "First half of the Bun-native work â€” creates the platform adapter. US-016 integrates it into the server."
     },
     {
       "id": "US-016",
@@ -296,7 +296,7 @@
     },
     {
       "id": "US-018",
-      "title": "Add Node.js cluster mode \u00e2\u20ac\u201d createClusterServer export",
+      "title": "Add Node.js cluster mode â€” createClusterServer export",
       "description": "As a production user, I want TypoKit to optionally utilize all available CPU cores so that throughput scales linearly with core count on multi-core machines.",
       "acceptanceCriteria": [
         "@typokit/platform-node exports a createClusterServer() function that uses node:cluster to fork workers",
@@ -309,7 +309,7 @@
       ],
       "priority": 18,
       "passes": false,
-      "notes": "First half of cluster mode \u00e2\u20ac\u201d exports the function. US-019 adds app config and benchmarks."
+      "notes": "First half of cluster mode â€” exports the function. US-019 adds app config and benchmarks."
     },
     {
       "id": "US-019",

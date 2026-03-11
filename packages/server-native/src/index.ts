@@ -336,16 +336,19 @@ export function nativeServer(): ServerAdapter {
 
     const routeHandler = node.handlers[method]!;
 
-    // ── Request Validation Pipeline ──
-    const validationError = runValidators(
-      routeHandler,
-      state.validatorMap,
-      params,
-      req.query,
-      req.body,
-    );
-    if (validationError) {
-      return validationError;
+    // ── Request Validation Pipeline (skip entirely when no validators) ──
+    const v = routeHandler.validators;
+    if (v && (v.params || v.query || v.body)) {
+      const validationError = runValidators(
+        routeHandler,
+        state.validatorMap,
+        params,
+        req.query,
+        req.body,
+      );
+      if (validationError) {
+        return validationError;
+      }
     }
 
     const handlerFn = state.handlerMap[routeHandler.ref];
