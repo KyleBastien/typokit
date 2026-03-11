@@ -47,40 +47,62 @@ function normalizePath(path: string): string {
 
 /**
  * Traverse the compiled radix tree to find the route node matching the
- * given path segments. Returns the matching node and extracted params,
- * or undefined if no route matches.
+ * given path string. Uses index-based scanning to avoid allocating a
+ * segments array — each segment is extracted via substring().
+ * decodeURIComponent() is only called on parameter captures.
  */
 function lookupRoute(
   root: CompiledRoute,
-  segments: string[],
+  path: string,
 ): LookupResult | undefined {
+  // "/" maps to the root node with no segment traversal
+  if (path === "/") return { node: root, params: {} };
+
   let current = root;
   const params: Record<string, string> = {};
+  const len = path.length;
+  // Start after the leading '/'
+  let pos = 1;
 
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
+  while (pos < len) {
+    // Find the next '/' or end-of-string
+    let end = pos;
+    while (end < len && path.charCodeAt(end) !== 47 /* '/' */) end++;
+
+    const seg = path.substring(pos, end);
 
     // 1. Try static child match first (O(1) hash lookup)
     if (current.children?.[seg]) {
       current = current.children[seg];
+      pos = end + 1;
       continue;
     }
 
-    // 2. Try parameterized child (:id)
+    // 2. Try parameterized child (:id) — decode only param values
     if (current.paramChild) {
       const paramNode = current.paramChild;
       params[paramNode.paramName] = decodeURIComponent(seg);
       current = paramNode;
+      pos = end + 1;
       continue;
     }
 
-    // 3. Try wildcard child (*path) — captures remaining segments
+    // 3. Try wildcard child (*path) — capture rest of path, decode each segment
     if (current.wildcardChild) {
       const wildcardNode = current.wildcardChild;
-      params[wildcardNode.paramName] = segments
-        .slice(i)
-        .map(decodeURIComponent)
-        .join("/");
+      // Decode each remaining segment individually (preserving '/' separators)
+      let rest = "";
+      let wpos = pos;
+      let first = true;
+      while (wpos < len) {
+        let wend = wpos;
+        while (wend < len && path.charCodeAt(wend) !== 47) wend++;
+        if (!first) rest += "/";
+        rest += decodeURIComponent(path.substring(wpos, wend));
+        first = false;
+        wpos = wend + 1;
+      }
+      params[wildcardNode.paramName] = rest;
       return { node: wildcardNode, params };
     }
 
@@ -300,9 +322,8 @@ export function nativeServer(): ServerAdapter {
 
     // Normalize trailing slashes
     const path = normalizePath(req.path);
-    const segments = path === "/" ? [] : path.slice(1).split("/");
 
-    const result = lookupRoute(state.routeTable, segments);
+    const result = lookupRoute(state.routeTable, path);
 
     // 404 — no route matches
     if (!result) {
