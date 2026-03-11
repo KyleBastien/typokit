@@ -115,17 +115,16 @@ export async function executeMiddlewareChain(
   ctx: RequestContext,
   entries: MiddlewareEntry[],
 ): Promise<RequestContext> {
-  let currentCtx = ctx;
   for (const entry of entries) {
     const added = await entry.middleware.handler({
       headers: req.headers,
       body: req.body,
       query: req.query,
       params: req.params,
-      ctx: currentCtx,
+      ctx,
     });
-    currentCtx = { ...currentCtx, ...added } as RequestContext;
+    Object.assign(ctx, added);
   }
 
-  return currentCtx;
+  return ctx;
 }
