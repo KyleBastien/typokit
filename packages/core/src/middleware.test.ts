@@ -282,6 +282,20 @@ describe("createRequestContext", () => {
     expect(ctx.requestId.length).toBeGreaterThan(0);
   });
 
+  it("generates unique requestIds across calls", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 1000; i++) {
+      ids.add(createRequestContext().requestId);
+    }
+    expect(ids.size).toBe(1000);
+  });
+
+  it("generates monotonically increasing requestIds", () => {
+    const a = createRequestContext().requestId;
+    const b = createRequestContext().requestId;
+    expect(parseInt(a, 36)).toBeLessThan(parseInt(b, 36));
+  });
+
   it("has services object", () => {
     const ctx = createRequestContext();
     expect(ctx.services).toBeDefined();

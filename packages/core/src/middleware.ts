@@ -3,6 +3,21 @@
 import type { TypoKitRequest, RequestContext, Logger } from "@typokit/types";
 import { createAppError } from "@typokit/errors";
 
+/**
+ * Monotonically incrementing request ID counter.
+ * Uses a simple numeric counter with base-36 encoding for compact string IDs.
+ * Unique within a process lifetime — resets on restart.
+ *
+ * BREAKING CHANGE: Request IDs are now sequential (e.g., "1", "2", "a", "1z")
+ * instead of random (e.g., "a1b2c3d4e5f6g7h8"). This is intentional for
+ * performance — avoids two Math.random() calls and string allocations per request.
+ */
+let requestIdCounter = 0;
+
+function nextRequestId(): string {
+  return (++requestIdCounter).toString(36);
+}
+
 /** Input received by a defineMiddleware handler */
 export interface MiddlewareInput {
   headers: TypoKitRequest["headers"];
@@ -64,8 +79,7 @@ export function createRequestContext(
       throw createAppError(status, code, message, details);
     },
     services: {},
-    requestId:
-      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+    requestId: nextRequestId(),
     ...overrides,
   };
 }
