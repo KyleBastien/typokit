@@ -259,22 +259,22 @@ export function fastifyServer(options?: FastifyServerOptions): ServerAdapter {
   /** Convert Fastify request to TypoKitRequest */
   function normalizeRequest(raw: unknown): TypoKitRequest {
     const req = raw as FastifyRequest;
-    const headers: Record<string, string | string[] | undefined> = {};
-    for (const [key, value] of Object.entries(req.headers)) {
-      headers[key] = value;
-    }
 
-    const rawQuery = req.query as
-      | Record<string, string | string[] | undefined>
-      | undefined;
+    // Extract path without query string — indexOf+substring avoids split array allocation
+    const url = req.url;
+    const qIdx = url.indexOf("?");
+    const path = qIdx === -1 ? url : url.substring(0, qIdx);
 
     return {
-      method: req.method.toUpperCase() as HttpMethod,
-      path: req.url.split("?")[0],
-      headers,
+      // req.method is already uppercase per HTTP spec — skip .toUpperCase()
+      method: req.method as HttpMethod,
+      path,
+      // Fastify's req.headers is the Node.js IncomingMessage headers object — reuse directly
+      headers: req.headers as Record<string, string | string[] | undefined>,
       body: req.body,
-      query: rawQuery ?? {},
-      params: (req.params as Record<string, string>) ?? {},
+      // Fastify pre-parses query from the route definition
+      query: (req.query ?? {}) as Record<string, string | string[] | undefined>,
+      params: (req.params ?? {}) as Record<string, string>,
     };
   }
 
