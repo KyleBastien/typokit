@@ -188,7 +188,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Pairs naturally with US-007 (URL avoidance) and US-009 (route lookup)"
     },
     {
@@ -205,7 +205,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

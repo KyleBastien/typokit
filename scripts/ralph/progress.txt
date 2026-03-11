@@ -4,6 +4,7 @@ Started: 03/10/2026 22:46:37
 
 ## Codebase Patterns
 - `executeMiddlewareChain()` expects pre-sorted entries; use `sortMiddlewareEntries()` before passing
+- `normalizeRequest()` in platform-node handles trailing-slash stripping — server adapters should NOT re-normalize the path
 - Server adapters receive `MiddlewareChain` (no priority field) from `@typokit/types`; priority only exists on `MiddlewareEntry` from `@typokit/core`
 - Pre-existing CRLF lint failures on Windows — `prettier/prettier` Delete errors are baseline, not regressions
 - Server-native adapter uses `currentReq` shared reference pattern for pre-built middleware wrapper closures that need per-request data
@@ -18,6 +19,8 @@ Started: 03/10/2026 22:46:37
 - `collectRawBody()` returns raw UTF-8 string; JSON parsing is lazy via `Object.defineProperty` getter on `request.body`
 - Use `Buffer.allocUnsafe(size)` for small pre-allocated buffers when data will be immediately copied; use `Buffer.concat(chunks, totalLength)` with size hint for larger known-size bodies
 - Use `compileMiddlewareChain()` to pre-compile middleware entries into a single function at registration — returns specialized implementations for 0, 1, and N entries
+- In Hono adapter, use `c.req.path`, `c.req.query()`, `c.req.header()` native APIs instead of `new URL(req.url)` — Hono already parsed these during routing
+- Use `WeakMap<object, T>` instead of type-cast `(c as unknown as Record<string, unknown>)._prop` for stashing data on framework context objects
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -152,4 +155,31 @@ Started: 03/10/2026 22:46:37
   - Pre-extracting handler functions (`entries.map(e => e.middleware.handler)`) avoids per-iteration property chain access
   - Other server adapters (hono, fastify, express) could adopt the same `compileMiddlewareChain` pattern
   - All 88 core + 48 server-native tests pass
+---
+
+## 2026-03-11T06:54 - US-011
+- **What was implemented**: Moved trailing-slash normalization from server-native's `handleRequest()` into platform-node's `normalizeRequest()`. Path is now extracted and normalized exactly once during request normalization. Removed `normalizePath()` function from server-native entirely. `lookupRoute()` now receives `req.path` directly. `enrichedReq` no longer overrides `path` since it's already correct.
+- **Files changed**:
+  - `packages/platform-node/src/index.ts` — Added trailing-slash stripping using `charCodeAt()` check in `normalizeRequest()` right after path extraction
+  - `packages/server-native/src/index.ts` — Removed `normalizePath()` function, removed intermediate `path` variable in `handleRequest()`, pass `req.path` directly to `lookupRoute()`
+- **Learnings for future iterations:**
+  - `normalizeRequest()` in platform-node is only consumed by server-native (via `createServer`) — other adapters (hono, fastify, express) have their own request handling, so changes to normalizeRequest don't affect them
+  - Using `charCodeAt(len-1) === 47` is faster than `endsWith("/")` for single-character checks
+  - The `enrichedReq` spread was overriding `path` unnecessarily after normalization moved upstream — removing it avoids one property write in the spread
+  - All 12 platform-node + 48 server-native + 88 core tests pass
+---
+
+## 2026-03-11T06:58 - US-012
+- **What was implemented**: Eliminated 
+ew URL(req.url) from Hono adapter's 
+ormalizeRequest(). Replaced with Hono's native c.req.path for path extraction, c.req.query() for query parameters, and c.req.header() for headers. Replaced type-cast anti-patterns ((c as unknown as Record<string, unknown>)._typoBody and ._typoResponse) with module-level WeakMap<object, T> stores for both body and response data.
+- **Files changed**:
+  - packages/server-hono/src/index.ts — Rewrote 
+ormalizeRequest() to use Hono native APIs, added odyStore/esponseStore WeakMaps, updated route handler to use odyStore.set()
+- **Learnings for future iterations:**
+  - Hono's c.req.path is already available without URL parsing — Hono's router extracts it during matching
+  - Hono provides c.req.query() (Record<string, string> — first value per key) and c.req.queries() (Record<string, string[]> — all values). Use query() for the common case, queries() for multi-value support
+  - Hono's c.req.header() without args returns Record<string, string> — cleaner than manually iterating eq.raw.headers.forEach()
+  - WeakMap<object, T> is a GC-friendly replacement for stashing arbitrary data on framework context objects — avoids type-cast anti-patterns and doesn't leak memory
+  - All 12 Hono adapter tests pass without modification, confirming behavioral equivalence
 ---
