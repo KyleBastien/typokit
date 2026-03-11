@@ -43,6 +43,7 @@ export {
   defineHandlers,
 } from "./handler.js";
 export {
+  type ClusterConfig,
   type RouteGroup,
   type CreateAppOptions,
   type TypoKitApp,

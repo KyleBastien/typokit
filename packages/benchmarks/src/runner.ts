@@ -53,7 +53,7 @@ interface AppDef {
   readonly framework: string;
   readonly platform: string;
   readonly server: string;
-  readonly mode: "direct" | "bun" | "deno" | "rust";
+  readonly mode: "direct" | "bun" | "deno" | "rust" | "node-subprocess";
   readonly binaryName?: string;
 }
 
@@ -180,6 +180,15 @@ const APP_REGISTRY: ReadonlyArray<AppDef> = [
     platform: "node",
     server: "express",
     mode: "direct",
+  },
+
+  // TypoKit × Node.js (cluster)
+  {
+    name: "typokit-node-native-cluster",
+    framework: "typokit",
+    platform: "node",
+    server: "native-cluster",
+    mode: "node-subprocess",
   },
 
   // TypoKit × Bun
@@ -517,6 +526,10 @@ async function startApp(appDef: AppDef): Promise<AppHandle> {
   switch (appDef.mode) {
     case "direct":
       return startDirectApp(appDef);
+    case "node-subprocess":
+      return startSubprocessApp(appDef, process.execPath, [
+        ...process.execArgv,
+      ]);
     case "bun":
       return startSubprocessApp(appDef, "bun", ["run"]);
     case "deno":
