@@ -21,6 +21,7 @@ Started: 03/10/2026 22:46:37
 - Use `compileMiddlewareChain()` to pre-compile middleware entries into a single function at registration — returns specialized implementations for 0, 1, and N entries
 - In Hono adapter, use `c.req.path`, `c.req.query()`, `c.req.header()` native APIs instead of `new URL(req.url)` — Hono already parsed these during routing
 - Use `WeakMap<object, T>` instead of type-cast `(c as unknown as Record<string, unknown>)._prop` for stashing data on framework context objects
+- In Fastify adapter, `req.headers` is the Node.js IncomingMessage headers object — reuse directly, don't copy
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -182,4 +183,17 @@ ormalizeRequest() to use Hono native APIs, added odyStore/esponseStore WeakMap
   - Hono's c.req.header() without args returns Record<string, string> — cleaner than manually iterating eq.raw.headers.forEach()
   - WeakMap<object, T> is a GC-friendly replacement for stashing arbitrary data on framework context objects — avoids type-cast anti-patterns and doesn't leak memory
   - All 12 Hono adapter tests pass without modification, confirming behavioral equivalence
+---
+
+## 2026-03-11T07:05 - US-013
+- **What was implemented**: Optimized Fastify adapter's 
+ormalizeRequest() to use Fastify's native pre-parsed request properties instead of re-parsing. Three key changes: (1) replaced eq.url.split("?")[0] with indexOf("?")+substring() to avoid array allocation, (2) reused eq.headers directly instead of copying via Object.entries() loop into a new object, (3) removed redundant .toUpperCase() on eq.method since HTTP method is already uppercase per spec.
+- **Files changed**:
+  - `packages/server-fastify/src/index.ts` — Rewrote 
+ormalizeRequest() function
+- **Learnings for future iterations:**
+  - Fastify's eq.headers is the same Node.js IncomingMessage.headers object — no need to copy it
+  - eq.method from Node.js HTTP is always uppercase per HTTP/1.1 spec — .toUpperCase() is redundant overhead in all adapters
+  - The header copy loop was the biggest waste — it iterated every header key/value pair via Object.entries() and allocated a new object on every request
+  - Same .toUpperCase() removal could be applied to other adapters (hono, express, native) for consistency
 ---
