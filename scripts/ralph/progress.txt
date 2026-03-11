@@ -9,6 +9,9 @@ Started: 03/10/2026 22:46:37
 - Server-native adapter uses `currentReq` shared reference pattern for pre-built middleware wrapper closures that need per-request data
 - All 4 server adapters have identical copy-pasted `runValidators()` — changes must be applied to all 4
 - Guard validator checks with `const v = handler.validators; if (v && (v.params || v.query || v.body))` to skip validation for no-validator routes
+- Use `JSON_HEADERS` from `@typokit/core` for JSON response headers instead of creating `{ "content-type": "application/json" }` inline
+- All 4 server adapters have identical copy-pasted `serializeResponse()` — changes must be applied to all 4
+- Use `for...in` instead of `Object.entries()` for iterating plain `Record` objects in hot paths (avoids array allocation)
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -47,4 +50,27 @@ Started: 03/10/2026 22:46:37
   - In hono/fastify/express adapters, the call site was also creating an intermediate { validators: route.validators } object — the guard avoids this allocation too
   - All 4 adapters have identical unValidators implementations (copy-pasted). A future refactor could extract this to @typokit/core as a shared utility
   - All 80 adapter tests pass (48 native + 12 hono + 12 fastify + 8 express) plus 82 core tests
+---
+
+## 2026-03-11T06:08 - US-004
+- **What was implemented**: Pre-computed and cached common response headers to eliminate per-request object allocation. Created `JSON_HEADERS` frozen constant in `@typokit/core/headers.ts`. Optimized `serializeResponse()` in all 4 server adapters to skip `{ ...response.headers }` spread when content-type is already set or headers are empty. Replaced `Object.entries()` with `for...in` in all `writeResponse()`/`buildResponse()` functions across platform and server adapters. Replaced 20+ inline `{ "content-type": "application/json" }` literals with the shared constant.
+- **Files changed**:
+  - `packages/core/src/headers.ts` — New: `JSON_HEADERS` frozen constant
+  - `packages/core/src/index.ts` — Export `JSON_HEADERS`
+  - `packages/core/src/error-middleware.ts` — Use `JSON_HEADERS` in 4 error paths
+  - `packages/server-native/src/index.ts` — Optimized `serializeResponse()`, use constant in 5 error paths
+  - `packages/server-hono/src/index.ts` — Optimized `serializeResponse()`, `buildHonoResponse()`, use constant
+  - `packages/server-fastify/src/index.ts` — Optimized `serializeResponse()`, `writeResponse()`, use constant
+  - `packages/server-express/src/index.ts` — Optimized `serializeResponse()`, `writeResponse()`, use constant
+  - `packages/platform-node/src/index.ts` — `for...in` instead of `Object.entries()` in `writeResponse()`
+  - `packages/platform-deno/src/index.ts` — `for...in` instead of `Object.entries()` in `buildResponse()`
+  - `packages/platform-bun/src/index.ts` — `for...in` instead of `Object.entries()` in `buildResponse()`
+  - `packages/benchmarks/src/apps/shared-routes.ts` — Use `JSON_HEADERS` in all 9 handler responses
+- **Learnings for future iterations:**
+  - `Object.freeze()` on header constants prevents accidental mutation when the same reference is shared across all responses
+  - `for...in` on plain objects is faster than `Object.entries()` because it avoids array allocation; safe for `Record<string, ...>` objects with no prototype chain
+  - The `hasOwnKeys()` helper using `for...in` with early return is the fastest way to check for empty objects (no `Object.keys().length` allocation)
+  - In the common hot path, handlers already set `"content-type": "application/json"` — so `serializeResponse` can reuse `response.headers` by reference (no spread needed)
+  - The 405 response in server-native has `allow` header alongside content-type, so it can't use the shared constant (must create custom headers object)
+  - All tests pass: 82 core + 48 native + 12 hono + 12 fastify + 8 express
 ---
