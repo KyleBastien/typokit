@@ -28,6 +28,8 @@ Started: 03/10/2026 22:46:37
 - platform-bun env.d.ts declares Web API types (Request, Response, Headers, URL, URLSearchParams) — update it when adding new Web API usage
 - Use Proxy-based lazy headers to wrap native `Headers` object — avoids O(N) upfront copy, individual headers resolved on demand via `native.get()`
 - Use `worker.disconnect()` for graceful cluster shutdown -- stops new connections, drains in-flight via `server.close()`, then worker exits
+- Core package has no @types/node — use `node-shims.d.ts` for minimal ambient declarations when adding Node.js-specific features
+- For cluster/multi-process benchmark apps, use `node-subprocess` runner mode (not `direct`)
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -297,3 +299,20 @@ ode:cluster to fork worker processes across CPU cores. Workers share the same po
   - US-019 depends on this — it adds app-level config to wire createClusterServer into createApp() and a benchmark scenario
 ---
 
+
+## 2026-03-11T07:54 - US-019
+- **What was implemented**: Added `cluster: true | { workers: number }` config option to `createApp()` in `@typokit/core`. On primary process, `listen()` dynamically imports `node:cluster`, forks N workers, and returns a handle that gracefully shuts them down. On worker processes, `listen()` falls through to normal adapter.listen(). Added a `node-shims.d.ts` for minimal `node:cluster` and `node:os` type declarations (avoids @types/node dep in core). Created `typokit-node-native-cluster` benchmark app using node:cluster directly with 4 workers. Added `node-subprocess` mode to benchmark runner to support cluster-mode apps (uses `process.execPath`/`process.execArgv` for tsx compatibility). Registered cluster app in APP_REGISTRY and exported from apps/index.ts.
+- **Files changed**:
+  - `packages/core/src/app.ts` — Added ClusterConfig interface, cluster option to CreateAppOptions, cluster/primary fork logic in listen(), isClusterPrimary guard in close()
+  - `packages/core/src/index.ts` — Exported ClusterConfig type
+  - `packages/core/src/node-shims.d.ts` — Minimal type declarations for node:cluster, node:os, setTimeout, clearTimeout
+  - `packages/benchmarks/src/apps/typokit-node-native-cluster.ts` — New cluster benchmark app (primary forks 4 workers, workers use nativeServer adapter)
+  - `packages/benchmarks/src/apps/index.ts` — Exported startTypokitNodeNativeCluster
+  - `packages/benchmarks/src/runner.ts` — Added "node-subprocess" mode to AppDef, dispatch case using process.execPath/execArgv, cluster app in APP_REGISTRY
+- **Learnings for future iterations:**
+  - Core package has NO @types/node devDependency — use node-shims.d.ts for minimal ambient declarations when referencing Node.js APIs
+  - `setTimeout`/`clearTimeout` are not globally typed in core — they need explicit `declare function` in a .d.ts
+  - For cluster benchmark apps, "direct" mode won't work (cluster.fork re-runs the runner). Use "node-subprocess" mode which spawns via subprocess-entry.ts
+  - `process.execPath` + `process.execArgv` preserves tsx loader for Node subprocess spawning and cluster.fork() worker re-execution
+  - Worker stdout in cluster mode is inherited from primary — BENCHMARK_PORT from workers reaches the runner's pipe
+---
