@@ -1,3 +1,23 @@
 # Ralph Progress Log
-Started: 03/10/2026 22:44:00
+Started: 03/10/2026 22:46:37
+---
 
+## Codebase Patterns
+- `executeMiddlewareChain()` expects pre-sorted entries; use `sortMiddlewareEntries()` before passing
+- Server adapters receive `MiddlewareChain` (no priority field) from `@typokit/types`; priority only exists on `MiddlewareEntry` from `@typokit/core`
+- Pre-existing CRLF lint failures on Windows — `prettier/prettier` Delete errors are baseline, not regressions
+- Server-native adapter uses `currentReq` shared reference pattern for pre-built middleware wrapper closures that need per-request data
+
+## 2026-03-11T05:46 - US-001
+- **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
+- **Files changed**:
+  - `packages/core/src/middleware.ts` — Added `sortMiddlewareEntries()`, removed sort from `executeMiddlewareChain()`
+  - `packages/core/src/middleware.test.ts` — Updated priority tests to pre-sort, added `sortMiddlewareEntries` test suite
+  - `packages/core/src/index.ts` — Exported `sortMiddlewareEntries`
+  - `packages/server-native/src/index.ts` — Pre-build/sort middleware in `registerRoutes()`, use pre-sorted array in request handler
+- **Learnings for future iterations:**
+  - `MiddlewareChain` entries from `@typokit/types` have no `priority` field — only `MiddlewareEntry` from core does. The sort was always a no-op in server adapters.
+  - Server-native wraps `MiddlewareFn` (takes full request) into `Middleware` handler (takes `MiddlewareInput` subset). Method/path aren't in `MiddlewareInput`, so pre-built wrappers need a shared `currentReq` reference set per-request.
+  - Other server adapters (hono, fastify, express) have the same middleware wrapping pattern and would benefit from the same optimization.
+  - Lint (`eslint .`) fails on baseline due to CRLF line endings on Windows — not a regression.
+---
