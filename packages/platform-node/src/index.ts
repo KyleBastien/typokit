@@ -27,28 +27,68 @@ export function getPlatformInfo(): PlatformInfo {
 
 // ─── Request / Response Helpers ──────────────────────────────
 
-/** Collect the body of an IncomingMessage into a buffer, then parse as JSON or return raw string */
-function collectBody(req: IncomingMessage): Promise<unknown> {
+const SMALL_BODY_THRESHOLD = 16 * 1024; // 16 KB
+
+/**
+ * Collect the raw body of an IncomingMessage into a UTF-8 string.
+ * - When content-length is known and ≤ 16 KB, uses a single pre-allocated buffer (no chunk array).
+ * - When content-length is known and > 16 KB, passes size hint to Buffer.concat.
+ * - Falls back to standard chunk array when content-length is absent.
+ * JSON parsing is NOT done here — it is deferred lazily in normalizeRequest().
+ */
+function collectRawBody(req: IncomingMessage): Promise<string | undefined> {
   return new Promise((resolve, reject) => {
+    const contentLength = req.headers["content-length"];
+
+    if (contentLength !== undefined) {
+      const size = parseInt(contentLength, 10);
+
+      if (size === 0 || Number.isNaN(size)) {
+        // Drain stream so Node.js fires "end" properly, but resolve immediately
+        req.resume();
+        resolve(undefined);
+        return;
+      }
+
+      if (size <= SMALL_BODY_THRESHOLD) {
+        // Small body: single pre-allocated buffer, copy in place
+        const buf = Buffer.allocUnsafe(size);
+        let offset = 0;
+        req.on("data", (chunk: Buffer) => {
+          chunk.copy(buf, offset);
+          offset += chunk.length;
+        });
+        req.on("error", reject);
+        req.on("end", () => {
+          resolve(offset > 0 ? buf.toString("utf-8", 0, offset) : undefined);
+        });
+        return;
+      }
+
+      // Larger body with known size: chunk array + size-hinted concat
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("error", reject);
+      req.on("end", () => {
+        if (chunks.length === 0) {
+          resolve(undefined);
+          return;
+        }
+        resolve(Buffer.concat(chunks, size).toString("utf-8"));
+      });
+      return;
+    }
+
+    // No content-length (chunked transfer): standard collection
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("error", reject);
     req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf-8");
-      if (!raw) {
+      if (chunks.length === 0) {
         resolve(undefined);
         return;
       }
-      const contentType = req.headers["content-type"] ?? "";
-      if (contentType.includes("application/json")) {
-        try {
-          resolve(JSON.parse(raw));
-        } catch {
-          resolve(raw);
-        }
-      } else {
-        resolve(raw);
-      }
+      resolve(Buffer.concat(chunks).toString("utf-8"));
     });
   });
 }
@@ -88,6 +128,7 @@ function normalizeHeaders(
 /**
  * Normalize a Node.js IncomingMessage into a TypoKitRequest.
  * Body is collected asynchronously from the stream.
+ * JSON parsing is deferred lazily — only runs when .body is first accessed.
  * Uses indexOf/substring for path extraction instead of expensive new URL().
  */
 export async function normalizeRequest(
@@ -97,16 +138,44 @@ export async function normalizeRequest(
   const qIdx = rawUrl.indexOf("?");
   const path = qIdx === -1 ? rawUrl : rawUrl.substring(0, qIdx);
   const queryString = qIdx === -1 ? "" : rawUrl.substring(qIdx + 1);
-  const body = await collectBody(req);
+  const rawBody = await collectRawBody(req);
 
-  return {
+  const request: TypoKitRequest = {
     method: (req.method ?? "GET").toUpperCase() as HttpMethod,
     path,
     headers: normalizeHeaders(req.headers),
-    body,
+    body: undefined,
     query: parseQuery(queryString),
     params: {},
   };
+
+  if (rawBody !== undefined) {
+    const contentType = req.headers["content-type"] ?? "";
+    if (contentType.includes("application/json")) {
+      // Lazy JSON parsing: defer JSON.parse until .body is actually accessed
+      let parsed: unknown;
+      let isParsed = false;
+      Object.defineProperty(request, "body", {
+        get() {
+          if (!isParsed) {
+            isParsed = true;
+            try {
+              parsed = JSON.parse(rawBody);
+            } catch {
+              parsed = rawBody;
+            }
+          }
+          return parsed;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    } else {
+      request.body = rawBody;
+    }
+  }
+
+  return request;
 }
 
 /**
