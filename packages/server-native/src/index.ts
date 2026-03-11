@@ -263,6 +263,11 @@ function serializeResponse(
   };
 }
 
+// ─── Runtime Detection ───────────────────────────────────────
+
+/** True when running inside a Bun process */
+const isBun = "Bun" in globalThis;
+
 // ─── Native Server Adapter ───────────────────────────────────
 
 interface NativeServerState {
@@ -276,6 +281,10 @@ interface NativeServerState {
 
 /**
  * Create the native server adapter — TypoKit's built-in HTTP server.
+ *
+ * Automatically detects the Bun runtime and delegates to the Bun-native
+ * server path (`@typokit/platform-bun`) for near-native Bun performance.
+ * On Node.js, uses `@typokit/platform-node` as before.
  *
  * ```ts
  * import { nativeServer } from "@typokit/server-native";
@@ -298,6 +307,9 @@ export function nativeServer(): ServerAdapter {
   let currentReq: TypoKitRequest | null = null;
 
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
+
+  // Generic reference to the underlying server (http.Server on Node, BunServer on Bun)
+  let nativeServerRef: unknown = null;
 
   /** Handle a single incoming request */
   async function handleRequest(req: TypoKitRequest): Promise<TypoKitResponse> {
@@ -453,8 +465,20 @@ export function nativeServer(): ServerAdapter {
     },
 
     async listen(port: number): Promise<ServerHandle> {
+      if (isBun) {
+        // Bun runtime: use Bun.serve() via platform-bun for near-native performance
+        const { createBunServer } = await import("@typokit/platform-bun");
+        const bunInstance = createBunServer(handleRequest);
+        const handle = await bunInstance.listen(port);
+        nativeServerRef = bunInstance.server;
+        return handle;
+      }
+
+      // Node.js runtime: use node:http via platform-node
       nativeServerInstance = createServer(handleRequest);
-      return nativeServerInstance.listen(port);
+      const handle = await nativeServerInstance.listen(port);
+      nativeServerRef = nativeServerInstance.server;
+      return handle;
     },
 
     normalizeRequest(raw: unknown): TypoKitRequest {
@@ -477,7 +501,7 @@ export function nativeServer(): ServerAdapter {
     },
 
     getNativeServer(): unknown {
-      return nativeServerInstance?.server ?? null;
+      return nativeServerRef;
     },
   };
 

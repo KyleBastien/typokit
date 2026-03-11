@@ -22,6 +22,14 @@
     "@typokit/core": "workspace:*",
     "@typokit/platform-node": "workspace:*"
   },
+  "peerDependencies": {
+    "@typokit/platform-bun": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@typokit/platform-bun": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.0.0"
   },
