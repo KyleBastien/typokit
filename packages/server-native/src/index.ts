@@ -18,11 +18,11 @@ import type {
   ValidatorMap,
   ValidationFieldError,
 } from "@typokit/types";
-import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
+import type { ServerAdapter, MiddlewareEntry, CompiledMiddlewareFn } from "@typokit/core";
 import {
   createRequestContext,
-  executeMiddlewareChain,
   sortMiddlewareEntries,
+  compileMiddlewareChain,
   JSON_HEADERS,
 } from "@typokit/core";
 import {
@@ -280,7 +280,7 @@ interface NativeServerState {
   routeTable: CompiledRouteTable | null;
   handlerMap: HandlerMap | null;
   middlewareChain: MiddlewareChain | null;
-  sortedMiddlewareEntries: MiddlewareEntry[] | null;
+  compiledMiddleware: CompiledMiddlewareFn | null;
   validatorMap: ValidatorMap | null;
   serializerMap: SerializerMap | null;
 }
@@ -300,7 +300,7 @@ export function nativeServer(): ServerAdapter {
     routeTable: null,
     handlerMap: null,
     middlewareChain: null,
-    sortedMiddlewareEntries: null,
+    compiledMiddleware: null,
     validatorMap: null,
     serializerMap: null,
   };
@@ -402,10 +402,10 @@ export function nativeServer(): ServerAdapter {
     // Create request context
     let ctx = createRequestContext();
 
-    // Execute pre-sorted middleware chain if present
-    if (state.sortedMiddlewareEntries && state.sortedMiddlewareEntries.length > 0) {
+    // Execute compiled middleware chain if present
+    if (state.compiledMiddleware) {
       currentReq = enrichedReq;
-      ctx = await executeMiddlewareChain(enrichedReq, ctx, state.sortedMiddlewareEntries);
+      ctx = await state.compiledMiddleware(enrichedReq, ctx);
     }
 
     // Call the handler
@@ -435,7 +435,7 @@ export function nativeServer(): ServerAdapter {
       state.validatorMap = validatorMap ?? null;
       state.serializerMap = serializerMap ?? null;
 
-      // Pre-build and sort middleware entries once at registration time
+      // Compile middleware chain once at registration time
       if (middlewareChain && middlewareChain.entries.length > 0) {
         const entries: MiddlewareEntry[] = middlewareChain.entries.map((e) => ({
           name: e.name,
@@ -456,9 +456,11 @@ export function nativeServer(): ServerAdapter {
             },
           },
         }));
-        state.sortedMiddlewareEntries = sortMiddlewareEntries(entries);
+        state.compiledMiddleware = compileMiddlewareChain(
+          sortMiddlewareEntries(entries),
+        );
       } else {
-        state.sortedMiddlewareEntries = null;
+        state.compiledMiddleware = null;
       }
     },
 

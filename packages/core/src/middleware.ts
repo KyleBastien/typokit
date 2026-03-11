@@ -128,3 +128,67 @@ export async function executeMiddlewareChain(
 
   return ctx;
 }
+
+/**
+ * A pre-compiled middleware chain function.
+ * Call once per request — returns the enriched context.
+ */
+export type CompiledMiddlewareFn = (
+  req: TypoKitRequest,
+  ctx: RequestContext,
+) => Promise<RequestContext>;
+
+/**
+ * Compile a pre-sorted middleware chain into a single callable function.
+ * Call at registration time; the returned function is invoked per-request
+ * with zero loop/dispatch overhead for 0–1 middleware entries.
+ *
+ * - 0 entries → identity (pass-through, no async overhead)
+ * - 1 entry  → direct handler call (no loop)
+ * - N entries → flat indexed loop over pre-extracted handler references
+ */
+export function compileMiddlewareChain(
+  entries: MiddlewareEntry[],
+): CompiledMiddlewareFn {
+  if (entries.length === 0) {
+    // No middleware — synchronous identity wrapped in a resolved promise
+    return (_req, ctx) => Promise.resolve(ctx);
+  }
+
+  if (entries.length === 1) {
+    // Single middleware — direct call, no loop
+    const handler = entries[0].middleware.handler;
+    return async (req, ctx) => {
+      const added = await handler({
+        headers: req.headers,
+        body: req.body,
+        query: req.query,
+        params: req.params,
+        ctx,
+      });
+      Object.assign(ctx, added);
+      return ctx;
+    };
+  }
+
+  // N middleware — flat loop over pre-extracted handler functions.
+  // Avoids per-iteration property chain (.middleware.handler) and
+  // for...of iterator protocol overhead.
+  const handlers = entries.map((e) => e.middleware.handler);
+  const len = handlers.length;
+
+  return async (req, ctx) => {
+    const input: MiddlewareInput = {
+      headers: req.headers,
+      body: req.body,
+      query: req.query,
+      params: req.params,
+      ctx,
+    };
+    for (let i = 0; i < len; i++) {
+      const added = await handlers[i](input);
+      Object.assign(ctx, added);
+    }
+    return ctx;
+  };
+}

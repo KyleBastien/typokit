@@ -28,11 +28,13 @@ export {
   type MiddlewareInput,
   type Middleware,
   type MiddlewareEntry,
+  type CompiledMiddlewareFn,
   defineMiddleware,
   createPlaceholderLogger,
   createRequestContext,
   executeMiddlewareChain,
   sortMiddlewareEntries,
+  compileMiddlewareChain,
 } from "./middleware.js";
 export {
   type HandlerInput,

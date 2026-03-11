@@ -3,6 +3,7 @@ import {
   defineMiddleware,
   executeMiddlewareChain,
   sortMiddlewareEntries,
+  compileMiddlewareChain,
   createRequestContext,
 } from "./middleware.js";
 import type { TypoKitRequest } from "@typokit/types";
@@ -305,5 +306,131 @@ describe("createRequestContext", () => {
   it("accepts overrides", () => {
     const ctx = createRequestContext({ requestId: "test-123" });
     expect(ctx.requestId).toBe("test-123");
+  });
+});
+
+describe("compileMiddlewareChain", () => {
+  it("returns identity for empty entries (no-op pass-through)", async () => {
+    const compiled = compileMiddlewareChain([]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect(result).toBe(ctx);
+    expect(result.requestId).toBe(ctx.requestId);
+  });
+
+  it("handles single middleware without loop", async () => {
+    const mw = defineMiddleware(async () => ({ user: "alice" }));
+    const compiled = compileMiddlewareChain([{ name: "auth", middleware: mw }]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect((result as unknown as Record<string, unknown>)["user"]).toBe(
+      "alice",
+    );
+  });
+
+  it("chains multiple middleware in order and accumulates context", async () => {
+    const order: number[] = [];
+
+    const mw1 = defineMiddleware(async () => {
+      order.push(1);
+      return { step1: true };
+    });
+    const mw2 = defineMiddleware(async ({ ctx }) => {
+      order.push(2);
+      expect((ctx as unknown as Record<string, unknown>)["step1"]).toBe(true);
+      return { step2: true };
+    });
+    const mw3 = defineMiddleware(async ({ ctx }) => {
+      order.push(3);
+      expect((ctx as unknown as Record<string, unknown>)["step2"]).toBe(true);
+      return { step3: true };
+    });
+
+    const compiled = compileMiddlewareChain([
+      { name: "mw1", middleware: mw1 },
+      { name: "mw2", middleware: mw2 },
+      { name: "mw3", middleware: mw3 },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    expect(order).toEqual([1, 2, 3]);
+    expect((result as unknown as Record<string, unknown>)["step1"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step2"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step3"]).toBe(true);
+  });
+
+  it("short-circuits when middleware throws", async () => {
+    const order: number[] = [];
+
+    const mw1 = defineMiddleware(async () => {
+      order.push(1);
+      return {};
+    });
+    const mw2 = defineMiddleware(
+      async ({ ctx }): Promise<Record<string, unknown>> => {
+        order.push(2);
+        ctx.fail(403, "FORBIDDEN", "Not allowed");
+        return {};
+      },
+    );
+    const mw3 = defineMiddleware(async () => {
+      order.push(3);
+      return {};
+    });
+
+    const compiled = compileMiddlewareChain([
+      { name: "mw1", middleware: mw1 },
+      { name: "mw2", middleware: mw2 },
+      { name: "mw3", middleware: mw3 },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+
+    let caught: unknown;
+    try {
+      await compiled(req, ctx);
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(ForbiddenError);
+    expect((caught as AppError).status).toBe(403);
+    expect(order).toEqual([1, 2]);
+  });
+
+  it("receives request properties in the input", async () => {
+    const mw = defineMiddleware(async ({ headers, params }) => ({
+      token: headers["authorization"] as string,
+      userId: params["id"],
+    }));
+
+    const compiled = compileMiddlewareChain([{ name: "auth", middleware: mw }]);
+
+    const req = createTestRequest({
+      headers: { authorization: "Bearer xyz" },
+      params: { id: "99" },
+    });
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    expect((result as unknown as Record<string, unknown>)["token"]).toBe(
+      "Bearer xyz",
+    );
+    expect((result as unknown as Record<string, unknown>)["userId"]).toBe("99");
+  });
+
+  it("mutates context in-place (same reference returned)", async () => {
+    const mw = defineMiddleware(async () => ({ added: true }));
+    const compiled = compileMiddlewareChain([{ name: "mw", middleware: mw }]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect(result).toBe(ctx);
   });
 });
