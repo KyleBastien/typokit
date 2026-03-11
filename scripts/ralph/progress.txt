@@ -89,3 +89,13 @@ Started: 03/10/2026 22:46:37
   - AppError toJSON() never includes stack; error middleware only accesses .stack on unknown Error instances — skipping stack capture is safe
   - All 21 errors + 82 core + 48 server-native tests pass
 ---
+
+## 2026-03-11T06:28 - US-006
+- **What was implemented**: Replaced per-middleware object spread `{ ...currentCtx, ...added }` with `Object.assign(ctx, added)` in `executeMiddlewareChain()`. Context is now mutated in-place on a single object instead of creating N new objects per request (where N = middleware count). Removed the `currentCtx` intermediate variable entirely.
+- **Files changed**:
+  - `packages/core/src/middleware.ts` — `executeMiddlewareChain()` now uses Object.assign for in-place mutation
+- **Learnings for future iterations:**
+  - No callers depend on `executeMiddlewareChain` returning a different object than the input `ctx` — all server adapters use `ctx = await executeMiddlewareChain(...)` reassignment pattern
+  - No tests check that the original ctx is NOT mutated, so in-place mutation is a safe behavioral change
+  - All 82 core tests pass without modification — the test on line 73 that checks `ctx.step1` during mw2 already works because in-place mutation adds step1 before mw2 runs
+---
