@@ -425,6 +425,25 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.13
+    optionalDependencies:
+      '@typokit/plugin-axum-darwin-arm64':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/plugin-axum-darwin-x64':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/plugin-axum-linux-arm64-gnu':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/plugin-axum-linux-x64-gnu':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/plugin-axum-linux-x64-musl':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/plugin-axum-win32-x64-msvc':
+        specifier: 0.3.4
+        version: 0.3.4
 
   packages/plugin-debug:
     dependencies:
@@ -557,6 +576,25 @@ importers:
       '@typokit/types':
         specifier: workspace:*
         version: link:../types
+    optionalDependencies:
+      '@typokit/transform-native-darwin-arm64':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/transform-native-darwin-x64':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/transform-native-linux-arm64-gnu':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/transform-native-linux-x64-gnu':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/transform-native-linux-x64-musl':
+        specifier: 0.3.4
+        version: 0.3.4
+      '@typokit/transform-native-win32-x64-msvc':
+        specifier: 0.3.4
+        version: 0.3.4
 
   packages/transform-typia:
     dependencies:
@@ -3170,6 +3208,72 @@ packages:
   '@typescript-eslint/visitor-keys@8.56.1':
     resolution: {integrity: sha512-KiROIzYdEV85YygXw6BI/Dx4fnBlFQu6Mq4QE4MOH9fFnhohw6wX/OAvDY2/C+ut0I3RSPKenvZJIVYqJNkhEw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typokit/plugin-axum-darwin-arm64@0.3.4':
+    resolution: {integrity: sha512-XfRYMCwGHBaizdgDudznZyE7PlA9yXuZEGpL+XX8E+npyE7PB7oT93O4oj7XE6Djcd0/GddRxT1N2pHxNReGfQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typokit/plugin-axum-darwin-x64@0.3.4':
+    resolution: {integrity: sha512-hbe5x3KaHzIDQv4kTLzqzxB58GRFm+H3ysMOcom0LkjlQ6HQJ+VDZJ8QDjXit8Fh6Eestv+7ZMR6qaGCv3ViPA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typokit/plugin-axum-linux-arm64-gnu@0.3.4':
+    resolution: {integrity: sha512-ehQfH9z+/2LCr5xLkLBqXSx4HUxFcNKNL/bkbKpyOtjdroq1bXu1zWLSMHmubPv4uueoLncqU9HypG+FK/iueg==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@typokit/plugin-axum-linux-x64-gnu@0.3.4':
+    resolution: {integrity: sha512-f4Hel7+TOrBRZHjlZ5dvDgl5/Pq2UQjy0LXbhmEekLT4veXsmJsTkcXledapPRGX8No0LK8yxCMyyarhJarphw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@typokit/plugin-axum-linux-x64-musl@0.3.4':
+    resolution: {integrity: sha512-VCafn+yTzSq5jSI8i1ugncj0FSQcrjXBv2Twj+tr80F05FVXiOjmkijTYZd1hgwUbdTaLRYdwaP3Hf070Hh/sQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@typokit/plugin-axum-win32-x64-msvc@0.3.4':
+    resolution: {integrity: sha512-ym/wRvGfBES0RvyepoKhorng11+XO01IvsYD/cPOaxot8sa8olCrFK8jGt87DF7MsVsNdntzLDqMsJpb354bzA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@typokit/transform-native-darwin-arm64@0.3.4':
+    resolution: {integrity: sha512-uqT+Mb2OoGESHeF6GyGp+VoDVRrAnGtkVFLCsIlbXlhhOu089QOBcopLau+fU1ThZ9LXEOE/lLmOOnlwBq0ocA==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typokit/transform-native-darwin-x64@0.3.4':
+    resolution: {integrity: sha512-BFE34OsLv4zmRi9Hcx4Ks5OTxPMXMDYIY+LQucvAF11ql9HxbQmMk9wqEB4eM6QS9eM4KrSnQpehl/HV85wrfA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typokit/transform-native-linux-arm64-gnu@0.3.4':
+    resolution: {integrity: sha512-urRv56mxL5Eus+pa5o1VLIDi+bj5AisMryfB7rJrb9fd0QOnrpWcpVVwLKEpXSl5AwLEOOzn9Z+FzQLzLCaWyw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@typokit/transform-native-linux-x64-gnu@0.3.4':
+    resolution: {integrity: sha512-GWYBNDgpCX9Wf0SmEzoiSmJN4zVVXupzk6/P3Wesx+QbjI+1BWieljfMe4Axg5Q+wqBtMEcu09WYXxnP+l3MPg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@typokit/transform-native-linux-x64-musl@0.3.4':
+    resolution: {integrity: sha512-ObPQL0ui2UHTyZ04VS5IMPtQrWbs6MKlezDhP70xkPuGEx1whGtlxh0YFnV61BmefSmHpn/X79FGUXj9vByJVw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@typokit/transform-native-win32-x64-msvc@0.3.4':
+    resolution: {integrity: sha512-KNzA7mJuHqH0GH4XfyDN7Ay2mOKeIv3tSXKapXY4XyjbMlxpEMuaCZpauHZx8BTUXR43UEmu2w6wbSnFkcSFQg==}
+    cpu: [x64]
+    os: [win32]
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
@@ -9216,6 +9320,42 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.56.1
       eslint-visitor-keys: 5.0.1
+
+  '@typokit/plugin-axum-darwin-arm64@0.3.4':
+    optional: true
+
+  '@typokit/plugin-axum-darwin-x64@0.3.4':
+    optional: true
+
+  '@typokit/plugin-axum-linux-arm64-gnu@0.3.4':
+    optional: true
+
+  '@typokit/plugin-axum-linux-x64-gnu@0.3.4':
+    optional: true
+
+  '@typokit/plugin-axum-linux-x64-musl@0.3.4':
+    optional: true
+
+  '@typokit/plugin-axum-win32-x64-msvc@0.3.4':
+    optional: true
+
+  '@typokit/transform-native-darwin-arm64@0.3.4':
+    optional: true
+
+  '@typokit/transform-native-darwin-x64@0.3.4':
+    optional: true
+
+  '@typokit/transform-native-linux-arm64-gnu@0.3.4':
+    optional: true
+
+  '@typokit/transform-native-linux-x64-gnu@0.3.4':
+    optional: true
+
+  '@typokit/transform-native-linux-x64-musl@0.3.4':
+    optional: true
+
+  '@typokit/transform-native-win32-x64-msvc@0.3.4':
+    optional: true
 
   '@ungap/structured-clone@1.3.0': {}
 
