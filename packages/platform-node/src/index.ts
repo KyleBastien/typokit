@@ -1,5 +1,11 @@
 // @typokit/platform-node — Node.js Platform Adapter
 
+export {
+  createClusterServer,
+  getDefaultWorkerCount,
+} from "./cluster.js";
+export type { ClusterServerOptions, ClusterServer } from "./cluster.js";
+
 import { createServer as nodeCreateServer } from "node:http";
 import type { IncomingMessage, ServerResponse, Server } from "node:http";
 import type {
