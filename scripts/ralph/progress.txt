@@ -14,6 +14,9 @@ Started: 03/10/2026 22:46:37
 - Use `for...in` instead of `Object.entries()` for iterating plain `Record` objects in hot paths (avoids array allocation)
 - V8-specific APIs (`Error.stackTraceLimit`, `Error.captureStackTrace`) need typed alias: `Error as unknown as { stackTraceLimit: number; captureStackTrace(...): void }`
 - AppError skips stack trace at construction; use `captureStack()` if trace is needed for debugging
+- Avoid `new URL()` for request path extraction — use `indexOf('?')` + `substring()` instead; use `new URLSearchParams(qs)` only on the query portion
+- `collectRawBody()` returns raw UTF-8 string; JSON parsing is lazy via `Object.defineProperty` getter on `request.body`
+- Use `Buffer.allocUnsafe(size)` for small pre-allocated buffers when data will be immediately copied; use `Buffer.concat(chunks, totalLength)` with size hint for larger known-size bodies
 
 ## 2026-03-11T05:46 - US-001
 - **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
@@ -98,4 +101,39 @@ Started: 03/10/2026 22:46:37
   - No callers depend on `executeMiddlewareChain` returning a different object than the input `ctx` — all server adapters use `ctx = await executeMiddlewareChain(...)` reassignment pattern
   - No tests check that the original ctx is NOT mutated, so in-place mutation is a safe behavioral change
   - All 82 core tests pass without modification — the test on line 73 that checks `ctx.step1` during mw2 already works because in-place mutation adds step1 before mw2 runs
+---
+
+## 2026-03-11T06:30 - US-007
+- **What was implemented**: Replaced `new URL(req.url, base)` in `normalizeRequest()` with `indexOf('?')` + `substring()` for path extraction, and `new URLSearchParams(queryString)` only on the query portion. Removed `import { URL } from "node:url"`. Used `for...in` instead of `Object.entries()` in `normalizeHeaders()`. Added early return in `parseQuery()` for empty query strings.
+- **Files changed**:
+  - `packages/platform-node/src/index.ts` — Rewrote `normalizeRequest()`, `parseQuery()`, `normalizeHeaders()`
+- **Learnings for future iterations:**
+  - `new URL()` is one of the most expensive operations in Node.js request handling — it parses protocol, host, port, pathname, search, hash, origin. For server-side use where we only need path and query, `indexOf`+`substring` is dramatically cheaper.
+  - `new URLSearchParams(string)` is much cheaper than `new URL()` — it only parses key=value pairs without full URL normalization.
+  - Node.js `IncomingMessage.headers` is already `Record<string, string | string[] | undefined>` compatible — `normalizeHeaders()` could potentially be eliminated entirely by casting `req.headers` directly, but the copy provides mutation safety.
+  - All 7 platform-node tests + 48 server-native tests pass.
+---
+
+## 2026-03-11T06:34 - US-008
+- **What was implemented**: Optimized body collection in platform-node with three improvements: (1) Pre-allocated single buffer for small bodies (<16KB) with known content-length using `Buffer.allocUnsafe(size)` + direct chunk copy — eliminates array allocation and `Buffer.concat`. (2) Size-hinted `Buffer.concat(chunks, totalLength)` for larger bodies with known content-length. (3) Lazy JSON parsing via `Object.defineProperty` getter on `request.body` — `JSON.parse()` is deferred until `.body` is first accessed.
+- **Files changed**:
+  - `packages/platform-node/src/index.ts` — Rewrote `collectBody()` → `collectRawBody()` (returns raw string, no JSON parsing). Updated `normalizeRequest()` to use lazy getter for JSON body. Added `SMALL_BODY_THRESHOLD` constant.
+  - `packages/platform-node/src/index.test.ts` — Added 5 new tests: small JSON body, empty body, lazy parsing verification, non-JSON body, invalid JSON fallback.
+- **Learnings for future iterations:**
+  - `Buffer.allocUnsafe(size)` is faster than `Buffer.alloc(size)` because it skips zero-fill. Safe when data is immediately copied via `chunk.copy()`.
+  - `Object.defineProperty` with a getter on a plain object is well-optimized in V8. The getter fires on spread (`{ ...req }`) too, which transparently resolves the lazy value.
+  - `configurable: true` on the lazy getter allows downstream code (e.g., `Object.assign(ctx, added)`) to overwrite it with a plain value without errors.
+  - For content-length: 0, must call `req.resume()` to drain the stream properly in Node.js (otherwise the "end" event may not fire for keep-alive connections).
+  - All 12 platform-node tests + 48 server-native tests pass.
+---
+
+## 2026-03-11T06:42 - US-009
+- **What was implemented**: Replaced `path.split('/')` segments array with index-based string traversal in `lookupRoute()`. The function now accepts a raw path string and scans character-by-character using `charCodeAt()` to find '/' boundaries, extracting segments via `substring()`. `decodeURIComponent()` is only called on parameter captures (`:id` params and `*wildcard` captures), never on static segments. Wildcard capture builds result string inline without array allocation.
+- **Files changed**:
+  - `packages/server-native/src/index.ts` — Rewrote `lookupRoute(root, segments[])` → `lookupRoute(root, path)` with index-based traversal. Removed `segments` array creation from `handleRequest()`.
+- **Learnings for future iterations:**
+  - `charCodeAt()` returns numeric code (47 for '/'), faster than string comparison for single characters in tight loops
+  - `substring(start, end)` does not allocate when V8 can use a "sliced string" representation — cheaper than split() which allocates an array + N strings
+  - The root path "/" is a special case — early return avoids entering the traversal loop entirely
+  - All 48 server-native tests pass without modification, confirming behavioral equivalence
 ---

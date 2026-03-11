@@ -121,7 +121,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -138,7 +138,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -154,7 +154,7 @@
         "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
