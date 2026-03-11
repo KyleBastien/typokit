@@ -23,7 +23,11 @@ import type {
   ValidationFieldError,
 } from "@typokit/types";
 import type { ServerAdapter, MiddlewareEntry } from "@typokit/core";
-import { createRequestContext, executeMiddlewareChain } from "@typokit/core";
+import {
+  createRequestContext,
+  executeMiddlewareChain,
+  JSON_HEADERS,
+} from "@typokit/core";
 
 // ─── Route Traversal ─────────────────────────────────────────
 
@@ -95,7 +99,7 @@ function validationErrorResponse(
   };
   return {
     status: 400,
-    headers: { "content-type": "application/json" },
+    headers: JSON_HEADERS,
     body,
   };
 }
@@ -172,6 +176,12 @@ function runValidators(
 
 // ─── Response Serialization Pipeline ──────────────────────────
 
+/** Fast check whether an object has any own enumerable keys (no array allocation). */
+function hasOwnKeys(obj: Record<string, unknown>): boolean {
+  for (const _k in obj) return true;
+  return false;
+}
+
 function serializeResponse(
   response: TypoKitResponse,
   serializerRef: string | undefined,
@@ -185,16 +195,18 @@ function serializeResponse(
     return response;
   }
 
-  const headers = { ...response.headers };
-  if (!headers["content-type"]) {
-    headers["content-type"] = "application/json";
-  }
+  // Reuse pre-computed headers when possible to avoid per-request allocation
+  const headers = response.headers["content-type"]
+    ? response.headers
+    : hasOwnKeys(response.headers)
+      ? { ...response.headers, "content-type": "application/json" as const }
+      : JSON_HEADERS;
 
   if (serializerRef && serializerMap) {
     const serializer = serializerMap[serializerRef];
     if (serializer) {
       return {
-        ...response,
+        status: response.status,
         headers,
         body: serializer(response.body),
       };
@@ -202,7 +214,7 @@ function serializeResponse(
   }
 
   return {
-    ...response,
+    status: response.status,
     headers,
     body: JSON.stringify(response.body),
   };
@@ -280,8 +292,10 @@ export function expressServer(options?: ExpressServerOptions): ServerAdapter {
   function writeResponse(raw: unknown, response: TypoKitResponse): void {
     const res = raw as Response;
 
-    // Set headers
-    for (const [key, value] of Object.entries(response.headers)) {
+    // Set headers — for...in avoids Object.entries() array allocation
+    const headers = response.headers;
+    for (const key in headers) {
+      const value = headers[key];
       if (value !== undefined) {
         res.set(key, value);
       }
@@ -346,7 +360,7 @@ export function expressServer(options?: ExpressServerOptions): ServerAdapter {
           if (!handlerFn) {
             const errorResp: TypoKitResponse = {
               status: 500,
-              headers: { "content-type": "application/json" },
+              headers: JSON_HEADERS,
               body: JSON.stringify({
                 error: "Internal Server Error",
                 message: `Handler not found: ${route.handlerRef}`,

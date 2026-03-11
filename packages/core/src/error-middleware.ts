@@ -8,6 +8,7 @@ import type {
   Logger,
 } from "@typokit/types";
 import { AppError } from "@typokit/errors";
+import { JSON_HEADERS } from "./headers.js";
 
 // ─── Options ─────────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ export function createErrorMiddleware(
         json.error.traceId = traceId;
         return {
           status: error.status,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body: json,
         };
       }
@@ -129,7 +130,7 @@ export function createErrorMiddleware(
         };
         return {
           status: 400,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body,
         };
       }
@@ -152,7 +153,7 @@ export function createErrorMiddleware(
         };
         return {
           status: 500,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body,
         };
       }
@@ -168,7 +169,7 @@ export function createErrorMiddleware(
       };
       return {
         status: 500,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body,
       };
     }

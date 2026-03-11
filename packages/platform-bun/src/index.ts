@@ -117,7 +117,9 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
  */
 export function buildResponse(response: TypoKitResponse): Response {
   const headers = new Headers();
-  for (const [key, value] of Object.entries(response.headers)) {
+  const responseHeaders = response.headers;
+  for (const key in responseHeaders) {
+    const value = responseHeaders[key];
     if (value !== undefined) {
       if (Array.isArray(value)) {
         for (const v of value) {

@@ -113,8 +113,10 @@ export function writeResponse(
   res: ServerResponse,
   response: TypoKitResponse,
 ): void {
-  // Set headers
-  for (const [key, value] of Object.entries(response.headers)) {
+  // Set headers — for...in avoids Object.entries() array allocation
+  const headers = response.headers;
+  for (const key in headers) {
+    const value = headers[key];
     if (value !== undefined) {
       res.setHeader(key, value);
     }

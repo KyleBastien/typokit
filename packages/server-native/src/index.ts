@@ -23,6 +23,7 @@ import {
   createRequestContext,
   executeMiddlewareChain,
   sortMiddlewareEntries,
+  JSON_HEADERS,
 } from "@typokit/core";
 import {
   writeResponse as nodeWriteResponse,
@@ -112,7 +113,7 @@ function validationErrorResponse(
   };
   return {
     status: 400,
-    headers: { "content-type": "application/json" },
+    headers: JSON_HEADERS,
     body,
   };
 }
@@ -196,10 +197,19 @@ function runValidators(
 
 // ─── Response Serialization Pipeline ──────────────────────────
 
+/** Fast check whether an object has any own enumerable keys (no array allocation). */
+function hasOwnKeys(obj: Record<string, unknown>): boolean {
+  for (const _k in obj) return true;
+  return false;
+}
+
 /**
  * Serialize the response body using a compiled fast-json-stringify schema
  * if available, otherwise fall back to the default (JSON.stringify via writeResponse).
  * Automatically sets Content-Type to application/json for JSON bodies.
+ *
+ * Optimized to reuse pre-computed JSON_HEADERS when the response has no
+ * custom headers, avoiding per-request object allocation.
  */
 function serializeResponse(
   response: TypoKitResponse,
@@ -215,18 +225,19 @@ function serializeResponse(
     return response;
   }
 
-  // Ensure content-type is set for JSON bodies
-  const headers = { ...response.headers };
-  if (!headers["content-type"]) {
-    headers["content-type"] = "application/json";
-  }
+  // Reuse pre-computed headers when possible to avoid per-request allocation
+  const headers = response.headers["content-type"]
+    ? response.headers
+    : hasOwnKeys(response.headers)
+      ? { ...response.headers, "content-type": "application/json" as const }
+      : JSON_HEADERS;
 
   // Try compiled serializer first
   if (serializerRef && serializerMap) {
     const serializer = serializerMap[serializerRef];
     if (serializer) {
       return {
-        ...response,
+        status: response.status,
         headers,
         body: serializer(response.body),
       };
@@ -235,7 +246,7 @@ function serializeResponse(
 
   // Fall back to JSON.stringify
   return {
-    ...response,
+    status: response.status,
     headers,
     body: JSON.stringify(response.body),
   };
@@ -282,7 +293,7 @@ export function nativeServer(): ServerAdapter {
     if (!state.routeTable || !state.handlerMap) {
       return {
         status: 500,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: { error: "Server not configured" },
       };
     }
@@ -297,7 +308,7 @@ export function nativeServer(): ServerAdapter {
     if (!result) {
       return {
         status: 404,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: {
           error: "Not Found",
           message: `No route matches ${req.method} ${req.path}`,
@@ -314,7 +325,7 @@ export function nativeServer(): ServerAdapter {
       if (allowed.length === 0) {
         return {
           status: 404,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body: {
             error: "Not Found",
             message: `No route matches ${req.method} ${req.path}`,
@@ -356,7 +367,7 @@ export function nativeServer(): ServerAdapter {
     if (!handlerFn) {
       return {
         status: 500,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: {
           error: "Internal Server Error",
           message: `Handler not found: ${routeHandler.ref}`,

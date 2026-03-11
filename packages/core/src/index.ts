@@ -50,3 +50,4 @@ export {
   type ErrorMiddlewareOptions,
   createErrorMiddleware,
 } from "./error-middleware.js";
+export { JSON_HEADERS } from "./headers.js";
