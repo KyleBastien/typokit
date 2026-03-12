@@ -39,6 +39,8 @@ export interface MiddlewareEntry {
   name: string;
   middleware: Middleware;
   priority?: number;
+  /** Mark as no-op at registration time — skipped during compilation */
+  noOp?: boolean;
 }
 
 /**
@@ -152,11 +154,12 @@ export async function executeMiddlewareChain(
 /**
  * A pre-compiled middleware chain function.
  * Call once per request — returns the enriched context.
+ * Returns synchronously when all middleware are no-ops (no Promise overhead).
  */
 export type CompiledMiddlewareFn = (
   req: TypoKitRequest,
   ctx: RequestContext,
-) => Promise<RequestContext>;
+) => RequestContext | Promise<RequestContext>;
 
 /**
  * Compile a pre-sorted middleware chain into a single callable function.
@@ -170,14 +173,19 @@ export type CompiledMiddlewareFn = (
 export function compileMiddlewareChain(
   entries: MiddlewareEntry[],
 ): CompiledMiddlewareFn {
-  if (entries.length === 0) {
-    // No middleware — synchronous identity wrapped in a resolved promise
-    return (_req, ctx) => Promise.resolve(ctx);
+  // Filter out entries marked as no-op at registration time.
+  // When all entries are noOp, the chain is a synchronous identity.
+  // When a mix exist, only real middleware are compiled.
+  const activeEntries = entries.filter((e) => !e.noOp);
+
+  if (activeEntries.length === 0) {
+    // No active middleware — synchronous identity, no Promise, no async
+    return (_req, ctx) => ctx;
   }
 
-  if (entries.length === 1) {
+  if (activeEntries.length === 1) {
     // Single middleware — direct call, no loop
-    const handler = entries[0].middleware.handler;
+    const handler = activeEntries[0].middleware.handler;
     return async (req, ctx) => {
       const added = await handler({
         headers: req.headers,
@@ -201,7 +209,7 @@ export function compileMiddlewareChain(
   // pre-allocating a MiddlewareInput object. This enables V8 escape
   // analysis / allocation sinking and ensures each handler sees the
   // latest req properties (e.g., if a previous middleware mutated params).
-  const handlers = entries.map((e) => e.middleware.handler);
+  const handlers = activeEntries.map((e) => e.middleware.handler);
   const len = handlers.length;
 
   return async (req, ctx) => {

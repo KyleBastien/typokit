@@ -560,4 +560,79 @@ describe("compileMiddlewareChain", () => {
     expect(result.requestId).toBeDefined();
     expect(result.log).toBeDefined();
   });
+
+  it("returns synchronous identity when all entries are marked noOp", () => {
+    const mw = defineMiddleware(async () => ({}));
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: mw, noOp: true },
+      { name: "noop2", middleware: mw, noOp: true },
+      { name: "noop3", middleware: mw, noOp: true },
+    ]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = compiled(req, ctx);
+    // Synchronous — returns ctx directly, not a Promise
+    expect(result).toBe(ctx);
+    expect(result).not.toBeInstanceOf(Promise);
+  });
+
+  it("filters out noOp entries from mixed chain and runs real middleware", async () => {
+    const noopMw = defineMiddleware(async () => ({}));
+    const realMw = defineMiddleware(async () => ({ user: "alice" }));
+
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: noopMw, noOp: true },
+      { name: "auth", middleware: realMw },
+      { name: "noop2", middleware: noopMw, noOp: true },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect((result as unknown as Record<string, unknown>)["user"]).toBe(
+      "alice",
+    );
+    expect(result).toBe(ctx);
+  });
+
+  it("non-noOp middleware with side effects still runs correctly", async () => {
+    let sideEffectCalled = false;
+    const realMw = defineMiddleware(async () => {
+      sideEffectCalled = true;
+      return { logged: true };
+    });
+
+    const compiled = compileMiddlewareChain([
+      { name: "logger", middleware: realMw },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    await compiled(req, ctx);
+
+    expect(sideEffectCalled).toBe(true);
+    expect((ctx as unknown as Record<string, unknown>)["logged"]).toBe(true);
+  });
+
+  it("mixed noOp chain with multiple real middleware accumulates context", async () => {
+    const noopMw = defineMiddleware(async () => ({}));
+    const mw1 = defineMiddleware(async () => ({ role: "admin" }));
+    const mw2 = defineMiddleware(async () => ({ org: "acme" }));
+
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: noopMw, noOp: true },
+      { name: "role", middleware: mw1 },
+      { name: "noop2", middleware: noopMw, noOp: true },
+      { name: "org", middleware: mw2 },
+      { name: "noop3", middleware: noopMw, noOp: true },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    const extended = result as unknown as Record<string, unknown>;
+    expect(extended["role"]).toBe("admin");
+    expect(extended["org"]).toBe("acme");
+  });
 });

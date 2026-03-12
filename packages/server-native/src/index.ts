@@ -401,7 +401,8 @@ export function nativeServer(): ServerAdapter {
     // Detected at registration time by checking handler.length >= 2.
     if (state.compiledMiddleware) {
       let ctx = createRequestContext();
-      ctx = await state.compiledMiddleware(req, ctx);
+      const mwResult = state.compiledMiddleware(req, ctx);
+      ctx = mwResult instanceof Promise ? await mwResult : mwResult;
       const response = await handlerFn(req, ctx);
       return serializeResponse(
         response,
@@ -461,32 +462,23 @@ export function nativeServer(): ServerAdapter {
       // Compile middleware chain once at registration time.
       // Calls MiddlewareFn handlers directly with (req, ctx, next),
       // passing the request object by reference — zero per-request allocation.
+      // Entries marked as noOp are filtered out at compile time.
       if (middlewareChain && middlewareChain.entries.length > 0) {
-        const mwHandlers = middlewareChain.entries.map((e) => e.handler);
-        const mwLen = mwHandlers.length;
-        const noopNext = async (): Promise<TypoKitResponse> => ({
-          status: 200,
-          headers: {},
-          body: null,
-        });
+        const activeEntries = middlewareChain.entries.filter((e) => !e.noOp);
 
-        if (mwLen === 1) {
-          const handler = mwHandlers[0];
-          state.compiledMiddleware = async (req, ctx) => {
-            const added: unknown = await handler(req, ctx, noopNext);
-            if (
-              added != null &&
-              typeof added === "object" &&
-              hasOwnKeys(added as Record<string, unknown>)
-            ) {
-              Object.assign(ctx, added);
-            }
-            return ctx;
-          };
-        } else {
-          state.compiledMiddleware = async (req, ctx) => {
-            for (let i = 0; i < mwLen; i++) {
-              const added: unknown = await mwHandlers[i](req, ctx, noopNext);
+        if (activeEntries.length > 0) {
+          const mwHandlers = activeEntries.map((e) => e.handler);
+          const mwLen = mwHandlers.length;
+          const noopNext = async (): Promise<TypoKitResponse> => ({
+            status: 200,
+            headers: {},
+            body: null,
+          });
+
+          if (mwLen === 1) {
+            const handler = mwHandlers[0];
+            state.compiledMiddleware = async (req, ctx) => {
+              const added: unknown = await handler(req, ctx, noopNext);
               if (
                 added != null &&
                 typeof added === "object" &&
@@ -494,9 +486,26 @@ export function nativeServer(): ServerAdapter {
               ) {
                 Object.assign(ctx, added);
               }
-            }
-            return ctx;
-          };
+              return ctx;
+            };
+          } else {
+            state.compiledMiddleware = async (req, ctx) => {
+              for (let i = 0; i < mwLen; i++) {
+                const added: unknown = await mwHandlers[i](req, ctx, noopNext);
+                if (
+                  added != null &&
+                  typeof added === "object" &&
+                  hasOwnKeys(added as Record<string, unknown>)
+                ) {
+                  Object.assign(ctx, added);
+                }
+              }
+              return ctx;
+            };
+          }
+        } else {
+          // All entries are noOp — skip middleware entirely (sync fast path)
+          state.compiledMiddleware = null;
         }
       } else {
         state.compiledMiddleware = null;
