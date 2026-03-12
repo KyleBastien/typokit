@@ -16,6 +16,15 @@ Started: 03/11/2026 19:43:53
 - `CompiledMiddlewareFn` returns `RequestContext | Promise<RequestContext>` — use `instanceof Promise` check at call site to avoid unnecessary microtask overhead
 - platform-bun `copyHeaders()` eagerly copies Web API Headers via `forEach()` into a plain object — no Proxy wrapper. Future stories (US-022, US-023, US-028) build on this.
 - platform-bun files may have CRLF line endings — run `eslint --fix` to normalize before committing
+- platform-bun `env.d.ts` declares `Headers()` with no-arg constructor only — use `h.set()` after construction to populate
+- `buildResponse()` uses pre-allocated `JSON_RESPONSE_INIT_{200,400,404,500}` with plain `JSON_CT_HEADERS` object (not `new Headers()`) — Bun's Response constructor accepts plain objects
+- `JSON_CT_HEADERS` is a shared module-level `{ 'content-type': 'application/json' }` plain object — reuse it for any Bun Response construction needing JSON headers
+- platform-bun exports `normalizeRequestSync` (GET/HEAD/DELETE/OPTIONS) and `normalizeRequestAsync` (POST/PUT/PATCH) — use directly for optimal perf; `normalizeRequest` is a backward-compat wrapper
+- `BODYLESS_METHODS` Set in platform-bun: GET, HEAD, DELETE, OPTIONS — use `BODYLESS_METHODS.has(method)` to branch sync/async
+- `extractPathAndQuery()` is the shared URL parsing helper in platform-bun — reused by both sync and async variants
+- `JSON_CT_HEADERS` is exported from platform-bun as `Record<string, string>` — use for Bun Response construction headers
+- `createBunServer` accepts `BunServerOptions.fastPath` callback `(req: Request) => Response | Promise<Response> | null` — bypass normalize/build for simple routes
+- server-native fast-path uses pre-allocated `fpJsonInit{200,404,500}` ResponseInit with plain header objects for zero-allocation Bun Response construction
 
 ## 2026-03-12T02:44 - US-032
 - Replaced all 8 inline `{ "content-type": "application/json" }` header objects in `shared-routes-bun.ts` with `JSON_HEADERS` from `@typokit/core`
@@ -130,4 +139,70 @@ Started: 03/11/2026 19:43:53
   - headers.forEach() is the idiomatic Web API way to iterate Headers - faster than ntries() or spread
   - The Proxy was creating a trap call per header read; eager copy trades O(N) upfront copy for O(1) reads
   - US-022 (sync normalizeRequest for GET) depends on this change since normalizeRequest calls the header copier
+---
+
+## 2026-03-12T03:24 - US-023
+- Pre-allocated module-level ResponseInit constants (JSON_RESPONSE_INIT_200/400/404/500) with pre-built Headers objects
+- buildResponse() detects JSON-only headers via fast for...in loop (0 or 1 key = content-type: application/json) and uses cached init
+- Uncommon status codes still avoid per-request Headers via makeJsonResponseInit() helper
+- Non-JSON responses (string body, custom headers, array headers) fall back to existing slow path
+- Files changed: `packages/platform-bun/src/index.ts`
+- All 24 platform-bun tests pass, typecheck passes, lint passes
+- **Learnings for future iterations:**
+  - env.d.ts declares `Headers` constructor with no args only — must create and `.set()` to populate
+  - `ResponseInit.headers` accepts `Headers | Record<string, string>` — using pre-allocated `Headers` avoids per-request construction
+  - for...in with early exit is the fastest way to count/validate headers without allocating an array (vs Object.keys)
+  - US-028 (inline Response construction) builds on these pre-allocated init constants
+---
+
+## 2026-03-12T03:28 - US-022
+- Split `normalizeRequest()` into `normalizeRequestSync()` (GET/HEAD/DELETE/OPTIONS) and `normalizeRequestAsync()` (POST/PUT/PATCH)
+- Extracted shared URL parsing into `extractPathAndQuery()` helper
+- Added `BODYLESS_METHODS` Set for fast method classification
+- `createBunServer()` now branches: sync variant for bodyless methods, async for body methods
+- Original `normalizeRequest()` kept as backward-compatible wrapper (delegates to sync/async)
+- Added 9 new tests: 6 for normalizeRequestSync, 3 for normalizeRequestAsync
+- Files changed: `packages/platform-bun/src/index.ts`, `packages/platform-bun/src/index.test.ts`
+- All 33 platform-bun tests pass (was 24), typecheck passes, lint passes
+- **Learnings for future iterations:**
+  - `normalizeRequestSync` returns a plain object (not a Promise) — verify with `expect(result).not.toBeInstanceOf(Promise)`
+  - US-020 and US-029 will import `normalizeRequestSync`/`normalizeRequestAsync` directly from platform-bun
+  - `extractPathAndQuery()` is private but could be exported if server-native needs inline URL parsing for the Bun fast-path (US-020)
+  - The `BODYLESS_METHODS` Set is module-private — US-029 may need its own or it could be exported
+---
+
+## 2026-03-12T03:31 - US-028
+- Replaced pre-allocated 
+ew Headers() objects with plain { 'content-type': 'application/json' } objects in buildResponse() JSON fast path
+- Created shared JSON_CT_HEADERS module-level constant used by all JSON_RESPONSE_INIT_{status} constants
+- Removed makeJsonResponseInit() helper — uncommon status codes now use inline { status, headers: JSON_CT_HEADERS } (nullish coalescing)
+- Added 3 new test cases: common status JSON fast path, uncommon status (422), and empty headers with object body
+- Files changed: packages/platform-bun/src/index.ts, packages/platform-bun/src/index.test.ts
+- All 36 platform-bun tests pass (was 33), typecheck passes, lint passes
+- **Learnings for future iterations:**
+  - Bun's Response constructor accepts Record<string, string> for headers — no need for 
+ew Headers() wrapper
+  - JSON_CT_HEADERS is a shared plain object — US-020 and US-029 can reuse it directly for fast-path Response construction
+  - The or...in detection loop in buildResponse() is still needed to verify we're in the JSON case — it's not a construction loop
+  - makeJsonResponseInit() was only called for uncommon status codes; replacing with inline ?? is cleaner and allocation-free
+---
+
+## 2026-03-12T03:34 - US-020
+- Implemented Bun fast-path that bypasses normalizeRequest/buildResponse for simple GET/HEAD/DELETE/OPTIONS routes
+- `createBunServer()` now accepts optional `fastPath` callback in `BunServerOptions` — receives raw Request, returns Response directly or null to fall back
+- server-native `listen()` builds the fast-path closure with access to routeTable, handlerMap, validatorMap, etc.
+- Fast-path performs: URL parsing (indexOf/substring, no new URL()) → lookupRoute() → handler dispatch → Response construction
+- Falls back to normal path for: POST/PUT/PATCH, routes with middleware, routes with validators, handlers needing RequestContext
+- Handles both sync and async handler returns; sync handlers get zero-promise Response construction
+- Pre-allocated ResponseInit constants (fpJsonInit200/404/500) avoid per-request object allocation
+- Error handling: try/catch for sync handler errors, .catch() for async handler errors
+- Exported `JSON_CT_HEADERS` from platform-bun for cross-package reuse
+- Files changed: `packages/platform-bun/src/index.ts`, `packages/server-native/src/index.ts`
+- All 47 server-native tests pass, all 36 platform-bun tests pass, typecheck passes, lint passes
+- **Learnings for future iterations:**
+  - @types/node v22 provides global Web API types (Response, Request, Headers) — no web-shims.d.ts needed in server-native
+  - Bun.serve's fetch handler can return `Response | Promise<Response>` — non-async fetch avoids wrapping sync Response in a Promise
+  - `extractPathAndQuery()` logic is duplicated in server-native's fast path (not exported from platform-bun) — consider exporting if more consumers need it
+  - The fast-path callback approach lets server-native own routing logic while platform-bun owns fetch handler lifecycle
+  - US-029 (direct Bun.serve) will need to inline this fast-path directly, not go through createBunServer
 ---

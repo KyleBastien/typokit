@@ -141,7 +141,7 @@
         "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -157,7 +157,7 @@
         "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-021 (Proxy headers removed) since normalizeRequest calls normalizeHeaders"
     },
     {
@@ -173,7 +173,7 @@
         "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-023 (static Response objects) — builds on the pre-allocated init constants"
     },
     {
@@ -191,7 +191,7 @@
         "Typecheck passes: pnpm nx typecheck platform-bun && pnpm nx typecheck server-native"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-021, US-022, US-023, US-028 (Bun platform optimizations must be in place first)"
     },
     {

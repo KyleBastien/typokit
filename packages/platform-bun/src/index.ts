@@ -52,7 +52,7 @@ export function getPlatformInfo(): PlatformInfo {
 // Uses plain header objects (not new Headers()) — Bun's Response constructor
 // accepts Record<string, string> directly, avoiding per-request allocation.
 
-const JSON_CT_HEADERS: Record<string, string> = {
+export const JSON_CT_HEADERS: Record<string, string> = {
   "content-type": "application/json",
 };
 
@@ -306,6 +306,12 @@ export type BunRequestHandler = (
 export interface BunServerOptions {
   /** Optional hostname to bind to (default: "0.0.0.0") */
   hostname?: string;
+  /**
+   * Optional fast-path handler that receives the raw Web API Request and
+   * returns a Response directly, or null to fall back to the normal
+   * normalizeRequest→handler→buildResponse path.
+   */
+  fastPath?: (req: Request) => Response | Promise<Response> | null;
 }
 
 // ─── Bun Server ─────────────────────────────────────────────
@@ -339,6 +345,7 @@ export function createBunServer(
   options: BunServerOptions = {},
 ): BunServerInstance {
   const hostname = options.hostname ?? "0.0.0.0";
+  const { fastPath } = options;
   let bunServer: BunServer | null = null;
 
   const instance: BunServerInstance = {
@@ -349,30 +356,44 @@ export function createBunServer(
       return new Promise((resolve, reject) => {
         try {
           const bun = (globalThis as unknown as { Bun: BunGlobal }).Bun;
+
+          // Normal async request handling (normalize → handler → buildResponse)
+          const normalFetch = async (req: Request): Promise<Response> => {
+            try {
+              const method = req.method.toUpperCase();
+              const normalized = BODYLESS_METHODS.has(method)
+                ? normalizeRequestSync(req)
+                : await normalizeRequestAsync(req);
+              const response = await handler(normalized);
+              return buildResponse(response);
+            } catch (err: unknown) {
+              return new Response(
+                JSON.stringify({
+                  error: "Internal Server Error",
+                  message: err instanceof Error ? err.message : "Unknown error",
+                }),
+                {
+                  status: 500,
+                  headers: { "content-type": "application/json" },
+                },
+              );
+            }
+          };
+
           bunServer = bun.serve({
             port,
             hostname,
-            async fetch(req: Request): Promise<Response> {
-              try {
-                const method = req.method.toUpperCase();
-                const normalized = BODYLESS_METHODS.has(method)
-                  ? normalizeRequestSync(req)
-                  : await normalizeRequestAsync(req);
-                const response = await handler(normalized);
-                return buildResponse(response);
-              } catch (err: unknown) {
-                return new Response(
-                  JSON.stringify({
-                    error: "Internal Server Error",
-                    message:
-                      err instanceof Error ? err.message : "Unknown error",
-                  }),
-                  {
-                    status: 500,
-                    headers: { "content-type": "application/json" },
-                  },
-                );
+            fetch(req: Request): Promise<Response> | Response {
+              // Fast path: bypass normalize/build for simple routes
+              if (fastPath) {
+                try {
+                  const result = fastPath(req);
+                  if (result !== null) return result;
+                } catch {
+                  // Fast path error — fall through to normal path
+                }
               }
+              return normalFetch(req);
             },
           });
 
