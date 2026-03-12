@@ -19,15 +19,9 @@ import type {
   ValidatorMap,
   ValidationFieldError,
 } from "@typokit/types";
-import type {
-  ServerAdapter,
-  MiddlewareEntry,
-  CompiledMiddlewareFn,
-} from "@typokit/core";
+import type { ServerAdapter, CompiledMiddlewareFn } from "@typokit/core";
 import {
   createRequestContext,
-  sortMiddlewareEntries,
-  compileMiddlewareChain,
   resolveValidatorMap,
   JSON_HEADERS,
 } from "@typokit/core";
@@ -307,9 +301,6 @@ export function nativeServer(): ServerAdapter {
     serializerMap: null,
   };
 
-  // Shared reference updated per-request for middleware wrapper closures
-  let currentReq: TypoKitRequest | null = null;
-
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
 
   // Generic reference to the underlying server (http.Server on Node, BunServer on Bun)
@@ -408,7 +399,6 @@ export function nativeServer(): ServerAdapter {
 
     // Execute compiled middleware chain if present
     if (state.compiledMiddleware) {
-      currentReq = req;
       ctx = await state.compiledMiddleware(req, ctx);
     }
 
@@ -441,30 +431,46 @@ export function nativeServer(): ServerAdapter {
         : null;
       state.serializerMap = serializerMap ?? null;
 
-      // Compile middleware chain once at registration time
+      // Compile middleware chain once at registration time.
+      // Calls MiddlewareFn handlers directly with (req, ctx, next),
+      // passing the request object by reference — zero per-request allocation.
       if (middlewareChain && middlewareChain.entries.length > 0) {
-        const entries: MiddlewareEntry[] = middlewareChain.entries.map((e) => ({
-          name: e.name,
-          middleware: {
-            handler: async (input) => {
-              const mwReq: TypoKitRequest = {
-                method: currentReq!.method,
-                path: currentReq!.path,
-                headers: input.headers,
-                body: input.body,
-                query: input.query,
-                params: input.params,
-              };
-              const response = await e.handler(mwReq, input.ctx, async () => {
-                return { status: 200, headers: {}, body: null };
-              });
-              return response as unknown as Record<string, unknown>;
-            },
-          },
-        }));
-        state.compiledMiddleware = compileMiddlewareChain(
-          sortMiddlewareEntries(entries),
-        );
+        const mwHandlers = middlewareChain.entries.map((e) => e.handler);
+        const mwLen = mwHandlers.length;
+        const noopNext = async (): Promise<TypoKitResponse> => ({
+          status: 200,
+          headers: {},
+          body: null,
+        });
+
+        if (mwLen === 1) {
+          const handler = mwHandlers[0];
+          state.compiledMiddleware = async (req, ctx) => {
+            const added: unknown = await handler(req, ctx, noopNext);
+            if (
+              added != null &&
+              typeof added === "object" &&
+              hasOwnKeys(added as Record<string, unknown>)
+            ) {
+              Object.assign(ctx, added);
+            }
+            return ctx;
+          };
+        } else {
+          state.compiledMiddleware = async (req, ctx) => {
+            for (let i = 0; i < mwLen; i++) {
+              const added: unknown = await mwHandlers[i](req, ctx, noopNext);
+              if (
+                added != null &&
+                typeof added === "object" &&
+                hasOwnKeys(added as Record<string, unknown>)
+              ) {
+                Object.assign(ctx, added);
+              }
+            }
+            return ctx;
+          };
+        }
       } else {
         state.compiledMiddleware = null;
       }
