@@ -187,19 +187,23 @@ export function compileMiddlewareChain(
   // N middleware — flat loop over pre-extracted handler functions.
   // Avoids per-iteration property chain (.middleware.handler) and
   // for...of iterator protocol overhead.
+  //
+  // Fields are extracted from req inline per handler call rather than
+  // pre-allocating a MiddlewareInput object. This enables V8 escape
+  // analysis / allocation sinking and ensures each handler sees the
+  // latest req properties (e.g., if a previous middleware mutated params).
   const handlers = entries.map((e) => e.middleware.handler);
   const len = handlers.length;
 
   return async (req, ctx) => {
-    const input: MiddlewareInput = {
-      headers: req.headers,
-      body: req.body,
-      query: req.query,
-      params: req.params,
-      ctx,
-    };
     for (let i = 0; i < len; i++) {
-      const added = await handlers[i](input);
+      const added = await handlers[i]({
+        headers: req.headers,
+        body: req.body,
+        query: req.query,
+        params: req.params,
+        ctx,
+      });
       if (added != null && typeof added === "object" && hasOwnKeys(added)) {
         Object.assign(ctx, added);
       }

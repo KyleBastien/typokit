@@ -504,6 +504,51 @@ describe("compileMiddlewareChain", () => {
     expect(extended["permissions"]).toEqual(["read", "write"]);
   });
 
+  it("reads req properties fresh per middleware call (no pre-allocated input)", async () => {
+    // If compileMiddlewareChain pre-allocated a MiddlewareInput object
+    // before the loop, mutating req.params inside a middleware would NOT
+    // be visible to subsequent middleware through the pre-allocated input.
+    // This test verifies that each handler sees fresh req properties.
+    const mw1 = defineMiddleware(async ({ params }) => {
+      // First middleware sees original params
+      expect(params["id"]).toBe("1");
+      return { step1: true };
+    });
+
+    // Middleware that mutates req.params via the closure
+    let capturedReq: TypoKitRequest | undefined;
+    const mw2 = defineMiddleware(async ({ params, ctx }) => {
+      expect(params["id"]).toBe("1");
+      // Simulate param mutation (e.g., from a sub-router)
+      if (capturedReq) {
+        capturedReq.params = { id: "42" };
+      }
+      return { step2: true };
+    });
+
+    const mw3 = defineMiddleware(async ({ params }) => {
+      // Third middleware should see the MUTATED params (id: "42")
+      // This only works if fields are extracted fresh, not cached
+      expect(params["id"]).toBe("42");
+      return { step3: true };
+    });
+
+    const compiled = compileMiddlewareChain([
+      { name: "mw1", middleware: mw1 },
+      { name: "mw2", middleware: mw2 },
+      { name: "mw3", middleware: mw3 },
+    ]);
+
+    const req = createTestRequest({ params: { id: "1" } });
+    capturedReq = req;
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    expect((result as unknown as Record<string, unknown>)["step1"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step2"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step3"]).toBe(true);
+  });
+
   it("single middleware returning empty object is a no-op", async () => {
     const mw = defineMiddleware(async () => ({}));
     const compiled = compileMiddlewareChain([{ name: "noop", middleware: mw }]);
