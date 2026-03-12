@@ -48,6 +48,27 @@ export function getPlatformInfo(): PlatformInfo {
   };
 }
 
+// ─── Pre-allocated JSON ResponseInit constants ──────────────
+// Avoids per-request new Headers() construction for JSON responses.
+
+function makeJsonResponseInit(status: number): ResponseInit {
+  const h = new Headers();
+  h.set("content-type", "application/json");
+  return { status, headers: h };
+}
+
+const JSON_RESPONSE_INIT_200 = makeJsonResponseInit(200);
+const JSON_RESPONSE_INIT_400 = makeJsonResponseInit(400);
+const JSON_RESPONSE_INIT_404 = makeJsonResponseInit(404);
+const JSON_RESPONSE_INIT_500 = makeJsonResponseInit(500);
+
+const jsonResponseInitByStatus: Record<number, ResponseInit | undefined> = {
+  200: JSON_RESPONSE_INIT_200,
+  400: JSON_RESPONSE_INIT_400,
+  404: JSON_RESPONSE_INIT_404,
+  500: JSON_RESPONSE_INIT_500,
+};
+
 // ─── Request / Response Helpers ──────────────────────────────
 
 /** Parse a raw query string (without leading '?') into a Record */
@@ -149,10 +170,46 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
 
 /**
  * Convert a TypoKitResponse into a Web API Response for Bun.serve().
+ *
+ * Fast path: when headers contain only `content-type: application/json`
+ * (or no headers at all with an object body), uses pre-allocated
+ * ResponseInit constants — avoids per-request new Headers() construction.
  */
 export function buildResponse(response: TypoKitResponse): Response {
-  const headers = new Headers();
   const responseHeaders = response.headers;
+  const body = response.body;
+
+  // Fast path: JSON object body with JSON-only or empty headers
+  if (body !== null && body !== undefined && typeof body !== "string") {
+    let jsonFastPath = true;
+    let headerCount = 0;
+    for (const key in responseHeaders) {
+      headerCount++;
+      if (
+        headerCount > 1 ||
+        key !== "content-type" ||
+        responseHeaders[key] !== "application/json"
+      ) {
+        jsonFastPath = false;
+        break;
+      }
+    }
+
+    if (jsonFastPath) {
+      const init = jsonResponseInitByStatus[response.status];
+      if (init) {
+        return new Response(JSON.stringify(body), init);
+      }
+      // Uncommon status code — still avoid per-request Headers for JSON
+      return new Response(
+        JSON.stringify(body),
+        makeJsonResponseInit(response.status),
+      );
+    }
+  }
+
+  // Slow path: custom headers or non-JSON body
+  const headers = new Headers();
   for (const key in responseHeaders) {
     const value = responseHeaders[key];
     if (value !== undefined) {
@@ -167,15 +224,15 @@ export function buildResponse(response: TypoKitResponse): Response {
   }
 
   let bodyContent: string | null = null;
-  if (response.body === null || response.body === undefined) {
+  if (body === null || body === undefined) {
     bodyContent = null;
-  } else if (typeof response.body === "string") {
-    bodyContent = response.body;
+  } else if (typeof body === "string") {
+    bodyContent = body;
   } else {
     if (!headers.has("content-type")) {
       headers.set("content-type", "application/json");
     }
-    bodyContent = JSON.stringify(response.body);
+    bodyContent = JSON.stringify(body);
   }
 
   return new Response(bodyContent, {
