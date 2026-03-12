@@ -12,6 +12,10 @@ Started: 03/11/2026 19:43:53
 - server-native compiles middleware directly from MiddlewareFn handlers (req, ctx, next) — no MiddlewareInput adaptation layer
 - `createRequestContext()` uses `Object.create(baseContext)` — `log` and `fail` are on the prototype (shared), only `requestId` and `services` are per-request own properties
 - server-native detects handler.length >= 2 at registration time to skip context allocation for handlers that don't use ctx
+- `MiddlewareEntry.noOp` and `MiddlewareChain` entry `noOp` flag filter out no-op middleware at compile time — `compileMiddlewareChain()` returns sync identity when all entries are noOp
+- `CompiledMiddlewareFn` returns `RequestContext | Promise<RequestContext>` — use `instanceof Promise` check at call site to avoid unnecessary microtask overhead
+- platform-bun `copyHeaders()` eagerly copies Web API Headers via `forEach()` into a plain object — no Proxy wrapper. Future stories (US-022, US-023, US-028) build on this.
+- platform-bun files may have CRLF line endings — run `eslint --fix` to normalize before committing
 
 ## 2026-03-12T02:44 - US-032
 - Replaced all 8 inline `{ "content-type": "application/json" }` header objects in `shared-routes-bun.ts` with `JSON_HEADERS` from `@typokit/core`
@@ -93,4 +97,37 @@ Started: 03/11/2026 19:43:53
   - `handler.length` in JS reflects declared parameter count -- reliable for detecting ctx usage
   - `services: {}` must be per-request (own property) since it's mutable; prototype sharing would cause cross-request contamination
   - Test handlers in index.test.ts all have .length 1 (only `req` param), confirming the optimization skips context for all test routes
+---
+
+## 2026-03-12T03:12 - US-030
+- Added `noOp?: boolean` to `MiddlewareEntry` (core) and `MiddlewareChain` entry type (types)
+- `compileMiddlewareChain()` now filters out entries with `noOp: true` before compilation
+- When all entries are noOp, returns synchronous identity `(_req, ctx) => ctx` — zero Promise/async overhead
+- When mix of noOp and real middleware, only real entries are compiled into the chain
+- Changed `CompiledMiddlewareFn` return type to `RequestContext | Promise<RequestContext>` for sync support
+- server-native `registerRoutes()` filters noOp entries; sets `compiledMiddleware = null` when all are noOp
+- server-native `handleRequest()` uses `instanceof Promise` check to avoid microtask on sync returns
+- Added 5 new test cases covering all-noOp sync identity, mixed filtering, side effects, and multi-real accumulation
+- Files changed: `packages/types/src/index.ts`, `packages/core/src/middleware.ts`, `packages/core/src/middleware.test.ts`, `packages/server-native/src/index.ts`
+- All 97 core tests pass (35 middleware tests), all 47 server-native tests pass, typecheck passes
+- **Learnings for future iterations:**
+  - `CompiledMiddlewareFn` is a union return type — always use `instanceof Promise` check at call sites
+  - The 0-entry case in `compileMiddlewareChain` now returns sync identity (was `Promise.resolve(ctx)`) — backward compatible since `await nonPromise` is valid
+  - server-native's custom middleware compilation (from US-024) and core's `compileMiddlewareChain` both need the noOp filter independently
+  - The benchmark uses `executeMiddlewareChain` inside handlers (not framework-level middleware), so noOp filtering primarily helps framework-level middleware registration
+---
+
+## 2026-03-12T03:19 - US-021
+- Replaced Proxy-based lazyHeaders() with eager copyHeaders() function in packages/platform-bun/src/index.ts
+- copyHeaders() uses headers.forEach((value, key) => obj[key] = value) - the fastest Web API Headers iteration in Bun
+- Returns a plain Object.create(null) object - no Proxy traps on header reads
+- Object.keys() works naturally (same ownKeys behavior as before)
+- Fixed pre-existing CRLF line ending issues via slint --fix
+- Files changed: packages/platform-bun/src/index.ts
+- All 24 platform-bun tests pass, typecheck passes, lint passes
+- **Learnings for future iterations:**
+  - platform-bun source files had CRLF line endings causing 429 prettier errors - slint --fix resolves them
+  - headers.forEach() is the idiomatic Web API way to iterate Headers - faster than ntries() or spread
+  - The Proxy was creating a trap call per header read; eager copy trades O(N) upfront copy for O(1) reads
+  - US-022 (sync normalizeRequest for GET) depends on this change since normalizeRequest calls the header copier
 ---

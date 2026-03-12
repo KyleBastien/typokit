@@ -111,7 +111,7 @@
         "Typecheck passes: pnpm nx typecheck core && pnpm nx typecheck server-native"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-025 (empty assign guard) and US-027 (MiddlewareInput elimination)"
     },
     {
@@ -126,7 +126,7 @@
         "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Starts the independent Bun optimization track"
     },
     {
