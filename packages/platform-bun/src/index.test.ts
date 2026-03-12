@@ -3,6 +3,8 @@
 import { describe, it, expect } from "@rstest/core";
 import {
   normalizeRequest,
+  normalizeRequestSync,
+  normalizeRequestAsync,
   buildResponse,
   getPlatformInfo,
   createBunServer,
@@ -171,6 +173,120 @@ describe("normalizeRequest", () => {
     const normalized = await normalizeRequest(req);
     expect(normalized.method).toBe("HEAD");
     expect(normalized.body).toBeUndefined();
+  });
+});
+
+// ─── normalizeRequestSync ────────────────────────────────────
+
+describe("normalizeRequestSync", () => {
+  it("parses GET request synchronously (no Promise)", () => {
+    const req = new Request("http://localhost:3000/sync?x=1", {
+      method: "GET",
+      headers: { "x-sync": "yes" },
+    });
+
+    const result = normalizeRequestSync(req);
+
+    // Verify it returns a plain object, not a Promise
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.method).toBe("GET");
+    expect(result.path).toBe("/sync");
+    expect(result.query["x"]).toBe("1");
+    expect(result.headers["x-sync"]).toBe("yes");
+    expect(result.body).toBeUndefined();
+    expect(result.params).toEqual({});
+  });
+
+  it("handles HEAD synchronously", () => {
+    const req = new Request("http://localhost:3000/head-sync", {
+      method: "HEAD",
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.method).toBe("HEAD");
+    expect(result.body).toBeUndefined();
+  });
+
+  it("handles DELETE synchronously", () => {
+    const req = new Request("http://localhost:3000/item/42", {
+      method: "DELETE",
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.method).toBe("DELETE");
+    expect(result.path).toBe("/item/42");
+    expect(result.body).toBeUndefined();
+  });
+
+  it("handles OPTIONS synchronously", () => {
+    const req = new Request("http://localhost:3000/cors", {
+      method: "OPTIONS",
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result.method).toBe("OPTIONS");
+    expect(result.body).toBeUndefined();
+  });
+
+  it("strips trailing slash", () => {
+    const req = new Request("http://localhost:3000/trailing/", {
+      method: "GET",
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result.path).toBe("/trailing");
+  });
+
+  it("preserves root path", () => {
+    const req = new Request("http://localhost:3000/", {
+      method: "GET",
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result.path).toBe("/");
+  });
+});
+
+// ─── normalizeRequestAsync ───────────────────────────────────
+
+describe("normalizeRequestAsync", () => {
+  it("parses POST JSON body", async () => {
+    const req = new Request("http://localhost:3000/data", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: "value" }),
+    });
+
+    const result = await normalizeRequestAsync(req);
+    expect(result.method).toBe("POST");
+    expect(result.body).toEqual({ key: "value" });
+  });
+
+  it("parses PUT text body", async () => {
+    const req = new Request("http://localhost:3000/text", {
+      method: "PUT",
+      headers: { "content-type": "text/plain" },
+      body: "plain text",
+    });
+
+    const result = await normalizeRequestAsync(req);
+    expect(result.method).toBe("PUT");
+    expect(result.body).toBe("plain text");
+  });
+
+  it("handles PATCH with malformed JSON", async () => {
+    const req = new Request("http://localhost:3000/bad", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: "not json{",
+    });
+
+    const result = await normalizeRequestAsync(req);
+    expect(result.method).toBe("PATCH");
+    expect(result.body).toBeUndefined();
   });
 });
 

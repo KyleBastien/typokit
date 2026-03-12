@@ -108,18 +108,14 @@ function copyHeaders(
 }
 
 /**
- * Normalize a Web API Request (used by Bun.serve) into a TypoKitRequest.
- *
- * Optimized for Bun's native APIs:
- * - Uses indexOf/substring for path extraction instead of `new URL()`
- * - Uses `req.json()` for JSON bodies (Bun's native zero-copy parser)
- * - Uses `req.text()` for non-JSON bodies
- * - Eagerly copies headers via forEach() — avoids Proxy trap overhead
+ * Extract path, query string, and normalized path from a raw URL.
+ * Shared between sync and async normalizeRequest variants.
+ * Uses indexOf/substring — avoids new URL() constructor.
  */
-export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
-  // Fast path extraction: avoid new URL() constructor.
-  // In Bun.serve, req.url is a full URL like "http://host:port/path?query"
-  const rawUrl = req.url;
+function extractPathAndQuery(rawUrl: string): {
+  path: string;
+  queryString: string;
+} {
   const protoEnd = rawUrl.indexOf("//");
   const pathStart = protoEnd !== -1 ? rawUrl.indexOf("/", protoEnd + 2) : 0;
   const start = pathStart !== -1 ? pathStart : rawUrl.length;
@@ -138,26 +134,56 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
       ? rawPath.substring(0, rawPath.length - 1)
       : rawPath;
 
-  // Body: use Bun-native zero-copy methods
+  return { path, queryString };
+}
+
+/** Methods that never carry a request body */
+const BODYLESS_METHODS = new Set(["GET", "HEAD", "DELETE", "OPTIONS"]);
+
+/**
+ * Synchronous normalizeRequest for bodyless methods (GET, HEAD, DELETE, OPTIONS).
+ * Creates zero Promises — avoids async overhead entirely on the Bun hot path.
+ *
+ * Fresh object per request — safe to mutate (e.g. req.params = params in server-native).
+ */
+export function normalizeRequestSync(req: Request): TypoKitRequest {
+  const { path, queryString } = extractPathAndQuery(req.url);
+  return {
+    method: req.method.toUpperCase() as HttpMethod,
+    path,
+    headers: copyHeaders(req.headers),
+    body: undefined,
+    query: parseQuery(queryString),
+    params: {},
+  };
+}
+
+/**
+ * Async normalizeRequest for methods with bodies (POST, PUT, PATCH).
+ * Uses Bun-native zero-copy req.json()/req.text() for body parsing.
+ *
+ * Fresh object per request — safe to mutate (e.g. req.params = params in server-native).
+ */
+export async function normalizeRequestAsync(
+  req: Request,
+): Promise<TypoKitRequest> {
+  const { path, queryString } = extractPathAndQuery(req.url);
+
   let body: unknown = undefined;
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    const contentType = req.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      try {
-        body = await req.json();
-      } catch {
-        // Malformed JSON — body stays undefined
-        body = undefined;
-      }
-    } else {
-      const raw = await req.text();
-      if (raw) {
-        body = raw;
-      }
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      body = await req.json();
+    } catch {
+      body = undefined;
+    }
+  } else {
+    const raw = await req.text();
+    if (raw) {
+      body = raw;
     }
   }
 
-  // Fresh object per request — safe to mutate (e.g. req.params = params in server-native)
   return {
     method: req.method.toUpperCase() as HttpMethod,
     path,
@@ -166,6 +192,21 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
     query: parseQuery(queryString),
     params: {},
   };
+}
+
+/**
+ * Normalize a Web API Request into a TypoKitRequest.
+ * Delegates to sync or async variant based on HTTP method.
+ *
+ * @deprecated Prefer normalizeRequestSync / normalizeRequestAsync directly
+ * for optimal performance. This wrapper remains for backward compatibility.
+ */
+export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
+  const method = req.method.toUpperCase();
+  if (BODYLESS_METHODS.has(method)) {
+    return normalizeRequestSync(req);
+  }
+  return normalizeRequestAsync(req);
 }
 
 /**
@@ -301,7 +342,10 @@ export function createBunServer(
             hostname,
             async fetch(req: Request): Promise<Response> {
               try {
-                const normalized = await normalizeRequest(req);
+                const method = req.method.toUpperCase();
+                const normalized = BODYLESS_METHODS.has(method)
+                  ? normalizeRequestSync(req)
+                  : await normalizeRequestAsync(req);
                 const response = await handler(normalized);
                 return buildResponse(response);
               } catch (err: unknown) {
