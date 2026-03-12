@@ -69,75 +69,21 @@ function parseQuery(qs: string): Record<string, string | string[] | undefined> {
 }
 
 /**
- * Create a lazy headers proxy wrapping a native Headers object.
- * Avoids upfront conversion — individual headers are read via the
- * native Headers API on demand, skipping the O(N) copy.
+ * Eagerly copy Web API Headers into a plain object.
+ * Uses headers.forEach() — the fastest iteration method for Web API Headers
+ * in Bun — to avoid Proxy trap overhead on every header access.
  */
-function lazyHeaders(
+function copyHeaders(
   native: Headers,
 ): Record<string, string | string[] | undefined> {
-  const overrides = Object.create(null) as Record<
+  const obj = Object.create(null) as Record<
     string,
     string | string[] | undefined
   >;
-  return new Proxy(overrides, {
-    get(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-    ) {
-      if (typeof prop === "string") {
-        if (prop in target) return target[prop];
-        return native.get(prop) ?? undefined;
-      }
-      return undefined;
-    },
-    set(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-      value: unknown,
-    ) {
-      if (typeof prop === "string") {
-        target[prop] = value as string | string[] | undefined;
-      }
-      return true;
-    },
-    has(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-    ) {
-      if (typeof prop === "string") {
-        return prop in target || native.has(prop);
-      }
-      return false;
-    },
-    ownKeys(target: Record<string, string | string[] | undefined>) {
-      const keys = new Set<string>(Object.keys(target));
-      native.forEach((_v: string, k: string) => keys.add(k));
-      return [...keys];
-    },
-    getOwnPropertyDescriptor(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-    ) {
-      if (typeof prop === "string") {
-        if (prop in target) {
-          return {
-            configurable: true,
-            enumerable: true,
-            value: target[prop],
-          };
-        }
-        if (native.has(prop)) {
-          return {
-            configurable: true,
-            enumerable: true,
-            value: native.get(prop) ?? undefined,
-          };
-        }
-      }
-      return undefined;
-    },
+  native.forEach((value: string, key: string) => {
+    obj[key] = value;
   });
+  return obj;
 }
 
 /**
@@ -147,7 +93,7 @@ function lazyHeaders(
  * - Uses indexOf/substring for path extraction instead of `new URL()`
  * - Uses `req.json()` for JSON bodies (Bun's native zero-copy parser)
  * - Uses `req.text()` for non-JSON bodies
- * - Uses lazy Proxy-based headers to avoid upfront Headers → Record conversion
+ * - Eagerly copies headers via forEach() — avoids Proxy trap overhead
  */
 export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
   // Fast path extraction: avoid new URL() constructor.
@@ -194,7 +140,7 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
   return {
     method: req.method.toUpperCase() as HttpMethod,
     path,
-    headers: lazyHeaders(req.headers),
+    headers: copyHeaders(req.headers),
     body,
     query: parseQuery(queryString),
     params: {},
