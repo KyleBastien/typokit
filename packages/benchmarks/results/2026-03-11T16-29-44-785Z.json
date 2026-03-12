@@ -1,0 +1,996 @@
+{
+  "version": 1,
+  "generatedAt": "2026-03-11T16:29:44.786Z",
+  "results": [
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "json",
+      "reqPerSec": 26059.75,
+      "latency": {
+        "p50": 1.91,
+        "p75": 2.14,
+        "p90": 2.39,
+        "p95": 2.69,
+        "p99": 3.26
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:19:16.015Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "validate",
+      "reqPerSec": 20651.18,
+      "latency": {
+        "p50": 2.4,
+        "p75": 2.71,
+        "p90": 3.16,
+        "p95": 3.35,
+        "p99": 4.75
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:19:36.101Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "middleware",
+      "reqPerSec": 25512.04,
+      "latency": {
+        "p50": 2.08,
+        "p75": 2.17,
+        "p90": 2.63,
+        "p95": 2.74,
+        "p99": 3.32
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:19:56.176Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "json",
+      "reqPerSec": 28409.48,
+      "latency": {
+        "p50": 1.62,
+        "p75": 2.11,
+        "p90": 2.18,
+        "p95": 2.33,
+        "p99": 2.87
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:20:21.582Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "validate",
+      "reqPerSec": 17938.51,
+      "latency": {
+        "p50": 2.68,
+        "p75": 3.14,
+        "p90": 3.39,
+        "p95": 3.87,
+        "p99": 10.34
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:20:41.658Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-fastify",
+      "platform": "node",
+      "server": "fastify",
+      "scenario": "middleware",
+      "reqPerSec": 26603.87,
+      "latency": {
+        "p50": 1.79,
+        "p75": 2.13,
+        "p90": 2.25,
+        "p95": 2.66,
+        "p99": 3.18
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:21:01.727Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "json",
+      "reqPerSec": 22535.63,
+      "latency": {
+        "p50": 2.15,
+        "p75": 2.65,
+        "p90": 2.78,
+        "p95": 3.17,
+        "p99": 3.82
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:21:26.926Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "validate",
+      "reqPerSec": 11172.92,
+      "latency": {
+        "p50": 4.43,
+        "p75": 4.98,
+        "p90": 5.58,
+        "p95": 6.26,
+        "p99": 8.01
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:21:47.001Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-hono",
+      "platform": "node",
+      "server": "hono",
+      "scenario": "middleware",
+      "reqPerSec": 20492.82,
+      "latency": {
+        "p50": 2.41,
+        "p75": 2.75,
+        "p90": 3.27,
+        "p95": 3.57,
+        "p99": 4.46
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:22:07.074Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "json",
+      "reqPerSec": 15438.34,
+      "latency": {
+        "p50": 3.01,
+        "p75": 3.6,
+        "p90": 4.61,
+        "p95": 5.65,
+        "p99": 9.15
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:22:32.539Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "validate",
+      "reqPerSec": 12631.01,
+      "latency": {
+        "p50": 3.73,
+        "p75": 4.31,
+        "p90": 5.74,
+        "p95": 7.22,
+        "p99": 11.54
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:22:52.612Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-express",
+      "platform": "node",
+      "server": "express",
+      "scenario": "middleware",
+      "reqPerSec": 15932.26,
+      "latency": {
+        "p50": 2.86,
+        "p75": 3.61,
+        "p90": 4.62,
+        "p95": 5.54,
+        "p99": 8.17
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:23:12.689Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-native-cluster",
+      "platform": "node",
+      "server": "native-cluster",
+      "scenario": "json",
+      "reqPerSec": 28598.85,
+      "latency": {
+        "p50": 1.62,
+        "p75": 2.11,
+        "p90": 2.2,
+        "p95": 2.51,
+        "p99": 2.95
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:23:38.408Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-native-cluster",
+      "platform": "node",
+      "server": "native-cluster",
+      "scenario": "validate",
+      "reqPerSec": 22019.54,
+      "latency": {
+        "p50": 2.17,
+        "p75": 2.66,
+        "p90": 2.97,
+        "p95": 3.26,
+        "p99": 4.53
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:23:58.486Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "typokit-node-native-cluster",
+      "platform": "node",
+      "server": "native-cluster",
+      "scenario": "middleware",
+      "reqPerSec": 27206.66,
+      "latency": {
+        "p50": 1.65,
+        "p75": 2.14,
+        "p90": 2.44,
+        "p95": 2.71,
+        "p99": 3.25
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:24:18.560Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "json",
+      "reqPerSec": 23814.18,
+      "latency": {
+        "p50": 1.71,
+        "p75": 2.47,
+        "p90": 3.4,
+        "p95": 4.77,
+        "p99": 8.02
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:24:43.692Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "validate",
+      "reqPerSec": 22626.62,
+      "latency": {
+        "p50": 2.15,
+        "p75": 2.63,
+        "p90": 2.76,
+        "p95": 3.05,
+        "p99": 3.78
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:25:03.759Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "raw-node",
+      "platform": "node",
+      "server": "http",
+      "scenario": "middleware",
+      "reqPerSec": 45839.5,
+      "latency": {
+        "p50": 1.07,
+        "p75": 1.36,
+        "p90": 1.74,
+        "p95": 2.14,
+        "p99": 2.69
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:25:23.824Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 35722.75,
+      "latency": {
+        "p50": 1.57,
+        "p75": 1.61,
+        "p90": 1.67,
+        "p95": 1.76,
+        "p99": 2.13
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:25:48.930Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 29503.56,
+      "latency": {
+        "p50": 1.62,
+        "p75": 1.69,
+        "p90": 2.12,
+        "p95": 2.19,
+        "p99": 2.64
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:26:08.993Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-express",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 33944.61,
+      "latency": {
+        "p50": 1.59,
+        "p75": 1.63,
+        "p90": 1.7,
+        "p95": 1.81,
+        "p99": 2.26
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:26:29.053Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 47984.55,
+      "latency": {
+        "p50": 1.06,
+        "p75": 1.09,
+        "p90": 1.15,
+        "p95": 1.27,
+        "p99": 1.63
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:26:54.186Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 33533.14,
+      "latency": {
+        "p50": 1.56,
+        "p75": 1.61,
+        "p90": 1.67,
+        "p95": 1.77,
+        "p99": 7.37
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:27:14.249Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-fastify",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 46653.17,
+      "latency": {
+        "p50": 1.06,
+        "p75": 1.09,
+        "p90": 1.19,
+        "p95": 1.57,
+        "p99": 1.66
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:27:34.307Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 43776.41,
+      "latency": {
+        "p50": 1.07,
+        "p75": 1.13,
+        "p90": 1.59,
+        "p95": 1.61,
+        "p99": 1.71
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:27:59.412Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 23990.89,
+      "latency": {
+        "p50": 2.12,
+        "p75": 2.16,
+        "p90": 2.23,
+        "p95": 2.68,
+        "p99": 3.67
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:28:19.473Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-hono",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 41191.65,
+      "latency": {
+        "p50": 1.07,
+        "p75": 1.56,
+        "p90": 1.6,
+        "p95": 1.62,
+        "p99": 1.81
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:28:39.536Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "json",
+      "reqPerSec": 48406.23,
+      "latency": {
+        "p50": 1.05,
+        "p75": 1.1,
+        "p90": 1.32,
+        "p95": 1.4,
+        "p99": 1.67
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:29:04.651Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "validate",
+      "reqPerSec": 42394.43,
+      "latency": {
+        "p50": 1.11,
+        "p75": 1.21,
+        "p90": 1.58,
+        "p95": 1.69,
+        "p99": 2.06
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:29:24.715Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    },
+    {
+      "framework": "competitor-h3",
+      "platform": "node",
+      "server": "standalone",
+      "scenario": "middleware",
+      "reqPerSec": 45550.88,
+      "latency": {
+        "p50": 1.07,
+        "p75": 1.14,
+        "p90": 1.41,
+        "p95": 1.58,
+        "p99": 1.82
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T16:29:44.782Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 50,
+        "duration": "10s",
+        "warmup": "5s",
+        "runs": 2
+      }
+    }
+  ]
+}

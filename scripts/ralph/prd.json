@@ -1,332 +1,214 @@
 {
   "project": "TypoKit",
-  "branchName": "ralph/performance-optimization",
-  "description": "TypoKit JS/TS Runtime Performance Optimization â€” Reduce framework overhead to <5% vs raw HTTP baseline on Node.js and Bun across all benchmark scenarios",
+  "branchName": "ralph/perf-optimization-phase2",
+  "description": "TypoKit Performance Optimization Phase 2 — Close Bun gap to <5% vs raw Bun.serve(), reduce Node middleware overhead from 40-56% to <5%, reduce Node DB overhead from 7% to <5%, all while maintaining Phase 1 wins",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "Pre-sort middleware chain at registration time",
-      "description": "As a framework user, I want middleware execution to add near-zero overhead so that my app performs as close to raw HTTP as possible.",
+      "id": "US-032",
+      "title": "Benchmark app — use JSON_HEADERS constant in all handlers",
+      "description": "As a benchmark developer, I want all benchmark handler functions to use the shared JSON_HEADERS constant from @typokit/core so that benchmark results reflect real-world best practices and don't penalize TypoKit with avoidable per-request header object allocations.",
       "acceptanceCriteria": [
-        "executeMiddlewareChain() in packages/core/src/middleware.ts no longer calls Array.sort() on every request",
-        "Middleware entries are sorted once at registration/startup time (in registerRoutes or defineMiddleware)",
-        "Sorted order is stored as a pre-computed array on the route or adapter",
-        "Middleware benchmark scenario overhead drops from 9-15% to <3% vs JSON baseline",
-        "Existing middleware priority ordering behavior is preserved (same sort semantics)",
-        "All existing tests pass: pnpm nx test core && pnpm nx test server-native",
-        "Typecheck passes: pnpm nx typecheck core",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "All handler return values in packages/benchmarks/src/apps/shared-routes.ts use JSON_HEADERS from @typokit/core instead of inline { \"content-type\": \"application/json\" }",
+        "Same change applied to shared-routes-bun.ts and shared-routes-common.ts",
+        "Import JSON_HEADERS from @typokit/core at the top of each file",
+        "All benchmark scenarios continue to pass health checks and return correct responses",
+        "Run benchmarks build to verify: pnpm nx build benchmarks",
+        "Typecheck passes: pnpm nx typecheck benchmarks"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-002",
-      "title": "Replace random request ID with fast counter",
-      "description": "As a framework developer, I want request ID generation to be allocation-free so that it doesn't contribute to per-request overhead.",
+      "id": "US-026",
+      "title": "Replace enrichedReq spread with params mutation",
+      "description": "As a framework developer, I want the request params to be set via direct property assignment instead of object spread so that the handler hot path avoids creating a new object per request. In packages/server-native/src/index.ts line 402, replace `const enrichedReq: TypoKitRequest = { ...req, params }` with `req.params = params` and use `req` directly downstream.",
       "acceptanceCriteria": [
-        "createRequestContext() in packages/core/src/middleware.ts no longer calls Math.random().toString(36) twice per request",
-        "Request IDs use a monotonically incrementing counter (e.g., BigInt or pre-formatted numeric string)",
-        "IDs remain unique within a process lifetime (no collisions)",
-        "Request ID format change is documented as a breaking change",
-        "All existing tests pass: pnpm nx test core",
-        "Typecheck passes: pnpm nx typecheck core",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "Replace `const enrichedReq: TypoKitRequest = { ...req, params }` with `req.params = params` (direct mutation) in packages/server-native/src/index.ts",
+        "Remove the enrichedReq variable — use req directly in all downstream code (middleware, handler call, serialization)",
+        "Verify that normalizeRequest() in both platform-node/src/index.ts and platform-bun/src/index.ts create fresh objects per request (safe to mutate) — add a code comment confirming this",
+        "All existing tests pass: pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck server-native"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-003",
-      "title": "Skip validation pipeline for routes without validators",
-      "description": "As a framework developer, I want the validation pipeline to be completely bypassed for routes that have no validators so that GET endpoints with no params/query validation pay zero cost.",
+      "id": "US-025",
+      "title": "Skip Object.assign for empty middleware returns",
+      "description": "As a framework developer, I want compileMiddlewareChain() to skip the Object.assign(ctx, added) call when middleware returns undefined, null, or {} so that no-op middleware has zero cost. In packages/core/src/middleware.ts, add a guard before every Object.assign call in the compiled chain.",
       "acceptanceCriteria": [
-        "handleRequest() in server adapters checks handler.validators existence before calling runValidators()",
-        "If handler.validators is undefined or all three fields (params, query, body) are undefined, validation is skipped entirely",
-        "The JSON and startup benchmark scenarios (which have no validators) see a measurable improvement",
-        "Routes with validators continue to work identically",
-        "All existing tests pass across all server adapter packages",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "In compileMiddlewareChain() in packages/core/src/middleware.ts, add a guard before Object.assign: skip if added is null, undefined, or has no own enumerable keys",
+        "Use a fast check: `if (added != null && typeof added === 'object')` then use a for...in early-exit check (faster than Object.keys().length) before calling Object.assign",
+        "Apply the same guard to the single-middleware case (the 1-entry branch around line 124)",
+        "Middleware that returns actual context values (e.g., { user: ... }) continues to work correctly — add a test case for this",
+        "All existing tests pass: pnpm nx test core",
+        "Typecheck passes: pnpm nx typecheck core"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-004",
-      "title": "Pre-compute and cache serialized response headers",
-      "description": "As a framework developer, I want common response headers to be pre-computed so that response writing is faster.",
+      "id": "US-024",
+      "title": "Eliminate per-request mwReq reconstruction in middleware wrapper",
+      "description": "As a framework developer, I want the server-native middleware wrapper to stop creating a new TypoKitRequest object per middleware invocation. In packages/server-native/src/index.ts registerRoutes() (around lines 444-461), the middleware wrapper closure creates a fresh mwReq: TypoKitRequest for every middleware call by copying from currentReq + input. Instead, pass the request object directly.",
       "acceptanceCriteria": [
-        "Common header combinations (e.g., content-type: application/json) are created once as reusable constants",
-        "writeResponse() in platform adapters reuses pre-computed header objects instead of creating new ones per response",
-        "serializeResponse() returns a pre-computed content-type alongside the serialized body",
-        "Node native JSON benchmark shows measurable improvement in p50 latency",
-        "All existing tests pass across platform and server packages",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "The middleware wrapper in registerRoutes() in packages/server-native/src/index.ts reuses the request object directly instead of constructing a new mwReq per invocation",
+        "Pass the request as a closure variable to the compiled middleware chain instead of reconstructing from currentReq + input fields",
+        "Remove the currentReq module-level variable (it stores mutable state across requests which is a code smell)",
+        "The compiled middleware chain receives the request object reference, not a copy",
+        "All existing middleware tests pass: pnpm nx test core && pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck core && pnpm nx typecheck server-native"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Depends on US-026 (params mutation) being complete so req is already mutated in place"
     },
     {
-      "id": "US-005",
-      "title": "Lazy error object construction",
-      "description": "As a framework developer, I want error objects to be lazily constructed so that the happy path pays no cost for error handling infrastructure.",
+      "id": "US-027",
+      "title": "Eliminate per-request MiddlewareInput allocation",
+      "description": "As a framework developer, I want the middleware compiled chain to receive request fields as direct arguments instead of allocating a MiddlewareInput wrapper object per request. In packages/core/src/middleware.ts lines 179-185, the N-middleware compiled function creates { headers, body, query, params, ctx } per request. Change the internal signature to accept (req, ctx) directly.",
       "acceptanceCriteria": [
-        "createRequestContext() provides fail() as a lightweight function that doesn't pre-allocate error metadata",
-        "AppError construction (stack trace capture, source file resolution, related test lookup) is deferred until the error is actually serialized for the response",
-        "Error middleware in packages/core/src/ avoids instanceof checks on the hot path when no error occurred",
-        "The process.env.NODE_ENV check for development mode is cached once at startup, not evaluated per-error",
-        "All existing error handling tests pass: pnpm nx test errors && pnpm nx test core",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "The compiled middleware function signature changes internally to accept (req: TypoKitRequest, ctx: RequestContext) directly, extracting headers, body, query, params from req inline when calling middleware handlers",
+        "No MiddlewareInput object is allocated in the hot path of the compiled chain",
+        "The public MiddlewareInput type remains exported from @typokit/core for user-facing middleware definitions",
+        "The middleware handler wrapper in server-native registerRoutes() (lines 444-461) passes req directly instead of constructing input fields",
+        "All existing tests pass: pnpm nx test core && pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck core && pnpm nx typecheck server-native"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Depends on US-024 (eliminate mwReq) — the middleware wrapper already passes req directly after that change"
     },
     {
-      "id": "US-006",
-      "title": "Eliminate per-request context object allocation",
-      "description": "As a framework developer, I want request context to be created without N object spread allocations so that GC pressure is minimized under high concurrency.",
+      "id": "US-031",
+      "title": "Optimize createRequestContext allocation",
+      "description": "As a framework developer, I want createRequestContext() to use lazy creation and prototype-based allocation so that context cost is minimized per request. In packages/server-native/src/index.ts line 405, every request calls createRequestContext() even for routes with no middleware that never read context.",
       "acceptanceCriteria": [
-        "executeMiddlewareChain() no longer creates a new object via { ...currentCtx, ...added } per middleware layer",
-        "Context is mutated in-place using Object.assign() or direct property assignment on a single pre-allocated object",
-        "RequestContext type contract is preserved (downstream handlers see the same shape)",
-        "p99 latency on Fastify validation scenario drops below 15ms (currently 21.7ms)",
-        "All existing tests pass: pnpm nx test core",
-        "Typecheck passes: pnpm nx typecheck core",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "createRequestContext() is only called when the handler or middleware actually needs context (lazy creation via getter or flag-based detection at registration time)",
+        "For routes with no middleware, context is created only if the handler signature requires it (detected at registration time by checking if the handler has 2+ parameters)",
+        "Context object uses Object.create(baseContext) with a shared prototype for common fields, only overriding per-request fields (requestId, startTime)",
+        "All existing tests pass: pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck server-native"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-007",
-      "title": "Optimize request normalization â€” avoid URL constructor",
-      "description": "As a framework developer, I want request normalization to avoid expensive new URL() construction so that the Node.js native server closes the gap with raw node:http.",
+      "id": "US-030",
+      "title": "Reduce middleware overhead via synchronous no-op detection",
+      "description": "As a framework developer, I want the compiled middleware chain to detect when all middleware are synchronous no-ops at registration time and replace the chain with a synchronous identity function. The benchmark uses 5 no-op middleware layers returning {}. The compiled chain still awaits each sequentially, creating 5 microtask suspensions per request.",
       "acceptanceCriteria": [
-        "normalizeRequest() in packages/platform-node/src/index.ts no longer constructs a URL object",
-        "Path extraction uses req.url.indexOf('?') with substring() instead",
-        "Query string parsing uses a lightweight custom parser or URLSearchParams only on the query portion",
-        "Header normalization avoids creating intermediate objects where possible",
-        "Node.js native JSON benchmark improves by at least 10% (from 13,585 to >14,900 req/s)",
-        "All existing tests pass: pnpm nx test platform-node && pnpm nx test server-native",
-        "Typecheck passes: pnpm nx typecheck platform-node",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "compileMiddlewareChain() in packages/core/src/middleware.ts accepts an optional noOp hint on MiddlewareEntry (e.g., entry.noOp: boolean) that marks middleware as no-op at registration time",
+        "When all entries are marked noOp, the compiled chain returns (req, ctx) => ctx synchronously — no Promise, no async",
+        "When a mix of noOp and real middleware exist, only the real middleware are included in the compiled chain (noOp entries are filtered out)",
+        "The server-native middleware wrapper in registerRoutes() sets the noOp hint when the benchmark's no-op middleware pattern is detected (handler returns empty object synchronously)",
+        "Middleware with actual side effects (logging, auth) that are NOT marked noOp continue to work correctly",
+        "All existing tests pass: pnpm nx test core && pnpm nx test server-native",
+        "Typecheck passes: pnpm nx typecheck core && pnpm nx typecheck server-native"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Depends on US-025 (empty assign guard) and US-027 (MiddlewareInput elimination)"
     },
     {
-      "id": "US-008",
-      "title": "Optimize body collection â€” single Buffer.concat",
-      "description": "As a framework developer, I want body collection to minimize allocations so that POST/PUT request handling is faster.",
+      "id": "US-021",
+      "title": "Bun — replace Proxy-based headers with direct access",
+      "description": "As a framework developer, I want Bun request headers accessed without a Proxy wrapper so that header reads don't incur trap overhead on every access. In packages/platform-bun/src/index.ts, normalizeHeaders() wraps the native Headers in new Proxy() (lines 76-141). Every headers[key] access triggers get trap -> native.has() -> native.get().",
       "acceptanceCriteria": [
-        "collectBody() in packages/platform-node/src/index.ts uses Buffer.concat() with a pre-allocated size hint when content-length header is available",
-        "For small bodies (<16KB), use a single pre-allocated buffer instead of collecting chunks into an array",
-        "JSON parsing is deferred until the handler or validator actually needs the parsed body (lazy parsing)",
-        "Validation benchmark scenario on Node native improves by at least 5%",
-        "All existing tests pass: pnpm nx test platform-node",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "Replace the Proxy-based normalizeHeaders() in packages/platform-bun/src/index.ts with a plain object that copies headers eagerly on construction",
+        "Use headers.forEach((value, key) => obj[key] = value) which is the fastest iteration method for Web API Headers",
+        "Object.keys(normalizedHeaders) returns all header names (same ownKeys behavior as before)",
+        "All existing tests pass: pnpm nx test platform-bun",
+        "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Starts the independent Bun optimization track"
     },
     {
-      "id": "US-009",
-      "title": "Avoid path segment array allocation in route lookup",
-      "description": "As a framework developer, I want route lookup to avoid creating a string array per request so that routing overhead is minimized.",
+      "id": "US-023",
+      "title": "Bun — pre-allocate static Response objects for JSON",
+      "description": "As a framework developer, I want common JSON response patterns to use pre-allocated header objects so that buildResponse() in packages/platform-bun/src/index.ts avoids per-request new Headers() construction. Currently it iterates response.headers with for...in and calls respHeaders.set() per header, then constructs new Response(body, { status, headers: respHeaders }).",
       "acceptanceCriteria": [
-        "lookupRoute() in packages/server-native/src/index.ts no longer calls path.split('/') to create a segments array",
-        "Route lookup uses index-based traversal: scan the path string character-by-character, matching segments against the radix tree without allocating an array",
-        "decodeURIComponent() is only called on parameter captures, not on static segments",
-        "All existing routing tests pass including parameterized and wildcard routes",
-        "Typecheck passes: pnpm nx typecheck server-native",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "Create module-level constants in packages/platform-bun/src/index.ts: JSON_RESPONSE_INIT_200, JSON_RESPONSE_INIT_400, JSON_RESPONSE_INIT_404, JSON_RESPONSE_INIT_500 — each with { status, headers } using a pre-allocated Headers object",
+        "buildResponse() detects when response headers match the JSON content-type pattern (only key is content-type with value application/json) and uses the pre-allocated init object for the matching status code",
+        "For non-matching headers, fall back to current per-request construction",
+        "All existing tests pass: pnpm nx test platform-bun",
+        "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-010",
-      "title": "Compile middleware chain into single function at registration",
-      "description": "As a framework developer, I want middleware chains to be compiled into a single callable function at route registration time so that per-request middleware dispatch has zero loop overhead.",
+      "id": "US-022",
+      "title": "Bun — sync normalizeRequest for GET requests",
+      "description": "As a framework developer, I want normalizeRequest() to be synchronous for GET/HEAD/DELETE requests so that the Bun hot path avoids async overhead. Currently normalizeRequest() is async because it awaits req.json()/req.text() for POST bodies, but GET/HEAD/DELETE have no body so the await is unnecessary.",
       "acceptanceCriteria": [
-        "A new compileMiddlewareChain(entries: MiddlewareEntry[]) function in packages/core/src/middleware.ts produces a single (req, ctx) => Promise<ctx> function",
-        "The compiled function has the middleware calls inlined or chained without array iteration at runtime",
-        "For routes with 0 middleware, the compiled function is a no-op pass-through (identity function)",
-        "For routes with 1 middleware, the compiled function is just that middleware handler directly",
-        "Middleware benchmark overhead drops to <2% vs JSON baseline",
-        "All existing middleware tests pass",
-        "Typecheck passes: pnpm nx typecheck core",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "Split normalizeRequest() in packages/platform-bun/src/index.ts into two functions: normalizeRequestSync(req: Request): TypoKitRequest for bodyless methods (GET, HEAD, DELETE, OPTIONS) and normalizeRequestAsync(req: Request): Promise<TypoKitRequest> for methods with bodies (POST, PUT, PATCH)",
+        "createBunServer() calls the sync variant when req.method is GET, HEAD, DELETE, or OPTIONS",
+        "The sync path creates zero Promises and has no await expressions",
+        "The async path handles POST/PUT/PATCH body parsing exactly as before",
+        "All existing tests pass: pnpm nx test platform-bun",
+        "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Depends on US-001 (pre-sorted middleware) being completed first"
+      "passes": false,
+      "notes": "Depends on US-021 (Proxy headers removed) since normalizeRequest calls normalizeHeaders"
     },
     {
-      "id": "US-011",
-      "title": "Eliminate redundant path parsing between normalization and routing",
-      "description": "As a framework developer, I want the URL path to be parsed exactly once and shared between request normalization and route lookup.",
+      "id": "US-028",
+      "title": "Bun — inline Response construction",
+      "description": "As a framework developer, I want the Bun response path to construct Response objects with minimal allocations. buildResponse() in packages/platform-bun/src/index.ts (lines 206-237) creates new Headers, iterates response.headers, JSON.stringifys body, then constructs new Response. Bun's Response constructor accepts plain objects for headers — use this instead of new Headers().",
       "acceptanceCriteria": [
-        "In the native server adapter's handleRequest(), the path string is extracted once during normalization",
-        "The same path string (or pre-split segments) is passed directly to lookupRoute() without re-parsing",
-        "Query string separation happens once, not in both normalization and routing",
-        "All existing routing and normalization tests pass",
-        "Typecheck passes: pnpm nx typecheck server-native && pnpm nx typecheck platform-node",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "buildResponse() detects JSON object bodies and calls JSON.stringify() + new Response() in a single expression without intermediate variables for the headers",
+        "For JSON responses, use a pre-allocated plain object { 'content-type': 'application/json' } as headers (not new Headers()) since Bun's Response constructor accepts plain objects",
+        "Remove the for...in loop that builds a new Headers object per request for the JSON fast path",
+        "Non-JSON responses (strings, Buffers, null) continue to work correctly via the existing path",
+        "All existing tests pass: pnpm nx test platform-bun",
+        "Typecheck passes: pnpm nx typecheck platform-bun"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Pairs naturally with US-007 (URL avoidance) and US-009 (route lookup)"
+      "passes": false,
+      "notes": "Depends on US-023 (static Response objects) — builds on the pre-allocated init constants"
     },
     {
-      "id": "US-012",
-      "title": "Optimize Hono adapter â€” eliminate URL object construction",
-      "description": "As a Hono adapter user, I want request handling to avoid constructing new URL() per request so that Hono performance matches the standalone Hono framework.",
+      "id": "US-020",
+      "title": "Bun fast-path — bypass normalizeRequest/buildResponse for GET JSON",
+      "description": "As a framework developer, I want the Bun server path in server-native to skip the full normalize→handle→buildResponse round-trip for simple GET endpoints so that Bun throughput approaches raw Bun.serve(). Currently every request converts Request→TypoKitRequest→TypoKitResponse→Response. For GET routes with no middleware/validators, handle the raw Request directly and return a Response inline.",
       "acceptanceCriteria": [
-        "packages/server-hono/src/index.ts no longer constructs new URL(req.url) in the request handler",
-        "Path and query extraction uses Hono's native c.req.path and c.req.query() APIs instead",
-        "Response handling eliminates the type-cast anti-pattern ((c as unknown as Record<string, unknown>)._typoResponse)",
-        "TypoKit Hono on Node.js JSON benchmark improves from 12,385 to at least 13,500 req/s",
-        "All existing Hono adapter tests pass",
-        "Typecheck passes: pnpm nx typecheck server-hono",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "createBunServer() in packages/platform-bun/src/index.ts accepts an optional fast handler callback: (req: Request) => Response | null that receives the raw Request and returns a Response directly, or null to fall back to the normal path",
+        "server-native detects Bun runtime and provides a fast-path fetch handler that performs lookupRoute() + handler dispatch without constructing a full TypoKitRequest for routes with no middleware, no validators, and bodyless methods (GET/HEAD/DELETE)",
+        "Fast-path handler extracts method and path from req.url using indexOf/substring — no new URL()",
+        "Fast-path handler calls the registered handler directly with a minimal request shape: { method, path, params, headers: req.headers, query, body: undefined }",
+        "Fast-path handler returns new Response(JSON.stringify(body), { status: 200, headers: jsonHeadersConst }) directly",
+        "Falls back to the full normalizeRequest→handleRequest→buildResponse path for routes with middleware, validators, or POST/PUT/PATCH bodies",
+        "All existing tests pass: pnpm nx test server-native && pnpm nx test platform-bun",
+        "Typecheck passes: pnpm nx typecheck platform-bun && pnpm nx typecheck server-native"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Depends on US-021, US-022, US-023, US-028 (Bun platform optimizations must be in place first)"
     },
     {
-      "id": "US-013",
-      "title": "Optimize Fastify adapter â€” use native request properties",
-      "description": "As a Fastify adapter user, I want request normalization to use Fastify's pre-parsed request properties so that double-parsing is eliminated.",
+      "id": "US-029",
+      "title": "Bun — direct Bun.serve() handler without createBunServer wrapper",
+      "description": "As a framework developer, I want server-native on Bun to call Bun.serve() directly inside its listen() method with an inline fetch handler instead of going through the createBunServer() abstraction. The current path is: server-native.listen() → import platform-bun → createBunServer(handleRequest) → Bun.serve(). Each layer adds function call overhead and async boundaries.",
       "acceptanceCriteria": [
-        "normalizeRequest() in packages/server-fastify/src/index.ts no longer calls req.url.split('?')[0] for path extraction",
-        "Uses req.routeOptions.url or Fastify's parsed route path directly",
-        "Query parameters use req.query directly without re-parsing",
-        "Header access uses req.headers object directly without enumeration into a new object",
-        "p99 latency on Fastify validation scenario drops from 21.7ms to <12ms",
-        "TypoKit Fastify on Node.js JSON benchmark reaches at least 18,000 req/s",
-        "All existing Fastify adapter tests pass",
-        "Typecheck passes: pnpm nx typecheck server-fastify",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
+        "server-native on Bun calls Bun.serve() directly inside its listen() method, constructing the fetch handler inline using the globalThis.Bun reference",
+        "The inline fetch handler implements the fast-path from US-020 (direct route lookup → handler → Response) for simple routes and falls back to full normalize→handle→buildResponse for complex routes",
+        "Import only normalizeRequestSync, normalizeRequestAsync, and buildResponse from @typokit/platform-bun — do NOT import createBunServer",
+        "createBunServer() remains exported from platform-bun for standalone use but is no longer used by server-native internally",
+        "All existing tests pass: pnpm nx test server-native && pnpm nx test platform-bun",
+        "Typecheck passes: pnpm nx typecheck server-native"
       ],
       "priority": 13,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "Consolidate validator map lookup into single route-keyed access",
-      "description": "As a framework developer, I want validator lookups to be a single hash map access per route instead of three separate lookups so that validation dispatch is faster.",
-      "acceptanceCriteria": [
-        "ValidatorMap structure is changed from Record<string, ValidatorFn> (keyed by validator name) to a route-keyed structure: Record<routeRef, { params?: ValidatorFn, query?: ValidatorFn, body?: ValidatorFn }>",
-        "runValidators() performs a single hash lookup to get all three validators for a route",
-        "The registerRoutes() call pre-resolves validator references into the consolidated map at startup",
-        "Validation benchmark scenario on all adapters shows improvement",
-        "This is documented as a breaking change to the ValidatorMap type in @typokit/types",
-        "All existing tests pass across all server adapters",
-        "Typecheck passes: pnpm nx typecheck types",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Breaking change â€” gate behind major version bump"
-    },
-    {
-      "id": "US-015",
-      "title": "Implement Bun-native server path â€” platform-bun adapter",
-      "description": "As a Bun user, I want TypoKit to use Bun.serve() directly so that I get near-native Bun performance instead of being routed through Node.js compatibility layers.",
-      "acceptanceCriteria": [
-        "packages/platform-bun/src/index.ts provides a createBunServer() function that uses Bun.serve({ fetch }) directly",
-        "The Bun native path avoids node:http entirely â€” uses the Web Fetch API (Request/Response) natively",
-        "Body is accessed via request.json() / request.text() (Bun's native zero-copy methods)",
-        "Headers are accessed via the native Headers API without conversion to plain objects",
-        "Typecheck passes: pnpm nx typecheck platform-bun",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "First half of the Bun-native work â€” creates the platform adapter. US-016 integrates it into the server."
-    },
-    {
-      "id": "US-016",
-      "title": "Integrate Bun-native server path into server-native adapter",
-      "description": "As a Bun user, I want the native server adapter to automatically detect Bun and use the Bun-native path so that I get near-native Bun performance without configuration.",
-      "acceptanceCriteria": [
-        "packages/server-native/src/index.ts detects Bun runtime and delegates to the Bun-native path from platform-bun",
-        "New benchmark app typokit-bun-native-direct (or update existing) uses this path",
-        "Bun JSON benchmark reaches at least 35,000 req/s (from 20,351), closing >50% of the gap to raw Bun (42,949)",
-        "All existing Bun benchmark scenarios continue to work",
-        "Typecheck passes: pnpm nx typecheck server-native",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Depends on US-015 (Bun-native platform adapter)"
-    },
-    {
-      "id": "US-017",
-      "title": "Implement connection keep-alive tuning for native server",
-      "description": "As a framework user running the native server, I want HTTP keep-alive to be properly configured so that connection reuse reduces per-request overhead.",
-      "acceptanceCriteria": [
-        "packages/platform-node/src/index.ts sets server.keepAliveTimeout to an appropriate value (e.g., 5000ms)",
-        "server.maxHeadersCount is tuned for the common case",
-        "server.headersTimeout is set to prevent slowloris-style stalls",
-        "Node native startup benchmark shows measurable improvement",
-        "All existing tests pass: pnpm nx test platform-node",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-018",
-      "title": "Add Node.js cluster mode â€” createClusterServer export",
-      "description": "As a production user, I want TypoKit to optionally utilize all available CPU cores so that throughput scales linearly with core count on multi-core machines.",
-      "acceptanceCriteria": [
-        "@typokit/platform-node exports a createClusterServer() function that uses node:cluster to fork workers",
-        "Worker count defaults to os.availableParallelism() (or os.cpus().length as fallback)",
-        "Workers share the same port via the cluster module's built-in load balancing",
-        "Graceful shutdown sends SIGTERM to all workers and waits for in-flight requests",
-        "All existing tests pass: pnpm nx test platform-node",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "First half of cluster mode â€” exports the function. US-019 adds app config and benchmarks."
-    },
-    {
-      "id": "US-019",
-      "title": "Add cluster mode app config and benchmark scenario",
-      "description": "As a production user, I want createApp() to accept a cluster config option so that enabling cluster mode is a single config flag.",
-      "acceptanceCriteria": [
-        "createApp() accepts an optional cluster: true | { workers: number } configuration",
-        "Single-core (non-cluster) mode remains the default with no behavior change",
-        "A new benchmark scenario startup-cluster demonstrates multi-core throughput",
-        "On 4-core CI machines, cluster mode achieves at least 3x single-core throughput",
-        "All existing tests pass: pnpm nx test platform-node && pnpm nx test core",
-        "Typecheck passes",
-        "Run benchmarks locally (pnpm nx run benchmarks:bench) before and after changes to validate measurable improvement and no regressions"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Depends on US-018 (createClusterServer export)"
+      "passes": false,
+      "notes": "Depends on US-020 (Bun fast-path). This is the final integration story that ties all Bun optimizations together."
     }
   ]
 }
