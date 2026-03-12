@@ -190,6 +190,7 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
     }
   }
 
+  // Fresh object per request — safe to mutate (e.g. req.params = params in server-native)
   return {
     method: req.method.toUpperCase() as HttpMethod,
     path,

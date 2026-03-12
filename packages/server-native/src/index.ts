@@ -398,20 +398,22 @@ export function nativeServer(): ServerAdapter {
       };
     }
 
-    // Inject extracted params into the request
-    const enrichedReq: TypoKitRequest = { ...req, params };
+    // Inject extracted params directly into the request object.
+    // Safe to mutate: normalizeRequest() in platform-node and platform-bun
+    // both create a fresh TypoKitRequest object per request.
+    req.params = params;
 
     // Create request context
     let ctx = createRequestContext();
 
     // Execute compiled middleware chain if present
     if (state.compiledMiddleware) {
-      currentReq = enrichedReq;
-      ctx = await state.compiledMiddleware(enrichedReq, ctx);
+      currentReq = req;
+      ctx = await state.compiledMiddleware(req, ctx);
     }
 
     // Call the handler
-    const response = await handlerFn(enrichedReq, ctx);
+    const response = await handlerFn(req, ctx);
 
     // ── Response Serialization Pipeline ──
     return serializeResponse(
