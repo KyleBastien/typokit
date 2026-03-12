@@ -49,18 +49,29 @@ export function getPlatformInfo(): PlatformInfo {
 }
 
 // ─── Pre-allocated JSON ResponseInit constants ──────────────
-// Avoids per-request new Headers() construction for JSON responses.
+// Uses plain header objects (not new Headers()) — Bun's Response constructor
+// accepts Record<string, string> directly, avoiding per-request allocation.
 
-function makeJsonResponseInit(status: number): ResponseInit {
-  const h = new Headers();
-  h.set("content-type", "application/json");
-  return { status, headers: h };
-}
+const JSON_CT_HEADERS: Record<string, string> = {
+  "content-type": "application/json",
+};
 
-const JSON_RESPONSE_INIT_200 = makeJsonResponseInit(200);
-const JSON_RESPONSE_INIT_400 = makeJsonResponseInit(400);
-const JSON_RESPONSE_INIT_404 = makeJsonResponseInit(404);
-const JSON_RESPONSE_INIT_500 = makeJsonResponseInit(500);
+const JSON_RESPONSE_INIT_200: ResponseInit = {
+  status: 200,
+  headers: JSON_CT_HEADERS,
+};
+const JSON_RESPONSE_INIT_400: ResponseInit = {
+  status: 400,
+  headers: JSON_CT_HEADERS,
+};
+const JSON_RESPONSE_INIT_404: ResponseInit = {
+  status: 404,
+  headers: JSON_CT_HEADERS,
+};
+const JSON_RESPONSE_INIT_500: ResponseInit = {
+  status: 500,
+  headers: JSON_CT_HEADERS,
+};
 
 const jsonResponseInitByStatus: Record<number, ResponseInit | undefined> = {
   200: JSON_RESPONSE_INIT_200,
@@ -212,15 +223,16 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
 /**
  * Convert a TypoKitResponse into a Web API Response for Bun.serve().
  *
- * Fast path: when headers contain only `content-type: application/json`
- * (or no headers at all with an object body), uses pre-allocated
- * ResponseInit constants — avoids per-request new Headers() construction.
+ * Fast path: JSON object bodies with JSON-only headers use pre-allocated
+ * plain header objects — Bun's Response constructor accepts
+ * Record<string, string> directly, avoiding new Headers() entirely.
  */
 export function buildResponse(response: TypoKitResponse): Response {
   const responseHeaders = response.headers;
   const body = response.body;
 
   // Fast path: JSON object body with JSON-only or empty headers
+  // Detects when responseHeaders has 0 keys or only { "content-type": "application/json" }
   if (body !== null && body !== undefined && typeof body !== "string") {
     let jsonFastPath = true;
     let headerCount = 0;
@@ -237,19 +249,19 @@ export function buildResponse(response: TypoKitResponse): Response {
     }
 
     if (jsonFastPath) {
-      const init = jsonResponseInitByStatus[response.status];
-      if (init) {
-        return new Response(JSON.stringify(body), init);
-      }
-      // Uncommon status code — still avoid per-request Headers for JSON
+      // Use pre-allocated init for common status codes, inline for uncommon ones.
+      // Plain header objects — no new Headers() per request.
       return new Response(
         JSON.stringify(body),
-        makeJsonResponseInit(response.status),
+        jsonResponseInitByStatus[response.status] ?? {
+          status: response.status,
+          headers: JSON_CT_HEADERS,
+        },
       );
     }
   }
 
-  // Slow path: custom headers or non-JSON body
+  // Slow path: custom headers or non-JSON body — requires per-request Headers construction
   const headers = new Headers();
   for (const key in responseHeaders) {
     const value = responseHeaders[key];

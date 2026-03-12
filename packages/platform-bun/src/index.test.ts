@@ -342,6 +342,48 @@ describe("buildResponse", () => {
     const response = buildResponse(typoResponse);
     expect(response.headers.get("set-cookie")).toContain("a=1");
   });
+
+  it("uses JSON fast path for common status codes", async () => {
+    const typoResponse: TypoKitResponse = {
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: { fast: true },
+    };
+
+    const response = buildResponse(typoResponse);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const body = await response.json();
+    expect(body).toEqual({ fast: true });
+  });
+
+  it("uses JSON fast path for uncommon status codes", async () => {
+    const typoResponse: TypoKitResponse = {
+      status: 422,
+      headers: { "content-type": "application/json" },
+      body: { error: "unprocessable" },
+    };
+
+    const response = buildResponse(typoResponse);
+    expect(response.status).toBe(422);
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const body = await response.json();
+    expect(body).toEqual({ error: "unprocessable" });
+  });
+
+  it("uses JSON fast path for object body with no headers", async () => {
+    const typoResponse: TypoKitResponse = {
+      status: 200,
+      headers: {},
+      body: { implicit: true },
+    };
+
+    const response = buildResponse(typoResponse);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const body = await response.json();
+    expect(body).toEqual({ implicit: true });
+  });
 });
 
 // ─── createBunServer ─────────────────────────────────────────
