@@ -275,6 +275,8 @@ interface NativeServerState {
   compiledMiddleware: CompiledMiddlewareFn | null;
   validatorMap: ValidatorMap | null;
   serializerMap: SerializerMap | null;
+  /** Handlers with 2+ params need a RequestContext; others skip allocation */
+  handlerNeedsCtx: Set<string>;
 }
 
 /**
@@ -299,6 +301,7 @@ export function nativeServer(): ServerAdapter {
     compiledMiddleware: null,
     validatorMap: null,
     serializerMap: null,
+    handlerNeedsCtx: new Set(),
   };
 
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
@@ -394,16 +397,31 @@ export function nativeServer(): ServerAdapter {
     // both create a fresh TypoKitRequest object per request.
     req.params = params;
 
-    // Create request context
-    let ctx = createRequestContext();
-
-    // Execute compiled middleware chain if present
+    // Lazy context creation: only allocate when middleware or handler needs it.
+    // Detected at registration time by checking handler.length >= 2.
     if (state.compiledMiddleware) {
+      let ctx = createRequestContext();
       ctx = await state.compiledMiddleware(req, ctx);
+      const response = await handlerFn(req, ctx);
+      return serializeResponse(
+        response,
+        routeHandler.serializer,
+        state.serializerMap,
+      );
     }
 
-    // Call the handler
-    const response = await handlerFn(req, ctx);
+    if (state.handlerNeedsCtx.has(routeHandler.ref)) {
+      const ctx = createRequestContext();
+      const response = await handlerFn(req, ctx);
+      return serializeResponse(
+        response,
+        routeHandler.serializer,
+        state.serializerMap,
+      );
+    }
+
+    // Handler doesn't use ctx and no middleware — skip context allocation
+    const response = await handlerFn(req, undefined as unknown as Parameters<typeof handlerFn>[1]);
 
     // ── Response Serialization Pipeline ──
     return serializeResponse(
@@ -430,6 +448,15 @@ export function nativeServer(): ServerAdapter {
         ? resolveValidatorMap(routeTable, validatorMap)
         : null;
       state.serializerMap = serializerMap ?? null;
+
+      // Detect which handlers need a RequestContext (2+ params: req, ctx).
+      // Handlers with .length < 2 never access ctx, so we skip allocation.
+      state.handlerNeedsCtx = new Set();
+      for (const ref in handlerMap) {
+        if (handlerMap[ref].length >= 2) {
+          state.handlerNeedsCtx.add(ref);
+        }
+      }
 
       // Compile middleware chain once at registration time.
       // Calls MiddlewareFn handlers directly with (req, ctx, next),

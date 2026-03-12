@@ -89,17 +89,26 @@ function fail(
   throw createAppError(status, code, message, details);
 }
 
+/**
+ * Shared base context prototype — log and fail are the same for every request.
+ * Using Object.create(baseContext) avoids allocating these properties per request.
+ */
+const baseContext: Pick<RequestContext, "log" | "fail"> = {
+  log: PLACEHOLDER_LOGGER,
+  fail,
+};
+
 /** Create a RequestContext with ctx.fail() and ctx.log placeholder */
 export function createRequestContext(
   overrides?: Partial<RequestContext>,
 ): RequestContext {
-  return {
-    log: PLACEHOLDER_LOGGER,
-    fail,
-    services: {},
-    requestId: nextRequestId(),
-    ...overrides,
-  };
+  const ctx = Object.create(baseContext) as RequestContext;
+  ctx.requestId = nextRequestId();
+  ctx.services = {};
+  if (overrides) {
+    Object.assign(ctx, overrides);
+  }
+  return ctx;
 }
 
 /**

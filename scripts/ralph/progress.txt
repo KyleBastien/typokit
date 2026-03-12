@@ -1,318 +1,96 @@
 # Ralph Progress Log
-Started: 03/12/2026 02:38:00
+Started: 03/11/2026 19:43:53
 ---
 
 ## Codebase Patterns
-- `executeMiddlewareChain()` expects pre-sorted entries; use `sortMiddlewareEntries()` before passing
-- `normalizeRequest()` in platform-node handles trailing-slash stripping — server adapters should NOT re-normalize the path
-- Server adapters receive `MiddlewareChain` (no priority field) from `@typokit/types`; priority only exists on `MiddlewareEntry` from `@typokit/core`
-- Pre-existing CRLF lint failures on Windows — `prettier/prettier` Delete errors are baseline, not regressions
-- Server-native adapter uses `currentReq` shared reference pattern for pre-built middleware wrapper closures that need per-request data
-- All 4 server adapters have identical copy-pasted `runValidators()` — changes must be applied to all 4
-- `runValidators()` now takes a route ref string and performs a single hash lookup into the route-keyed `ValidatorMap` — no more per-field string lookups
-- Use `resolveValidatorMap(routeTable, rawMap)` from `@typokit/core` in `registerRoutes()` to convert `RawValidatorMap` (name→fn) to `ValidatorMap` (routeRef→RouteValidators)
-- Use `JSON_HEADERS` from `@typokit/core` for JSON response headers instead of creating `{ "content-type": "application/json" }` inline
-- All 4 server adapters have identical copy-pasted `serializeResponse()` — changes must be applied to all 4
-- Use `for...in` instead of `Object.entries()` for iterating plain `Record` objects in hot paths (avoids array allocation)
-- V8-specific APIs (`Error.stackTraceLimit`, `Error.captureStackTrace`) need typed alias: `Error as unknown as { stackTraceLimit: number; captureStackTrace(...): void }`
-- AppError skips stack trace at construction; use `captureStack()` if trace is needed for debugging
-- Avoid `new URL()` for request path extraction — use `indexOf('?')` + `substring()` instead; use `new URLSearchParams(qs)` only on the query portion
-- `collectRawBody()` returns raw UTF-8 string; JSON parsing is lazy via `Object.defineProperty` getter on `request.body`
-- Use `Buffer.allocUnsafe(size)` for small pre-allocated buffers when data will be immediately copied; use `Buffer.concat(chunks, totalLength)` with size hint for larger known-size bodies
-- Use `compileMiddlewareChain()` to pre-compile middleware entries into a single function at registration — returns specialized implementations for 0, 1, and N entries
-- In Hono adapter, use `c.req.path`, `c.req.query()`, `c.req.header()` native APIs instead of `new URL(req.url)` — Hono already parsed these during routing
-- Use `WeakMap<object, T>` instead of type-cast `(c as unknown as Record<string, unknown>)._prop` for stashing data on framework context objects
-- In Fastify adapter, `req.headers` is the Node.js IncomingMessage headers object — reuse directly, don't copy
-- server-native auto-detects Bun via `"Bun" in globalThis` and delegates to `createBunServer()` — `handleRequest` signature is shared between Node and Bun paths
-- `getNativeServer()` returns BunServer (has `.port`) on Bun and http.Server (has `.address()`) on Node — callers must handle both
-- platform-bun env.d.ts declares Web API types (Request, Response, Headers, URL, URLSearchParams) — update it when adding new Web API usage
-- Use Proxy-based lazy headers to wrap native `Headers` object — avoids O(N) upfront copy, individual headers resolved on demand via `native.get()`
-- Use `worker.disconnect()` for graceful cluster shutdown -- stops new connections, drains in-flight via `server.close()`, then worker exits
-- Core package has no @types/node — use `node-shims.d.ts` for minimal ambient declarations when adding Node.js-specific features
-- For cluster/multi-process benchmark apps, use `node-subprocess` runner mode (not `direct`)
+- `JSON_HEADERS` from `@typokit/core` is a frozen `{ "content-type": "application/json" }` constant — always use it instead of inline header objects in handlers
+- `shared-routes.ts` is the Node handler file; `shared-routes-bun.ts` is the Bun variant using `bun:sqlite`; `shared-routes-common.ts` has only route table/validators (no handlers)
+- Nx caches builds — typecheck may say "read from cache" if build already verified types
+- Both `normalizeRequest()` (platform-node and platform-bun) return fresh object literals per request — safe to mutate `req.params` directly in server-native
+- Guard `Object.assign(ctx, added)` with `if (added != null && typeof added === 'object' && hasOwnKeys(added))` — skip for null/undefined/empty returns
+- `MiddlewareChain.entries` (from @typokit/types) have no `priority` field — sorting is unnecessary when compiling from framework entries directly
+- server-native compiles middleware directly from MiddlewareFn handlers (req, ctx, next) — no MiddlewareInput adaptation layer
+- `createRequestContext()` uses `Object.create(baseContext)` — `log` and `fail` are on the prototype (shared), only `requestId` and `services` are per-request own properties
+- server-native detects handler.length >= 2 at registration time to skip context allocation for handlers that don't use ctx
 
-## 2026-03-11T05:46 - US-001
-- **What was implemented**: Removed per-request `Array.sort()` from `executeMiddlewareChain()`. Added `sortMiddlewareEntries()` utility that sorts once at registration time. Updated server-native adapter to pre-build and sort middleware entries in `registerRoutes()`, storing them on adapter state. Added 4 new tests for `sortMiddlewareEntries`.
-- **Files changed**:
-  - `packages/core/src/middleware.ts` — Added `sortMiddlewareEntries()`, removed sort from `executeMiddlewareChain()`
-  - `packages/core/src/middleware.test.ts` — Updated priority tests to pre-sort, added `sortMiddlewareEntries` test suite
-  - `packages/core/src/index.ts` — Exported `sortMiddlewareEntries`
-  - `packages/server-native/src/index.ts` — Pre-build/sort middleware in `registerRoutes()`, use pre-sorted array in request handler
+## 2026-03-12T02:44 - US-032
+- Replaced all 8 inline `{ "content-type": "application/json" }` header objects in `shared-routes-bun.ts` with `JSON_HEADERS` from `@typokit/core`
+- Added `JSON_HEADERS` to the import from `@typokit/core`
+- `shared-routes.ts` already used `JSON_HEADERS`; `shared-routes-common.ts` has no handlers
+- Files changed: `packages/benchmarks/src/apps/shared-routes-bun.ts`
 - **Learnings for future iterations:**
-  - `MiddlewareChain` entries from `@typokit/types` have no `priority` field — only `MiddlewareEntry` from core does. The sort was always a no-op in server adapters.
-  - Server-native wraps `MiddlewareFn` (takes full request) into `Middleware` handler (takes `MiddlewareInput` subset). Method/path aren't in `MiddlewareInput`, so pre-built wrappers need a shared `currentReq` reference set per-request.
-  - Other server adapters (hono, fastify, express) have the same middleware wrapping pattern and would benefit from the same optimization.
-  - Lint (`eslint .`) fails on baseline due to CRLF line endings on Windows — not a regression.
+  - `shared-routes.ts` was already converted in Phase 1 — only the Bun variant needed updating
+  - `shared-routes-common.ts` contains only route table, validator map, and types (no handlers, no headers)
+  - The Bun file mirrors the Node file but uses `bun:sqlite` and `Database` instead of `better-sqlite3`
 ---
 
-## 2026-03-11T05:58 - US-002
-- **What was implemented**: Replaced `Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)` with a monotonically incrementing counter using base-36 encoding (`(++counter).toString(36)`). Added module-level `requestIdCounter` and `nextRequestId()` helper. Added 2 new tests: uniqueness across 1000 calls, and monotonic ordering.
-- **Files changed**:
-  - `packages/core/src/middleware.ts` — Added `requestIdCounter` and `nextRequestId()`, replaced Math.random() in `createRequestContext()`
-  - `packages/core/src/middleware.test.ts` — Added uniqueness and monotonic ordering tests
+## 2026-03-12T02:48 - US-026
+- Replaced `const enrichedReq: TypoKitRequest = { ...req, params }` with `req.params = params` (direct mutation) in `packages/server-native/src/index.ts`
+- Removed `enrichedReq` variable — `req` used directly in middleware chain and handler call
+- Added code comments in `platform-node/src/index.ts` and `platform-bun/src/index.ts` confirming fresh objects per request (safe to mutate)
+- Files changed: `packages/server-native/src/index.ts`, `packages/platform-node/src/index.ts`, `packages/platform-bun/src/index.ts`
+- All 47 server-native tests pass, typecheck passes
 - **Learnings for future iterations:**
-  - The counter approach is simple and safe for single-process use. For multi-process (cluster mode), request IDs would need a worker prefix to avoid collisions (relevant for US-018/US-019).
-  - `requestId` is used as `traceId` in error responses via `error-middleware.ts` — format changes are user-visible.
-  - All 82 core tests pass with the change, including the 2 new ones.
+  - Both `normalizeRequest()` implementations return fresh object literals per request — safe to mutate `req.params`, `req.body`, etc. directly
+  - `currentReq` module-level variable is still used by the middleware wrapper closure (will be addressed in US-024)
+  - The middleware wrapper in `registerRoutes()` reconstructs `mwReq` from `currentReq` fields — this is the next target for US-024
 ---
 
-## 2026-03-11T06:01 - US-003
-- **What was implemented**: Added guard checks before unValidators() in all 4 server adapters (native, hono, fastify, express) to completely bypass the validation pipeline for routes without validators. The guard checks outeHandler.validators existence AND whether any of params/query/body fields are defined before calling unValidators().
-- **Files changed**:
-  - `packages/server-native/src/index.ts` — Added validator guard at line 339
-  - `packages/server-hono/src/index.ts` — Added validator guard at line 358
-  - `packages/server-fastify/src/index.ts` — Added validator guard at line 317
-  - `packages/server-express/src/index.ts` — Added validator guard at line 329
+## 2026-03-12T02:52 - US-025
+- Added `hasOwnKeys()` fast check (for...in with early exit) before all three `Object.assign(ctx, added)` calls in middleware.ts
+- Guards applied to: `executeMiddlewareChain()`, `compileMiddlewareChain()` single-entry branch, and N-entry loop branch
+- When middleware returns `{}`, `null`, or `undefined`, the `Object.assign` is now skipped entirely
+- Added 4 new test cases: empty return skip, null/undefined handling, single middleware with real values, single middleware empty no-op
+- Files changed: `packages/core/src/middleware.ts`, `packages/core/src/middleware.test.ts`
+- All 92 core tests pass (30 middleware tests), typecheck passes
 - **Learnings for future iterations:**
-  - unValidators() already had an internal short-circuit (if (!validatorMap || !routeHandler.validators) return undefined), but the function call overhead itself (5 args, stack frame) was wasteful for no-validator routes
-  - In hono/fastify/express adapters, the call site was also creating an intermediate { validators: route.validators } object — the guard avoids this allocation too
-  - All 4 adapters have identical unValidators implementations (copy-pasted). A future refactor could extract this to @typokit/core as a shared utility
-  - All 80 adapter tests pass (48 native + 12 hono + 12 fastify + 8 express) plus 82 core tests
+  - `hasOwnKeys()` using for...in + hasOwnProperty is faster than `Object.keys().length` for detecting empty objects
+  - Guard pattern: `if (added != null && typeof added === 'object' && hasOwnKeys(added))` covers null, undefined, and empty {} cases
+  - The `executeMiddlewareChain()` function also has an `Object.assign` that should get the same guard treatment
 ---
 
-## 2026-03-11T06:08 - US-004
-- **What was implemented**: Pre-computed and cached common response headers to eliminate per-request object allocation. Created `JSON_HEADERS` frozen constant in `@typokit/core/headers.ts`. Optimized `serializeResponse()` in all 4 server adapters to skip `{ ...response.headers }` spread when content-type is already set or headers are empty. Replaced `Object.entries()` with `for...in` in all `writeResponse()`/`buildResponse()` functions across platform and server adapters. Replaced 20+ inline `{ "content-type": "application/json" }` literals with the shared constant.
-- **Files changed**:
-  - `packages/core/src/headers.ts` — New: `JSON_HEADERS` frozen constant
-  - `packages/core/src/index.ts` — Export `JSON_HEADERS`
-  - `packages/core/src/error-middleware.ts` — Use `JSON_HEADERS` in 4 error paths
-  - `packages/server-native/src/index.ts` — Optimized `serializeResponse()`, use constant in 5 error paths
-  - `packages/server-hono/src/index.ts` — Optimized `serializeResponse()`, `buildHonoResponse()`, use constant
-  - `packages/server-fastify/src/index.ts` — Optimized `serializeResponse()`, `writeResponse()`, use constant
-  - `packages/server-express/src/index.ts` — Optimized `serializeResponse()`, `writeResponse()`, use constant
-  - `packages/platform-node/src/index.ts` — `for...in` instead of `Object.entries()` in `writeResponse()`
-  - `packages/platform-deno/src/index.ts` — `for...in` instead of `Object.entries()` in `buildResponse()`
-  - `packages/platform-bun/src/index.ts` — `for...in` instead of `Object.entries()` in `buildResponse()`
-  - `packages/benchmarks/src/apps/shared-routes.ts` — Use `JSON_HEADERS` in all 9 handler responses
+## 2026-03-12T02:53 - US-024
+- Removed `currentReq` adapter-scoped mutable variable entirely
+- Replaced `compileMiddlewareChain`/`sortMiddlewareEntries` wrapper with custom direct compilation
+- Middleware handlers now receive `req` by reference — no `mwReq` per-request allocation
+- Custom compilation has 1-entry and N-entry paths with `hasOwnKeys` guards (matching core patterns)
+- Removed unused imports: `sortMiddlewareEntries`, `compileMiddlewareChain`, `MiddlewareEntry`
+- Files changed: `packages/server-native/src/index.ts`
+- All 47 server-native tests pass, all 92 core tests pass, typecheck passes
 - **Learnings for future iterations:**
-  - `Object.freeze()` on header constants prevents accidental mutation when the same reference is shared across all responses
-  - `for...in` on plain objects is faster than `Object.entries()` because it avoids array allocation; safe for `Record<string, ...>` objects with no prototype chain
-  - The `hasOwnKeys()` helper using `for...in` with early return is the fastest way to check for empty objects (no `Object.keys().length` allocation)
-  - In the common hot path, handlers already set `"content-type": "application/json"` — so `serializeResponse` can reuse `response.headers` by reference (no spread needed)
-  - The 405 response in server-native has `allow` header alongside content-type, so it can't use the shared constant (must create custom headers object)
-  - All tests pass: 82 core + 48 native + 12 hono + 12 fastify + 8 express
+  - `MiddlewareChain.entries` from @typokit/types have no `priority` field — `sortMiddlewareEntries` was a no-op
+  - `MiddlewareFn` signature is `(req, ctx, next) => Promise<TypoKitResponse>` but middleware can return context additions (cast to unknown)
+  - The `noopNext` function can be shared across all middleware invocations (created once at registration time)
+  - US-027 can now work directly with the custom compilation — the `MiddlewareInput` layer is already bypassed in server-native
 ---
 
-## 2026-03-11T06:20 - US-005
-- **What was implemented**: Lazy error object construction. Three optimizations: (1) Skip V8 stack trace capture in AppError constructor by setting Error.stackTraceLimit=0 before super() and restoring after — stack is never used in AppError response serialization (toJSON() excludes it). Added captureStack() method for on-demand trace capture. (2) Extracted fail() as shared module-level function instead of per-request closure. (3) Created shared PLACEHOLDER_LOGGER constant to reuse across all request contexts.
-- **Files changed**:
-  - packages/errors/src/index.ts — Added ErrorWithV8 typed alias for V8-specific APIs. Modified AppError constructor to skip stack walk. Added captureStack() method.
-  - packages/errors/src/index.test.ts — Added 4 new tests for lazy stack behavior.
-  - packages/core/src/middleware.ts — Extracted shared NOOP, PLACEHOLDER_LOGGER, and fail() at module level.
+## 2026-03-12T03:05 - US-027
+- Eliminated pre-allocated `const input: MiddlewareInput` object in `compileMiddlewareChain()` N-entry case
+- Fields (headers, body, query, params, ctx) are now extracted inline from `req` per handler call
+- This enables V8 escape analysis / allocation sinking for the temporary input objects
+- Also ensures correctness: each handler sees latest req properties if mutated by a prior middleware
+- Added test `reads req properties fresh per middleware call` proving no pre-allocated input
+- server-native already passes req directly (from US-024) — no changes needed
+- Files changed: `packages/core/src/middleware.ts`, `packages/core/src/middleware.test.ts`
+- All 93 core tests pass (31 middleware tests), all 47 server-native tests pass, typecheck passes
 - **Learnings for future iterations:**
-  - Error.stackTraceLimit is V8-specific, not in ES typings — use typed alias via `Error as unknown as { stackTraceLimit: number; ... }`
-  - captureStackTrace(target, constructorOpt) second arg omits frames at/above that function — don't pass this.constructor when calling from a method outside the constructor
-  - AppError toJSON() never includes stack; error middleware only accesses .stack on unknown Error instances — skipping stack capture is safe
-  - All 21 errors + 82 core + 48 server-native tests pass
+  - The N-entry `compileMiddlewareChain` was the only place that pre-allocated a `MiddlewareInput` — the 1-entry case and `executeMiddlewareChain` already used inline construction
+  - V8's escape analysis can optimize inline object literal arguments that don't escape the called function (allocation sinking)
+  - server-native's custom middleware compilation (from US-024) already bypasses MiddlewareInput entirely using MiddlewareFn (req, ctx, next)
 ---
 
-## 2026-03-11T06:28 - US-006
-- **What was implemented**: Replaced per-middleware object spread `{ ...currentCtx, ...added }` with `Object.assign(ctx, added)` in `executeMiddlewareChain()`. Context is now mutated in-place on a single object instead of creating N new objects per request (where N = middleware count). Removed the `currentCtx` intermediate variable entirely.
-- **Files changed**:
-  - `packages/core/src/middleware.ts` — `executeMiddlewareChain()` now uses Object.assign for in-place mutation
+## 2026-03-12T03:05 - US-031
+- Modified `createRequestContext()` in `packages/core/src/middleware.ts` to use `Object.create(baseContext)` with a shared prototype for `log` and `fail` -- avoids allocating these per request
+- Only `requestId` and `services` are set as own properties per request
+- Added lazy context creation in `packages/server-native/src/index.ts`:
+  - At registration time, detects which handlers need ctx via `handler.length >= 2`
+  - `handleRequest()` skips `createRequestContext()` entirely when no middleware AND handler doesn't use ctx
+  - Handlers that don't declare a ctx parameter receive `undefined` (safe since they never access it)
+- Files changed: `packages/core/src/middleware.ts`, `packages/server-native/src/index.ts`
+- All 93 core tests pass, all 47 server-native tests pass, typecheck passes
 - **Learnings for future iterations:**
-  - No callers depend on `executeMiddlewareChain` returning a different object than the input `ctx` — all server adapters use `ctx = await executeMiddlewareChain(...)` reassignment pattern
-  - No tests check that the original ctx is NOT mutated, so in-place mutation is a safe behavioral change
-  - All 82 core tests pass without modification — the test on line 73 that checks `ctx.step1` during mw2 already works because in-place mutation adds step1 before mw2 runs
----
-
-## 2026-03-11T06:30 - US-007
-- **What was implemented**: Replaced `new URL(req.url, base)` in `normalizeRequest()` with `indexOf('?')` + `substring()` for path extraction, and `new URLSearchParams(queryString)` only on the query portion. Removed `import { URL } from "node:url"`. Used `for...in` instead of `Object.entries()` in `normalizeHeaders()`. Added early return in `parseQuery()` for empty query strings.
-- **Files changed**:
-  - `packages/platform-node/src/index.ts` — Rewrote `normalizeRequest()`, `parseQuery()`, `normalizeHeaders()`
-- **Learnings for future iterations:**
-  - `new URL()` is one of the most expensive operations in Node.js request handling — it parses protocol, host, port, pathname, search, hash, origin. For server-side use where we only need path and query, `indexOf`+`substring` is dramatically cheaper.
-  - `new URLSearchParams(string)` is much cheaper than `new URL()` — it only parses key=value pairs without full URL normalization.
-  - Node.js `IncomingMessage.headers` is already `Record<string, string | string[] | undefined>` compatible — `normalizeHeaders()` could potentially be eliminated entirely by casting `req.headers` directly, but the copy provides mutation safety.
-  - All 7 platform-node tests + 48 server-native tests pass.
----
-
-## 2026-03-11T06:34 - US-008
-- **What was implemented**: Optimized body collection in platform-node with three improvements: (1) Pre-allocated single buffer for small bodies (<16KB) with known content-length using `Buffer.allocUnsafe(size)` + direct chunk copy — eliminates array allocation and `Buffer.concat`. (2) Size-hinted `Buffer.concat(chunks, totalLength)` for larger bodies with known content-length. (3) Lazy JSON parsing via `Object.defineProperty` getter on `request.body` — `JSON.parse()` is deferred until `.body` is first accessed.
-- **Files changed**:
-  - `packages/platform-node/src/index.ts` — Rewrote `collectBody()` → `collectRawBody()` (returns raw string, no JSON parsing). Updated `normalizeRequest()` to use lazy getter for JSON body. Added `SMALL_BODY_THRESHOLD` constant.
-  - `packages/platform-node/src/index.test.ts` — Added 5 new tests: small JSON body, empty body, lazy parsing verification, non-JSON body, invalid JSON fallback.
-- **Learnings for future iterations:**
-  - `Buffer.allocUnsafe(size)` is faster than `Buffer.alloc(size)` because it skips zero-fill. Safe when data is immediately copied via `chunk.copy()`.
-  - `Object.defineProperty` with a getter on a plain object is well-optimized in V8. The getter fires on spread (`{ ...req }`) too, which transparently resolves the lazy value.
-  - `configurable: true` on the lazy getter allows downstream code (e.g., `Object.assign(ctx, added)`) to overwrite it with a plain value without errors.
-  - For content-length: 0, must call `req.resume()` to drain the stream properly in Node.js (otherwise the "end" event may not fire for keep-alive connections).
-  - All 12 platform-node tests + 48 server-native tests pass.
----
-
-## 2026-03-11T06:42 - US-009
-- **What was implemented**: Replaced `path.split('/')` segments array with index-based string traversal in `lookupRoute()`. The function now accepts a raw path string and scans character-by-character using `charCodeAt()` to find '/' boundaries, extracting segments via `substring()`. `decodeURIComponent()` is only called on parameter captures (`:id` params and `*wildcard` captures), never on static segments. Wildcard capture builds result string inline without array allocation.
-- **Files changed**:
-  - `packages/server-native/src/index.ts` — Rewrote `lookupRoute(root, segments[])` → `lookupRoute(root, path)` with index-based traversal. Removed `segments` array creation from `handleRequest()`.
-- **Learnings for future iterations:**
-  - `charCodeAt()` returns numeric code (47 for '/'), faster than string comparison for single characters in tight loops
-  - `substring(start, end)` does not allocate when V8 can use a "sliced string" representation — cheaper than split() which allocates an array + N strings
-  - The root path "/" is a special case — early return avoids entering the traversal loop entirely
-  - All 48 server-native tests pass without modification, confirming behavioral equivalence
----
-
-## 2026-03-11T06:47 - US-010
-- **What was implemented**: Added `compileMiddlewareChain()` function that pre-compiles a sorted `MiddlewareEntry[]` into a single `CompiledMiddlewareFn` callable. Three specializations: identity (0 entries), direct call (1 entry), flat indexed loop over pre-extracted handler references (N entries). The N-entry path creates a shared `MiddlewareInput` object per request (not per middleware). Updated server-native adapter to store and invoke compiled middleware instead of calling `executeMiddlewareChain()` per-request.
-- **Files changed**:
-  - `packages/core/src/middleware.ts` — Added `CompiledMiddlewareFn` type and `compileMiddlewareChain()` function
-  - `packages/core/src/index.ts` — Exported `CompiledMiddlewareFn` and `compileMiddlewareChain`
-  - `packages/server-native/src/index.ts` — Replaced `sortedMiddlewareEntries` with `compiledMiddleware`, uses `compileMiddlewareChain()` at registration time
-  - `packages/core/src/middleware.test.ts` — Added 6 new tests: identity, single middleware, multi-chain ordering, short-circuit on throw, input properties, in-place mutation
-- **Learnings for future iterations:**
-  - `Promise.resolve(ctx)` for the 0-entry identity avoids async function overhead (no microtask tick)
-  - The shared `MiddlewareInput` object works because `ctx` is mutated in-place via `Object.assign` — subsequent middleware see updated context through the same reference
-  - Pre-extracting handler functions (`entries.map(e => e.middleware.handler)`) avoids per-iteration property chain access
-  - Other server adapters (hono, fastify, express) could adopt the same `compileMiddlewareChain` pattern
-  - All 88 core + 48 server-native tests pass
----
-
-## 2026-03-11T06:54 - US-011
-- **What was implemented**: Moved trailing-slash normalization from server-native's `handleRequest()` into platform-node's `normalizeRequest()`. Path is now extracted and normalized exactly once during request normalization. Removed `normalizePath()` function from server-native entirely. `lookupRoute()` now receives `req.path` directly. `enrichedReq` no longer overrides `path` since it's already correct.
-- **Files changed**:
-  - `packages/platform-node/src/index.ts` — Added trailing-slash stripping using `charCodeAt()` check in `normalizeRequest()` right after path extraction
-  - `packages/server-native/src/index.ts` — Removed `normalizePath()` function, removed intermediate `path` variable in `handleRequest()`, pass `req.path` directly to `lookupRoute()`
-- **Learnings for future iterations:**
-  - `normalizeRequest()` in platform-node is only consumed by server-native (via `createServer`) — other adapters (hono, fastify, express) have their own request handling, so changes to normalizeRequest don't affect them
-  - Using `charCodeAt(len-1) === 47` is faster than `endsWith("/")` for single-character checks
-  - The `enrichedReq` spread was overriding `path` unnecessarily after normalization moved upstream — removing it avoids one property write in the spread
-  - All 12 platform-node + 48 server-native + 88 core tests pass
----
-
-## 2026-03-11T06:58 - US-012
-- **What was implemented**: Eliminated 
-ew URL(req.url) from Hono adapter's 
-ormalizeRequest(). Replaced with Hono's native c.req.path for path extraction, c.req.query() for query parameters, and c.req.header() for headers. Replaced type-cast anti-patterns ((c as unknown as Record<string, unknown>)._typoBody and ._typoResponse) with module-level WeakMap<object, T> stores for both body and response data.
-- **Files changed**:
-  - packages/server-hono/src/index.ts — Rewrote 
-ormalizeRequest() to use Hono native APIs, added odyStore/esponseStore WeakMaps, updated route handler to use odyStore.set()
-- **Learnings for future iterations:**
-  - Hono's c.req.path is already available without URL parsing — Hono's router extracts it during matching
-  - Hono provides c.req.query() (Record<string, string> — first value per key) and c.req.queries() (Record<string, string[]> — all values). Use query() for the common case, queries() for multi-value support
-  - Hono's c.req.header() without args returns Record<string, string> — cleaner than manually iterating eq.raw.headers.forEach()
-  - WeakMap<object, T> is a GC-friendly replacement for stashing arbitrary data on framework context objects — avoids type-cast anti-patterns and doesn't leak memory
-  - All 12 Hono adapter tests pass without modification, confirming behavioral equivalence
----
-
-## 2026-03-11T07:05 - US-013
-- **What was implemented**: Optimized Fastify adapter's 
-ormalizeRequest() to use Fastify's native pre-parsed request properties instead of re-parsing. Three key changes: (1) replaced eq.url.split("?")[0] with indexOf("?")+substring() to avoid array allocation, (2) reused eq.headers directly instead of copying via Object.entries() loop into a new object, (3) removed redundant .toUpperCase() on eq.method since HTTP method is already uppercase per spec.
-- **Files changed**:
-  - `packages/server-fastify/src/index.ts` — Rewrote 
-ormalizeRequest() function
-- **Learnings for future iterations:**
-  - Fastify's eq.headers is the same Node.js IncomingMessage.headers object — no need to copy it
-  - eq.method from Node.js HTTP is always uppercase per HTTP/1.1 spec — .toUpperCase() is redundant overhead in all adapters
-  - The header copy loop was the biggest waste — it iterated every header key/value pair via Object.entries() and allocated a new object on every request
-  - Same .toUpperCase() removal could be applied to other adapters (hono, express, native) for consistency
----
-
-## 2026-03-11T07:08 - US-014
-- **What was implemented**: Consolidated validator map lookup from three separate hash lookups per request into a single route-keyed lookup. Changed `ValidatorMap` type from `Record<string, ValidatorFn>` (name-keyed) to `Record<string, RouteValidators>` (route-ref-keyed). Added `RawValidatorMap` type for build-system output. Created `resolveValidatorMap()` utility in `@typokit/core` that walks the compiled route table at registration time and pre-resolves validator string references into `RouteValidators` objects. Updated `runValidators()` in all 4 adapters to accept a route ref string and perform a single hash lookup.
-- **Files changed**:
-  - `packages/types/src/index.ts` — Added `RouteValidators` interface, changed `ValidatorMap` type, added `RawValidatorMap` type
-  - `packages/core/src/validation.ts` — New: `resolveValidatorMap()` utility
-  - `packages/core/src/index.ts` — Exported `resolveValidatorMap`
-  - `packages/core/src/adapters/server.ts` — Changed `registerRoutes` to accept `RawValidatorMap`
-  - `packages/server-native/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
-  - `packages/server-hono/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
-  - `packages/server-fastify/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
-  - `packages/server-express/src/index.ts` — Updated `runValidators`, `registerRoutes`, call site
-  - `packages/server-native/src/index.test.ts` — Updated runValidators tests to use new signature
-  - `packages/server-hono/src/index.test.ts` — Changed ValidatorMap to RawValidatorMap in test
-  - `packages/server-fastify/src/index.test.ts` — Changed ValidatorMap to RawValidatorMap in test
-  - `packages/server-express/src/index.test.ts` — Changed ValidatorMap to RawValidatorMap in test
-  - `packages/benchmarks/src/apps/shared-routes.ts` — Changed to RawValidatorMap
-  - `packages/example-todo-server/src/test-app.ts` — Changed to RawValidatorMap
-  - `packages/example-todo-server/src/dev-server.ts` — Changed to RawValidatorMap
-  - `packages/testing/src/schema-matcher.ts` — Changed to RawValidatorMap
-- **Learnings for future iterations:**
-  - Breaking type changes to `@typokit/types` propagate to many downstream packages — search all `ValidatorMap` references before committing
-  - The `resolveValidatorMap()` utility in core is now the single place that walks the route tree to resolve validators — any new adapter should import and use it
-  - `registerRoutes()` now accepts `RawValidatorMap` (the build output) and resolves internally — callers don't need to know about the route-keyed format
-  - All 30 affected project tests pass (47 native + 12 hono + 12 fastify + 8 express + 88 core + others)
----
-
-## 2026-03-11T07:24 - US-015
-- Implemented Bun-native server path in platform-bun adapter
-- Added `createBunServer()` function that uses `Bun.serve({ fetch })` directly (no node:http)
-- Optimized `normalizeRequest()`: indexOf/substring for path extraction instead of `new URL()`
-- Body accessed via `req.json()` (JSON) and `req.text()` (other) — Bun's native zero-copy methods
-- Lazy Proxy-based headers wrapping native `Headers` API — avoids upfront O(N) conversion
-- Changed `parseQuery` to accept raw query string (consistent with platform-node)
-- Kept `createServer` as deprecated backward-compatible alias
-- Files changed:
-  - packages/platform-bun/src/index.ts (main implementation)
-  - packages/platform-bun/src/index.test.ts (24 tests, 7 new)
-  - packages/platform-bun/src/env.d.ts (URLSearchParams constructor)
-- **Learnings for future iterations:**
-  - platform-bun uses env.d.ts for Web API type declarations (Request, Response, Headers, URL, URLSearchParams) since it compiles under Node16 moduleResolution without DOM lib
-  - Proxy-based lazy headers work for `for...in` iteration via `ownKeys` + `getOwnPropertyDescriptor` traps
-  - In Bun.serve, `req.url` is always a full URL (`http://host:port/path?query`), so path extraction must skip the protocol+host prefix
-  - `req.json()` consumes the body stream; if it throws (malformed JSON), you can't fall back to `req.text()` — body becomes undefined
-  - `eslint --fix` resolves prettier formatting issues automatically on Windows (CRLF + other format changes)
----
-
-## 2026-03-11T07:33 - US-016
-- **What was implemented**: Auto-detection of Bun runtime in `nativeServer()` adapter. When running on Bun, `listen()` dynamically imports `@typokit/platform-bun` and uses `createBunServer()` (Bun.serve) instead of `createServer()` from platform-node, bypassing the node:http compatibility layer for near-native Bun performance. Updated `getNativeServer()` to return a generic reference (BunServer on Bun, http.Server on Node). Updated the benchmark app to handle both server types for port detection.
-- **Files changed**:
-  - `packages/server-native/src/index.ts` — Added `isBun` runtime detection, Bun path in `listen()`, generic `nativeServerRef`
-  - `packages/server-native/package.json` — Added `@typokit/platform-bun` as optional peer dependency
-  - `packages/server-native/tsconfig.lib.json` — Added platform-bun reference for dynamic import resolution
-  - `packages/benchmarks/src/apps/typokit-bun-native.ts` — Updated to detect BunServer (.port) vs http.Server (.address()) from getNativeServer()
-  - `pnpm-lock.yaml` — Updated lockfile
-- **Learnings for future iterations:**
-  - `"Bun" in globalThis` is the canonical way to detect Bun runtime — no need for process.versions or user-agent checks
-  - Dynamic `import()` of platform-bun is needed because static imports would fail on Node.js (platform-bun's env.d.ts declares Web API types). The tsconfig project reference is still needed for type resolution of the dynamic import.
-  - `createBunServer()` takes the same `(req: TypoKitRequest) => Promise<TypoKitResponse>` handler signature as platform-node's `createServer()`, so the `handleRequest` function works unchanged for both paths
-  - `BunServer` has `.port` and `.hostname` directly on the instance; `http.Server` uses `.address()` returning `AddressInfo` — benchmark code must handle both
-  - The `writeResponse()` method on the adapter is only used by the Node.js code path; Bun's `fetch()` pattern returns a `Response` object directly, so writeResponse is never called on Bun
-  - Optional peer dependencies with `peerDependenciesMeta` `optional: true` is the right pattern for runtime-conditional packages — it won't fail install on Node.js where platform-bun isn't needed
----
-
-## 2026-03-11T07:43 - US-017
-- **What was implemented**: Added HTTP keep-alive tuning to createServer() in platform-node. Extended NodeServerOptions with keepAliveTimeout (default 5000ms), headersTimeout (default 10000ms), and maxHeadersCount (default 64). Configured these on the 
-ode:http Server instance immediately after creation. Added 2 new tests: default values verification and custom options override.
-- **Files changed**:
-  - `packages/platform-node/src/index.ts` — Extended NodeServerOptions interface, added server tuning after 
-odeCreateServer()
-  - `packages/platform-node/src/index.test.ts` — Added 2 tests for default and custom keep-alive settings
-- **Learnings for future iterations:**
-  - Node.js default keepAliveTimeout is already 5000ms, but setting it explicitly enables customization via options
-  - headersTimeout must be > keepAliveTimeout to avoid premature connection drops during header parsing
-  - maxHeadersCount default of 2000 in Node.js is excessive for API servers — 64 covers typical use cases
-  - All 14 platform-node tests pass (12 existing + 2 new)
-  - CRLF prettier/prettier lint errors on Windows are baseline — not regressions from this change
----
-
-## 2026-03-11T07:47 - US-018
-- **What was implemented**: Added createClusterServer() export to @typokit/platform-node that uses 
-ode:cluster to fork worker processes across CPU cores. Workers share the same port via the cluster module's built-in round-robin load balancing. Graceful shutdown uses worker.disconnect() to drain in-flight requests, with a configurable timeout and SIGKILL fallback. Workers also handle SIGTERM for external process managers (Docker, systemd). Exported ClusterServer, ClusterServerOptions, and getDefaultWorkerCount types.
-- **Files changed**:
-  - `packages/platform-node/src/cluster.ts` — New file: createClusterServer(), getDefaultWorkerCount(), ClusterServerOptions, ClusterServer, shutdownAllWorkers()
-  - `packages/platform-node/src/cluster.test.ts` — New file: 6 tests for cluster API surface (defaults, custom worker count, isPrimary flag)
-  - `packages/platform-node/src/index.ts` — Re-export createClusterServer, getDefaultWorkerCount, ClusterServerOptions, ClusterServer from cluster.ts
-- **Learnings for future iterations:**
-  - Cluster workers share ports via the cluster module's IPC — the primary process accepts connections and distributes them to workers in round-robin fashion
-  - worker.disconnect() is the proper graceful shutdown mechanism — it stops new connections from reaching the worker and lets in-flight requests drain via server.close()
-  - os.availableParallelism() was added in Node 18.14; use os.cpus().length as fallback for older versions
-  - Cluster mode tests can't easily fork real workers in unit tests (requires compiled output); API surface tests in-process are sufficient; integration is validated via benchmarks
-  - US-019 depends on this — it adds app-level config to wire createClusterServer into createApp() and a benchmark scenario
----
-
-
-## 2026-03-11T07:54 - US-019
-- **What was implemented**: Added `cluster: true | { workers: number }` config option to `createApp()` in `@typokit/core`. On primary process, `listen()` dynamically imports `node:cluster`, forks N workers, and returns a handle that gracefully shuts them down. On worker processes, `listen()` falls through to normal adapter.listen(). Added a `node-shims.d.ts` for minimal `node:cluster` and `node:os` type declarations (avoids @types/node dep in core). Created `typokit-node-native-cluster` benchmark app using node:cluster directly with 4 workers. Added `node-subprocess` mode to benchmark runner to support cluster-mode apps (uses `process.execPath`/`process.execArgv` for tsx compatibility). Registered cluster app in APP_REGISTRY and exported from apps/index.ts.
-- **Files changed**:
-  - `packages/core/src/app.ts` — Added ClusterConfig interface, cluster option to CreateAppOptions, cluster/primary fork logic in listen(), isClusterPrimary guard in close()
-  - `packages/core/src/index.ts` — Exported ClusterConfig type
-  - `packages/core/src/node-shims.d.ts` — Minimal type declarations for node:cluster, node:os, setTimeout, clearTimeout
-  - `packages/benchmarks/src/apps/typokit-node-native-cluster.ts` — New cluster benchmark app (primary forks 4 workers, workers use nativeServer adapter)
-  - `packages/benchmarks/src/apps/index.ts` — Exported startTypokitNodeNativeCluster
-  - `packages/benchmarks/src/runner.ts` — Added "node-subprocess" mode to AppDef, dispatch case using process.execPath/execArgv, cluster app in APP_REGISTRY
-- **Learnings for future iterations:**
-  - Core package has NO @types/node devDependency — use node-shims.d.ts for minimal ambient declarations when referencing Node.js APIs
-  - `setTimeout`/`clearTimeout` are not globally typed in core — they need explicit `declare function` in a .d.ts
-  - For cluster benchmark apps, "direct" mode won't work (cluster.fork re-runs the runner). Use "node-subprocess" mode which spawns via subprocess-entry.ts
-  - `process.execPath` + `process.execArgv` preserves tsx loader for Node subprocess spawning and cluster.fork() worker re-execution
-  - Worker stdout in cluster mode is inherited from primary — BENCHMARK_PORT from workers reaches the runner's pipe
+  - `Object.create(prototype)` creates objects with shared prototype properties -- `log` and `fail` are inherited, not copied
+  - `handler.length` in JS reflects declared parameter count -- reliable for detecting ctx usage
+  - `services: {}` must be per-request (own property) since it's mutable; prototype sharing would cause cross-request contamination
+  - Test handlers in index.test.ts all have .length 1 (only `req` param), confirming the optimization skips context for all test routes
 ---

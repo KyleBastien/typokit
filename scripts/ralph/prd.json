@@ -16,7 +16,7 @@
         "Typecheck passes: pnpm nx typecheck benchmarks"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -31,7 +31,7 @@
         "Typecheck passes: pnpm nx typecheck server-native"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -47,7 +47,7 @@
         "Typecheck passes: pnpm nx typecheck core"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -63,7 +63,7 @@
         "Typecheck passes: pnpm nx typecheck core && pnpm nx typecheck server-native"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-026 (params mutation) being complete so req is already mutated in place"
     },
     {
@@ -79,7 +79,7 @@
         "Typecheck passes: pnpm nx typecheck core && pnpm nx typecheck server-native"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-024 (eliminate mwReq) — the middleware wrapper already passes req directly after that change"
     },
     {
@@ -94,7 +94,7 @@
         "Typecheck passes: pnpm nx typecheck server-native"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
