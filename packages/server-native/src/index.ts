@@ -266,6 +266,13 @@ function serializeResponse(
 /** True when running inside a Bun process */
 const isBun = "Bun" in globalThis;
 
+/** Minimal shape of a Bun server returned by Bun.serve() */
+interface BunServerRef {
+  port: number;
+  hostname: string;
+  stop(closeActiveConnections?: boolean): void;
+}
+
 // ─── Native Server Adapter ───────────────────────────────────
 
 interface NativeServerState {
@@ -517,10 +524,11 @@ export function nativeServer(): ServerAdapter {
 
     async listen(port: number): Promise<ServerHandle> {
       if (isBun) {
-        // Bun runtime: use Bun.serve() via platform-bun for near-native performance.
+        // Bun runtime: call Bun.serve() directly — no createBunServer wrapper.
         // The fast-path bypasses normalizeRequest/buildResponse for simple GET/HEAD/DELETE
         // routes with no middleware or validators — approaching raw Bun.serve() throughput.
-        const { createBunServer } = await import("@typokit/platform-bun");
+        const { normalizeRequestSync, normalizeRequestAsync, buildResponse } =
+          await import("@typokit/platform-bun");
 
         // Pre-allocated ResponseInit for fast-path JSON responses.
         // Plain header objects — Bun's Response accepts Record<string, string>.
@@ -685,12 +693,66 @@ export function nativeServer(): ServerAdapter {
           }
         };
 
-        const bunInstance = createBunServer(handleRequest, {
-          fastPath: fastPathFn,
+        // Normal path: full normalize → handleRequest → buildResponse round-trip
+        const normalFetch = async (rawReq: Request): Promise<Response> => {
+          try {
+            const method = rawReq.method.toUpperCase();
+            const normalized =
+              method === "GET" ||
+              method === "HEAD" ||
+              method === "DELETE" ||
+              method === "OPTIONS"
+                ? normalizeRequestSync(rawReq)
+                : await normalizeRequestAsync(rawReq);
+            const response = await handleRequest(normalized);
+            return buildResponse(response);
+          } catch (err: unknown) {
+            return new Response(
+              JSON.stringify({
+                error: "Internal Server Error",
+                message: err instanceof Error ? err.message : "Unknown error",
+              }),
+              fpJsonInit500,
+            );
+          }
+        };
+
+        // Direct Bun.serve() — eliminates the createBunServer abstraction layer.
+        // createBunServer() remains exported from platform-bun for standalone use.
+        const bun = (
+          globalThis as unknown as {
+            Bun: {
+              serve(opts: {
+                port: number;
+                hostname: string;
+                fetch(req: Request): Response | Promise<Response>;
+              }): BunServerRef;
+            };
+          }
+        ).Bun;
+
+        const bunServer = bun.serve({
+          port,
+          hostname: "0.0.0.0",
+          fetch(rawReq: Request): Response | Promise<Response> {
+            // Fast path: bypass normalize/build for simple routes
+            try {
+              const result = fastPathFn(rawReq);
+              if (result !== null) return result;
+            } catch {
+              // Fast path error — fall through to normal path
+            }
+            return normalFetch(rawReq);
+          },
         });
-        const handle = await bunInstance.listen(port);
-        nativeServerRef = bunInstance.server;
-        return handle;
+
+        nativeServerRef = bunServer;
+        return {
+          async close(): Promise<void> {
+            bunServer.stop(true);
+            nativeServerRef = null;
+          },
+        };
       }
 
       // Node.js runtime: use node:http via platform-node
