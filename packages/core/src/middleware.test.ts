@@ -7,6 +7,7 @@ import {
   createRequestContext,
 } from "./middleware.js";
 import type { TypoKitRequest } from "@typokit/types";
+import type { MiddlewareInput } from "./middleware.js";
 import type { AppError } from "@typokit/errors";
 import {
   NotFoundError,
@@ -432,5 +433,86 @@ describe("compileMiddlewareChain", () => {
     const ctx = createRequestContext();
     const result = await compiled(req, ctx);
     expect(result).toBe(ctx);
+  });
+
+  it("skips Object.assign for empty middleware returns ({})", async () => {
+    const mw1 = defineMiddleware(async () => ({}));
+    const mw2 = defineMiddleware(async () => ({ user: "alice" }));
+    const mw3 = defineMiddleware(async () => ({}));
+
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: mw1 },
+      { name: "auth", middleware: mw2 },
+      { name: "noop2", middleware: mw3 },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    // Real middleware values still applied
+    expect((result as unknown as Record<string, unknown>)["user"]).toBe(
+      "alice",
+    );
+    // Context reference unchanged
+    expect(result).toBe(ctx);
+  });
+
+  it("handles middleware returning undefined or null gracefully", async () => {
+    // Middleware that returns undefined (cast to satisfy TS)
+    const mwUndef = defineMiddleware(
+      (async () => undefined) as unknown as (
+        input: MiddlewareInput,
+      ) => Promise<Record<string, unknown>>,
+    );
+    // Middleware that returns null (cast to satisfy TS)
+    const mwNull = defineMiddleware(
+      (async () => null) as unknown as (
+        input: MiddlewareInput,
+      ) => Promise<Record<string, unknown>>,
+    );
+    const mwReal = defineMiddleware(async () => ({ role: "admin" }));
+
+    const compiled = compileMiddlewareChain([
+      { name: "undef", middleware: mwUndef },
+      { name: "null", middleware: mwNull },
+      { name: "real", middleware: mwReal },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    expect((result as unknown as Record<string, unknown>)["role"]).toBe(
+      "admin",
+    );
+    expect(result).toBe(ctx);
+  });
+
+  it("single middleware with actual context values works correctly", async () => {
+    const mw = defineMiddleware(async () => ({
+      user: { id: "42", name: "Bob" },
+      permissions: ["read", "write"],
+    }));
+    const compiled = compileMiddlewareChain([{ name: "auth", middleware: mw }]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    const extended = result as unknown as Record<string, unknown>;
+    expect(extended["user"]).toEqual({ id: "42", name: "Bob" });
+    expect(extended["permissions"]).toEqual(["read", "write"]);
+  });
+
+  it("single middleware returning empty object is a no-op", async () => {
+    const mw = defineMiddleware(async () => ({}));
+    const compiled = compileMiddlewareChain([{ name: "noop", middleware: mw }]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect(result).toBe(ctx);
+    // Only original context keys should exist
+    expect(result.requestId).toBeDefined();
+    expect(result.log).toBeDefined();
   });
 });

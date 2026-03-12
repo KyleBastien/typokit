@@ -51,6 +51,17 @@ export function defineMiddleware<TAdded extends Record<string, unknown>>(
   return { handler };
 }
 
+/**
+ * Fast check for non-empty object — for...in with early exit is faster
+ * than Object.keys().length for the common case of empty objects ({}).
+ */
+function hasOwnKeys(obj: Record<string, unknown>): boolean {
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) return true;
+  }
+  return false;
+}
+
 const NOOP = () => {};
 
 /** Shared no-op logger instance — avoids per-request object allocation */
@@ -121,7 +132,9 @@ export async function executeMiddlewareChain(
       params: req.params,
       ctx,
     });
-    Object.assign(ctx, added);
+    if (added != null && typeof added === "object" && hasOwnKeys(added)) {
+      Object.assign(ctx, added);
+    }
   }
 
   return ctx;
@@ -164,7 +177,9 @@ export function compileMiddlewareChain(
         params: req.params,
         ctx,
       });
-      Object.assign(ctx, added);
+      if (added != null && typeof added === "object" && hasOwnKeys(added)) {
+        Object.assign(ctx, added);
+      }
       return ctx;
     };
   }
@@ -185,7 +200,9 @@ export function compileMiddlewareChain(
     };
     for (let i = 0; i < len; i++) {
       const added = await handlers[i](input);
-      Object.assign(ctx, added);
+      if (added != null && typeof added === "object" && hasOwnKeys(added)) {
+        Object.assign(ctx, added);
+      }
     }
     return ctx;
   };
