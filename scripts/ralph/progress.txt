@@ -25,6 +25,7 @@ Started: 03/11/2026 19:43:53
 - `JSON_CT_HEADERS` is exported from platform-bun as `Record<string, string>` — use for Bun Response construction headers
 - `createBunServer` accepts `BunServerOptions.fastPath` callback `(req: Request) => Response | Promise<Response> | null` — bypass normalize/build for simple routes
 - server-native fast-path uses pre-allocated `fpJsonInit{200,404,500}` ResponseInit with plain header objects for zero-allocation Bun Response construction
+- server-native on Bun calls `Bun.serve()` directly in `listen()` — no `createBunServer` wrapper. Import `normalizeRequestSync`, `normalizeRequestAsync`, `buildResponse` from platform-bun for the normal path.
 
 ## 2026-03-12T02:44 - US-032
 - Replaced all 8 inline `{ "content-type": "application/json" }` header objects in `shared-routes-bun.ts` with `JSON_HEADERS` from `@typokit/core`
@@ -205,4 +206,19 @@ ew Headers() wrapper
   - `extractPathAndQuery()` logic is duplicated in server-native's fast path (not exported from platform-bun) — consider exporting if more consumers need it
   - The fast-path callback approach lets server-native own routing logic while platform-bun owns fetch handler lifecycle
   - US-029 (direct Bun.serve) will need to inline this fast-path directly, not go through createBunServer
+---
+## 2026-03-12T03:51 - US-029
+- Replaced `createBunServer()` call in server-native's `listen()` with direct `Bun.serve()` call
+- Added `BunServerRef` interface for typing the Bun server instance
+- Inline fetch handler implements fast-path (direct route lookup -> handler -> Response) for simple routes
+- Normal path uses `normalizeRequestSync`/`normalizeRequestAsync` and `buildResponse` imported from platform-bun
+- `createBunServer()` remains exported from platform-bun for standalone use
+- Eliminated one function call layer and the Promise-based `listen()` wrapper from `createBunServer`
+- Files changed: `packages/server-native/src/index.ts`
+- All 47 server-native tests pass, all 36 platform-bun tests pass, typecheck passes, lint passes
+- **Learnings for future iterations:**
+  - Direct `Bun.serve()` requires minimal type declarations (`BunServerRef`) — access Bun global via `(globalThis as unknown as { Bun: ... }).Bun`
+  - The bodyless method check (GET/HEAD/DELETE/OPTIONS) is duplicated in the fast path and normal path — could be shared but inline is faster
+  - `normalizeRequestSync`/`normalizeRequestAsync` and `buildResponse` are the three essential platform-bun functions for the normal path
+  - This is the final story in Phase 2 — all 13 user stories are now complete
 ---
