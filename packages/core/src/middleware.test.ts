@@ -7,6 +7,7 @@ import {
   createRequestContext,
 } from "./middleware.js";
 import type { TypoKitRequest } from "@typokit/types";
+import type { MiddlewareInput } from "./middleware.js";
 import type { AppError } from "@typokit/errors";
 import {
   NotFoundError,
@@ -432,5 +433,203 @@ describe("compileMiddlewareChain", () => {
     const ctx = createRequestContext();
     const result = await compiled(req, ctx);
     expect(result).toBe(ctx);
+  });
+
+  it("skips Object.assign for empty middleware returns ({})", async () => {
+    const mw1 = defineMiddleware(async () => ({}));
+    const mw2 = defineMiddleware(async () => ({ user: "alice" }));
+    const mw3 = defineMiddleware(async () => ({}));
+
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: mw1 },
+      { name: "auth", middleware: mw2 },
+      { name: "noop2", middleware: mw3 },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    // Real middleware values still applied
+    expect((result as unknown as Record<string, unknown>)["user"]).toBe(
+      "alice",
+    );
+    // Context reference unchanged
+    expect(result).toBe(ctx);
+  });
+
+  it("handles middleware returning undefined or null gracefully", async () => {
+    // Middleware that returns undefined (cast to satisfy TS)
+    const mwUndef = defineMiddleware(
+      (async () => undefined) as unknown as (
+        input: MiddlewareInput,
+      ) => Promise<Record<string, unknown>>,
+    );
+    // Middleware that returns null (cast to satisfy TS)
+    const mwNull = defineMiddleware(
+      (async () => null) as unknown as (
+        input: MiddlewareInput,
+      ) => Promise<Record<string, unknown>>,
+    );
+    const mwReal = defineMiddleware(async () => ({ role: "admin" }));
+
+    const compiled = compileMiddlewareChain([
+      { name: "undef", middleware: mwUndef },
+      { name: "null", middleware: mwNull },
+      { name: "real", middleware: mwReal },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    expect((result as unknown as Record<string, unknown>)["role"]).toBe(
+      "admin",
+    );
+    expect(result).toBe(ctx);
+  });
+
+  it("single middleware with actual context values works correctly", async () => {
+    const mw = defineMiddleware(async () => ({
+      user: { id: "42", name: "Bob" },
+      permissions: ["read", "write"],
+    }));
+    const compiled = compileMiddlewareChain([{ name: "auth", middleware: mw }]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    const extended = result as unknown as Record<string, unknown>;
+    expect(extended["user"]).toEqual({ id: "42", name: "Bob" });
+    expect(extended["permissions"]).toEqual(["read", "write"]);
+  });
+
+  it("reads req properties fresh per middleware call (no pre-allocated input)", async () => {
+    // If compileMiddlewareChain pre-allocated a MiddlewareInput object
+    // before the loop, mutating req.params inside a middleware would NOT
+    // be visible to subsequent middleware through the pre-allocated input.
+    // This test verifies that each handler sees fresh req properties.
+    const req = createTestRequest({ params: { id: "1" } });
+
+    const mw1 = defineMiddleware(async ({ params }) => {
+      // First middleware sees original params
+      expect(params["id"]).toBe("1");
+      return { step1: true };
+    });
+
+    // Middleware that mutates req.params via the closure
+    const mw2 = defineMiddleware(async ({ params }) => {
+      expect(params["id"]).toBe("1");
+      // Simulate param mutation (e.g., from a sub-router)
+      req.params = { id: "42" };
+      return { step2: true };
+    });
+
+    const mw3 = defineMiddleware(async ({ params }) => {
+      // Third middleware should see the MUTATED params (id: "42")
+      // This only works if fields are extracted fresh, not cached
+      expect(params["id"]).toBe("42");
+      return { step3: true };
+    });
+
+    const compiled = compileMiddlewareChain([
+      { name: "mw1", middleware: mw1 },
+      { name: "mw2", middleware: mw2 },
+      { name: "mw3", middleware: mw3 },
+    ]);
+
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    expect((result as unknown as Record<string, unknown>)["step1"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step2"]).toBe(true);
+    expect((result as unknown as Record<string, unknown>)["step3"]).toBe(true);
+  });
+
+  it("single middleware returning empty object is a no-op", async () => {
+    const mw = defineMiddleware(async () => ({}));
+    const compiled = compileMiddlewareChain([{ name: "noop", middleware: mw }]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect(result).toBe(ctx);
+    // Only original context keys should exist
+    expect(result.requestId).toBeDefined();
+    expect(result.log).toBeDefined();
+  });
+
+  it("returns synchronous identity when all entries are marked noOp", () => {
+    const mw = defineMiddleware(async () => ({}));
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: mw, noOp: true },
+      { name: "noop2", middleware: mw, noOp: true },
+      { name: "noop3", middleware: mw, noOp: true },
+    ]);
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = compiled(req, ctx);
+    // Synchronous — returns ctx directly, not a Promise
+    expect(result).toBe(ctx);
+    expect(result).not.toBeInstanceOf(Promise);
+  });
+
+  it("filters out noOp entries from mixed chain and runs real middleware", async () => {
+    const noopMw = defineMiddleware(async () => ({}));
+    const realMw = defineMiddleware(async () => ({ user: "alice" }));
+
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: noopMw, noOp: true },
+      { name: "auth", middleware: realMw },
+      { name: "noop2", middleware: noopMw, noOp: true },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+    expect((result as unknown as Record<string, unknown>)["user"]).toBe(
+      "alice",
+    );
+    expect(result).toBe(ctx);
+  });
+
+  it("non-noOp middleware with side effects still runs correctly", async () => {
+    let sideEffectCalled = false;
+    const realMw = defineMiddleware(async () => {
+      sideEffectCalled = true;
+      return { logged: true };
+    });
+
+    const compiled = compileMiddlewareChain([
+      { name: "logger", middleware: realMw },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    await compiled(req, ctx);
+
+    expect(sideEffectCalled).toBe(true);
+    expect((ctx as unknown as Record<string, unknown>)["logged"]).toBe(true);
+  });
+
+  it("mixed noOp chain with multiple real middleware accumulates context", async () => {
+    const noopMw = defineMiddleware(async () => ({}));
+    const mw1 = defineMiddleware(async () => ({ role: "admin" }));
+    const mw2 = defineMiddleware(async () => ({ org: "acme" }));
+
+    const compiled = compileMiddlewareChain([
+      { name: "noop1", middleware: noopMw, noOp: true },
+      { name: "role", middleware: mw1 },
+      { name: "noop2", middleware: noopMw, noOp: true },
+      { name: "org", middleware: mw2 },
+      { name: "noop3", middleware: noopMw, noOp: true },
+    ]);
+
+    const req = createTestRequest();
+    const ctx = createRequestContext();
+    const result = await compiled(req, ctx);
+
+    const extended = result as unknown as Record<string, unknown>;
+    expect(extended["role"]).toBe("admin");
+    expect(extended["org"]).toBe("acme");
   });
 });

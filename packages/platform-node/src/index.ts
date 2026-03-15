@@ -146,6 +146,7 @@ export async function normalizeRequest(
       : rawPath;
   const rawBody = await collectRawBody(req);
 
+  // Fresh object per request — safe to mutate (e.g. req.params = params in server-native)
   const request: TypoKitRequest = {
     method: (req.method ?? "GET").toUpperCase() as HttpMethod,
     path,

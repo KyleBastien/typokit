@@ -164,7 +164,7 @@ export type MiddlewareFn = (
 /** Ordered middleware chain */
 export interface MiddlewareChain {
   /** Named middleware entries in execution order */
-  entries: Array<{ name: string; handler: MiddlewareFn }>;
+  entries: Array<{ name: string; handler: MiddlewareFn; noOp?: boolean }>;
 }
 
 // ─── Logger Interface ────────────────────────────────────────

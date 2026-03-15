@@ -361,7 +361,7 @@ export interface RouteGroup {
 Location: packages/core/src/handler.ts (exported from app.ts)
 
 Handlers receive:
-- \eq: TypoKitRequest\ (with extracted params from route)
+- \req: TypoKitRequest\ (with extracted params from route)
 - \ctx: RequestContext\ (enriched with middleware context)
 
 Return:

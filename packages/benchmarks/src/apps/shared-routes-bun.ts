@@ -7,6 +7,7 @@ import {
   createRequestContext,
   executeMiddlewareChain,
   defineMiddleware,
+  JSON_HEADERS,
 } from "@typokit/core";
 import type { MiddlewareEntry } from "@typokit/core";
 import { fileURLToPath } from "node:url";
@@ -54,7 +55,7 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
   const handlerMap: HandlerMap = {
     "get-json": () => ({
       status: 200,
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: BENCHMARK_RESPONSE,
     }),
 
@@ -62,14 +63,14 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
       const body = req.body as CreateBenchmarkItemBody;
       return {
         status: 200,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: body,
       };
     },
 
     "post-validate-passthrough": (req: TypoKitRequest) => ({
       status: 200,
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: req.body as CreateBenchmarkItemBody,
     }),
 
@@ -78,13 +79,13 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
       if (!result.ok) {
         return {
           status: 400,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body: { error: result.error },
         };
       }
       return {
         status: 200,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: result.data,
       };
     },
@@ -95,7 +96,7 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
       if (!row) {
         return {
           status: 404,
-          headers: { "content-type": "application/json" },
+          headers: JSON_HEADERS,
           body: { error: "Not Found", message: `Item ${id} not found` },
         };
       }
@@ -109,7 +110,7 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
       }
       return {
         status: 200,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: row,
       };
     },
@@ -122,14 +123,14 @@ export function buildAppResourcesBun(dbPath?: string): BenchmarkAppResources {
       );
       return {
         status: 200,
-        headers: { "content-type": "application/json" },
+        headers: JSON_HEADERS,
         body: BENCHMARK_RESPONSE,
       };
     },
 
     "get-startup": () => ({
       status: 200,
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: { uptime: process.uptime() },
     }),
   };

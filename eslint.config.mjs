@@ -13,6 +13,9 @@ export default tseslint.config(
       "**/node_modules/",
       "**/.typokit/",
       "**/__generated__/",
+      "**/target/",
+      "**/.astro/",
+      "packages/docs/src/content/docs/api-reference/generated/",
     ],
   },
   {

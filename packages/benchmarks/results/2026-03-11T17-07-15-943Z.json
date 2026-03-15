@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "generatedAt": "2026-03-11T17:07:15.943Z",
+  "results": [
+    {
+      "framework": "typokit-node-native",
+      "platform": "node",
+      "server": "native",
+      "scenario": "json",
+      "reqPerSec": 57505.59,
+      "latency": {
+        "p50": 1.59,
+        "p75": 2.07,
+        "p90": 2.12,
+        "p95": 2.15,
+        "p99": 2.64
+      },
+      "errors": 0,
+      "timestamp": "2026-03-11T17:07:15.931Z",
+      "systemInfo": {
+        "os": "Windows_NT 10.0.26200 x64",
+        "cpu": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M           ",
+        "cpuCores": 24,
+        "ram": "31 GB",
+        "runtimeVersions": {
+          "node": "v24.13.1",
+          "rustc": "1.93.1 (cargo 1.93.1)"
+        },
+        "bombardierVersion": ""
+      },
+      "config": {
+        "connections": 100,
+        "duration": "5s",
+        "warmup": "2s",
+        "runs": 1
+      }
+    }
+  ]
+}

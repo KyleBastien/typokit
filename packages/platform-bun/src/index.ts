@@ -48,6 +48,38 @@ export function getPlatformInfo(): PlatformInfo {
   };
 }
 
+// ─── Pre-allocated JSON ResponseInit constants ──────────────
+// Uses plain header objects (not new Headers()) — Bun's Response constructor
+// accepts Record<string, string> directly, avoiding per-request allocation.
+
+export const JSON_CT_HEADERS: Record<string, string> = {
+  "content-type": "application/json",
+};
+
+const JSON_RESPONSE_INIT_200: ResponseInit = {
+  status: 200,
+  headers: JSON_CT_HEADERS,
+};
+const JSON_RESPONSE_INIT_400: ResponseInit = {
+  status: 400,
+  headers: JSON_CT_HEADERS,
+};
+const JSON_RESPONSE_INIT_404: ResponseInit = {
+  status: 404,
+  headers: JSON_CT_HEADERS,
+};
+const JSON_RESPONSE_INIT_500: ResponseInit = {
+  status: 500,
+  headers: JSON_CT_HEADERS,
+};
+
+const jsonResponseInitByStatus: Record<number, ResponseInit | undefined> = {
+  200: JSON_RESPONSE_INIT_200,
+  400: JSON_RESPONSE_INIT_400,
+  404: JSON_RESPONSE_INIT_404,
+  500: JSON_RESPONSE_INIT_500,
+};
+
 // ─── Request / Response Helpers ──────────────────────────────
 
 /** Parse a raw query string (without leading '?') into a Record */
@@ -69,90 +101,32 @@ function parseQuery(qs: string): Record<string, string | string[] | undefined> {
 }
 
 /**
- * Create a lazy headers proxy wrapping a native Headers object.
- * Avoids upfront conversion — individual headers are read via the
- * native Headers API on demand, skipping the O(N) copy.
+ * Eagerly copy Web API Headers into a plain object.
+ * Uses headers.forEach() — the fastest iteration method for Web API Headers
+ * in Bun — to avoid Proxy trap overhead on every header access.
  */
-function lazyHeaders(
+function copyHeaders(
   native: Headers,
 ): Record<string, string | string[] | undefined> {
-  const overrides = Object.create(null) as Record<
+  const obj = Object.create(null) as Record<
     string,
     string | string[] | undefined
   >;
-  return new Proxy(overrides, {
-    get(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-    ) {
-      if (typeof prop === "string") {
-        if (prop in target) return target[prop];
-        return native.get(prop) ?? undefined;
-      }
-      return undefined;
-    },
-    set(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-      value: unknown,
-    ) {
-      if (typeof prop === "string") {
-        target[prop] = value as string | string[] | undefined;
-      }
-      return true;
-    },
-    has(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-    ) {
-      if (typeof prop === "string") {
-        return prop in target || native.has(prop);
-      }
-      return false;
-    },
-    ownKeys(target: Record<string, string | string[] | undefined>) {
-      const keys = new Set<string>(Object.keys(target));
-      native.forEach((_v: string, k: string) => keys.add(k));
-      return [...keys];
-    },
-    getOwnPropertyDescriptor(
-      target: Record<string, string | string[] | undefined>,
-      prop: string | symbol,
-    ) {
-      if (typeof prop === "string") {
-        if (prop in target) {
-          return {
-            configurable: true,
-            enumerable: true,
-            value: target[prop],
-          };
-        }
-        if (native.has(prop)) {
-          return {
-            configurable: true,
-            enumerable: true,
-            value: native.get(prop) ?? undefined,
-          };
-        }
-      }
-      return undefined;
-    },
+  native.forEach((value: string, key: string) => {
+    obj[key] = value;
   });
+  return obj;
 }
 
 /**
- * Normalize a Web API Request (used by Bun.serve) into a TypoKitRequest.
- *
- * Optimized for Bun's native APIs:
- * - Uses indexOf/substring for path extraction instead of `new URL()`
- * - Uses `req.json()` for JSON bodies (Bun's native zero-copy parser)
- * - Uses `req.text()` for non-JSON bodies
- * - Uses lazy Proxy-based headers to avoid upfront Headers → Record conversion
+ * Extract path, query string, and normalized path from a raw URL.
+ * Shared between sync and async normalizeRequest variants.
+ * Uses indexOf/substring — avoids new URL() constructor.
  */
-export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
-  // Fast path extraction: avoid new URL() constructor.
-  // In Bun.serve, req.url is a full URL like "http://host:port/path?query"
-  const rawUrl = req.url;
+function extractPathAndQuery(rawUrl: string): {
+  path: string;
+  queryString: string;
+} {
   const protoEnd = rawUrl.indexOf("//");
   const pathStart = protoEnd !== -1 ? rawUrl.indexOf("/", protoEnd + 2) : 0;
   const start = pathStart !== -1 ? pathStart : rawUrl.length;
@@ -171,29 +145,60 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
       ? rawPath.substring(0, rawPath.length - 1)
       : rawPath;
 
-  // Body: use Bun-native zero-copy methods
+  return { path, queryString };
+}
+
+/** Methods that never carry a request body */
+const BODYLESS_METHODS = new Set(["GET", "HEAD", "DELETE", "OPTIONS"]);
+
+/**
+ * Synchronous normalizeRequest for bodyless methods (GET, HEAD, DELETE, OPTIONS).
+ * Creates zero Promises — avoids async overhead entirely on the Bun hot path.
+ *
+ * Fresh object per request — safe to mutate (e.g. req.params = params in server-native).
+ */
+export function normalizeRequestSync(req: Request): TypoKitRequest {
+  const { path, queryString } = extractPathAndQuery(req.url);
+  return {
+    method: req.method.toUpperCase() as HttpMethod,
+    path,
+    headers: copyHeaders(req.headers),
+    body: undefined,
+    query: parseQuery(queryString),
+    params: {},
+  };
+}
+
+/**
+ * Async normalizeRequest for methods with bodies (POST, PUT, PATCH).
+ * Uses Bun-native zero-copy req.json()/req.text() for body parsing.
+ *
+ * Fresh object per request — safe to mutate (e.g. req.params = params in server-native).
+ */
+export async function normalizeRequestAsync(
+  req: Request,
+): Promise<TypoKitRequest> {
+  const { path, queryString } = extractPathAndQuery(req.url);
+
   let body: unknown = undefined;
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    const contentType = req.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      try {
-        body = await req.json();
-      } catch {
-        // Malformed JSON — body stays undefined
-        body = undefined;
-      }
-    } else {
-      const raw = await req.text();
-      if (raw) {
-        body = raw;
-      }
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      body = await req.json();
+    } catch {
+      body = undefined;
+    }
+  } else {
+    const raw = await req.text();
+    if (raw) {
+      body = raw;
     }
   }
 
   return {
     method: req.method.toUpperCase() as HttpMethod,
     path,
-    headers: lazyHeaders(req.headers),
+    headers: copyHeaders(req.headers),
     body,
     query: parseQuery(queryString),
     params: {},
@@ -202,10 +207,47 @@ export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
 
 /**
  * Convert a TypoKitResponse into a Web API Response for Bun.serve().
+ *
+ * Fast path: JSON object bodies with JSON-only headers use pre-allocated
+ * plain header objects — Bun's Response constructor accepts
+ * Record<string, string> directly, avoiding new Headers() entirely.
  */
 export function buildResponse(response: TypoKitResponse): Response {
-  const headers = new Headers();
   const responseHeaders = response.headers;
+  const body = response.body;
+
+  // Fast path: JSON object body with JSON-only or empty headers
+  // Detects when responseHeaders has 0 keys or only { "content-type": "application/json" }
+  if (body !== null && body !== undefined && typeof body !== "string") {
+    let jsonFastPath = true;
+    let headerCount = 0;
+    for (const key in responseHeaders) {
+      headerCount++;
+      if (
+        headerCount > 1 ||
+        key !== "content-type" ||
+        responseHeaders[key] !== "application/json"
+      ) {
+        jsonFastPath = false;
+        break;
+      }
+    }
+
+    if (jsonFastPath) {
+      // Use pre-allocated init for common status codes, inline for uncommon ones.
+      // Plain header objects — no new Headers() per request.
+      return new Response(
+        JSON.stringify(body),
+        jsonResponseInitByStatus[response.status] ?? {
+          status: response.status,
+          headers: JSON_CT_HEADERS,
+        },
+      );
+    }
+  }
+
+  // Slow path: custom headers or non-JSON body — requires per-request Headers construction
+  const headers = new Headers();
   for (const key in responseHeaders) {
     const value = responseHeaders[key];
     if (value !== undefined) {
@@ -220,15 +262,15 @@ export function buildResponse(response: TypoKitResponse): Response {
   }
 
   let bodyContent: string | null = null;
-  if (response.body === null || response.body === undefined) {
+  if (body === null || body === undefined) {
     bodyContent = null;
-  } else if (typeof response.body === "string") {
-    bodyContent = response.body;
+  } else if (typeof body === "string") {
+    bodyContent = body;
   } else {
     if (!headers.has("content-type")) {
       headers.set("content-type", "application/json");
     }
-    bodyContent = JSON.stringify(response.body);
+    bodyContent = JSON.stringify(body);
   }
 
   return new Response(bodyContent, {
@@ -249,6 +291,12 @@ export type BunRequestHandler = (
 export interface BunServerOptions {
   /** Optional hostname to bind to (default: "0.0.0.0") */
   hostname?: string;
+  /**
+   * Optional fast-path handler that receives the raw Web API Request and
+   * returns a Response directly, or null to fall back to the normal
+   * normalizeRequest→handler→buildResponse path.
+   */
+  fastPath?: (req: Request) => Response | Promise<Response> | null;
 }
 
 // ─── Bun Server ─────────────────────────────────────────────
@@ -282,6 +330,7 @@ export function createBunServer(
   options: BunServerOptions = {},
 ): BunServerInstance {
   const hostname = options.hostname ?? "0.0.0.0";
+  const { fastPath } = options;
   let bunServer: BunServer | null = null;
 
   const instance: BunServerInstance = {
@@ -292,27 +341,44 @@ export function createBunServer(
       return new Promise((resolve, reject) => {
         try {
           const bun = (globalThis as unknown as { Bun: BunGlobal }).Bun;
+
+          // Normal async request handling (normalize → handler → buildResponse)
+          const normalFetch = async (req: Request): Promise<Response> => {
+            try {
+              const method = req.method.toUpperCase();
+              const normalized = BODYLESS_METHODS.has(method)
+                ? normalizeRequestSync(req)
+                : await normalizeRequestAsync(req);
+              const response = await handler(normalized);
+              return buildResponse(response);
+            } catch (err: unknown) {
+              return new Response(
+                JSON.stringify({
+                  error: "Internal Server Error",
+                  message: err instanceof Error ? err.message : "Unknown error",
+                }),
+                {
+                  status: 500,
+                  headers: { "content-type": "application/json" },
+                },
+              );
+            }
+          };
+
           bunServer = bun.serve({
             port,
             hostname,
-            async fetch(req: Request): Promise<Response> {
-              try {
-                const normalized = await normalizeRequest(req);
-                const response = await handler(normalized);
-                return buildResponse(response);
-              } catch (err: unknown) {
-                return new Response(
-                  JSON.stringify({
-                    error: "Internal Server Error",
-                    message:
-                      err instanceof Error ? err.message : "Unknown error",
-                  }),
-                  {
-                    status: 500,
-                    headers: { "content-type": "application/json" },
-                  },
-                );
+            fetch(req: Request): Promise<Response> | Response {
+              // Fast path: bypass normalize/build for simple routes
+              if (fastPath) {
+                try {
+                  const result = fastPath(req);
+                  if (result !== null) return result;
+                } catch {
+                  // Fast path error — fall through to normal path
+                }
               }
+              return normalFetch(req);
             },
           });
 
@@ -333,8 +399,3 @@ export function createBunServer(
 
   return instance;
 }
-
-/**
- * @deprecated Use `createBunServer` instead. This alias is kept for backward compatibility.
- */
-export const createServer = createBunServer;

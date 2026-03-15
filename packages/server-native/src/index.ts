@@ -19,15 +19,9 @@ import type {
   ValidatorMap,
   ValidationFieldError,
 } from "@typokit/types";
-import type {
-  ServerAdapter,
-  MiddlewareEntry,
-  CompiledMiddlewareFn,
-} from "@typokit/core";
+import type { ServerAdapter, CompiledMiddlewareFn } from "@typokit/core";
 import {
   createRequestContext,
-  sortMiddlewareEntries,
-  compileMiddlewareChain,
   resolveValidatorMap,
   JSON_HEADERS,
 } from "@typokit/core";
@@ -272,6 +266,13 @@ function serializeResponse(
 /** True when running inside a Bun process */
 const isBun = "Bun" in globalThis;
 
+/** Minimal shape of a Bun server returned by Bun.serve() */
+interface BunServerRef {
+  port: number;
+  hostname: string;
+  stop(closeActiveConnections?: boolean): void;
+}
+
 // ─── Native Server Adapter ───────────────────────────────────
 
 interface NativeServerState {
@@ -281,6 +282,8 @@ interface NativeServerState {
   compiledMiddleware: CompiledMiddlewareFn | null;
   validatorMap: ValidatorMap | null;
   serializerMap: SerializerMap | null;
+  /** Handlers with 2+ params need a RequestContext; others skip allocation */
+  handlerNeedsCtx: Set<string>;
 }
 
 /**
@@ -305,10 +308,8 @@ export function nativeServer(): ServerAdapter {
     compiledMiddleware: null,
     validatorMap: null,
     serializerMap: null,
+    handlerNeedsCtx: new Set(),
   };
-
-  // Shared reference updated per-request for middleware wrapper closures
-  let currentReq: TypoKitRequest | null = null;
 
   let nativeServerInstance: ReturnType<typeof createServer> | null = null;
 
@@ -398,20 +399,40 @@ export function nativeServer(): ServerAdapter {
       };
     }
 
-    // Inject extracted params into the request
-    const enrichedReq: TypoKitRequest = { ...req, params };
+    // Inject extracted params directly into the request object.
+    // Safe to mutate: normalizeRequest() in platform-node and platform-bun
+    // both create a fresh TypoKitRequest object per request.
+    req.params = params;
 
-    // Create request context
-    let ctx = createRequestContext();
-
-    // Execute compiled middleware chain if present
+    // Lazy context creation: only allocate when middleware or handler needs it.
+    // Detected at registration time by checking handler.length >= 2.
     if (state.compiledMiddleware) {
-      currentReq = enrichedReq;
-      ctx = await state.compiledMiddleware(enrichedReq, ctx);
+      let ctx = createRequestContext();
+      const mwResult = state.compiledMiddleware(req, ctx);
+      ctx = mwResult instanceof Promise ? await mwResult : mwResult;
+      const response = await handlerFn(req, ctx);
+      return serializeResponse(
+        response,
+        routeHandler.serializer,
+        state.serializerMap,
+      );
     }
 
-    // Call the handler
-    const response = await handlerFn(enrichedReq, ctx);
+    if (state.handlerNeedsCtx.has(routeHandler.ref)) {
+      const ctx = createRequestContext();
+      const response = await handlerFn(req, ctx);
+      return serializeResponse(
+        response,
+        routeHandler.serializer,
+        state.serializerMap,
+      );
+    }
+
+    // Handler doesn't use ctx and no middleware — skip context allocation
+    const response = await handlerFn(
+      req,
+      undefined as unknown as Parameters<typeof handlerFn>[1],
+    );
 
     // ── Response Serialization Pipeline ──
     return serializeResponse(
@@ -439,30 +460,63 @@ export function nativeServer(): ServerAdapter {
         : null;
       state.serializerMap = serializerMap ?? null;
 
-      // Compile middleware chain once at registration time
+      // Detect which handlers need a RequestContext (2+ params: req, ctx).
+      // Handlers with .length < 2 never access ctx, so we skip allocation.
+      state.handlerNeedsCtx = new Set();
+      for (const ref in handlerMap) {
+        if (handlerMap[ref].length >= 2) {
+          state.handlerNeedsCtx.add(ref);
+        }
+      }
+
+      // Compile middleware chain once at registration time.
+      // Calls MiddlewareFn handlers directly with (req, ctx, next),
+      // passing the request object by reference — zero per-request allocation.
+      // Entries marked as noOp are filtered out at compile time.
       if (middlewareChain && middlewareChain.entries.length > 0) {
-        const entries: MiddlewareEntry[] = middlewareChain.entries.map((e) => ({
-          name: e.name,
-          middleware: {
-            handler: async (input) => {
-              const mwReq: TypoKitRequest = {
-                method: currentReq!.method,
-                path: currentReq!.path,
-                headers: input.headers,
-                body: input.body,
-                query: input.query,
-                params: input.params,
-              };
-              const response = await e.handler(mwReq, input.ctx, async () => {
-                return { status: 200, headers: {}, body: null };
-              });
-              return response as unknown as Record<string, unknown>;
-            },
-          },
-        }));
-        state.compiledMiddleware = compileMiddlewareChain(
-          sortMiddlewareEntries(entries),
-        );
+        const activeEntries = middlewareChain.entries.filter((e) => !e.noOp);
+
+        if (activeEntries.length > 0) {
+          const mwHandlers = activeEntries.map((e) => e.handler);
+          const mwLen = mwHandlers.length;
+          const noopNext = async (): Promise<TypoKitResponse> => ({
+            status: 200,
+            headers: {},
+            body: null,
+          });
+
+          if (mwLen === 1) {
+            const handler = mwHandlers[0];
+            state.compiledMiddleware = async (req, ctx) => {
+              const added: unknown = await handler(req, ctx, noopNext);
+              if (
+                added != null &&
+                typeof added === "object" &&
+                hasOwnKeys(added as Record<string, unknown>)
+              ) {
+                Object.assign(ctx, added);
+              }
+              return ctx;
+            };
+          } else {
+            state.compiledMiddleware = async (req, ctx) => {
+              for (let i = 0; i < mwLen; i++) {
+                const added: unknown = await mwHandlers[i](req, ctx, noopNext);
+                if (
+                  added != null &&
+                  typeof added === "object" &&
+                  hasOwnKeys(added as Record<string, unknown>)
+                ) {
+                  Object.assign(ctx, added);
+                }
+              }
+              return ctx;
+            };
+          }
+        } else {
+          // All entries are noOp — skip middleware entirely (sync fast path)
+          state.compiledMiddleware = null;
+        }
       } else {
         state.compiledMiddleware = null;
       }
@@ -470,12 +524,235 @@ export function nativeServer(): ServerAdapter {
 
     async listen(port: number): Promise<ServerHandle> {
       if (isBun) {
-        // Bun runtime: use Bun.serve() via platform-bun for near-native performance
-        const { createBunServer } = await import("@typokit/platform-bun");
-        const bunInstance = createBunServer(handleRequest);
-        const handle = await bunInstance.listen(port);
-        nativeServerRef = bunInstance.server;
-        return handle;
+        // Bun runtime: call Bun.serve() directly — no createBunServer wrapper.
+        // The fast-path bypasses normalizeRequest/buildResponse for simple GET/HEAD/DELETE
+        // routes with no middleware or validators — approaching raw Bun.serve() throughput.
+        const { normalizeRequestSync, normalizeRequestAsync, buildResponse } =
+          await import("@typokit/platform-bun");
+
+        // Pre-allocated ResponseInit for fast-path JSON responses.
+        // Plain header objects — Bun's Response accepts Record<string, string>.
+        const fpJsonHeaders: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        const fpJsonInit200 = { status: 200, headers: fpJsonHeaders };
+        const fpJsonInit404 = { status: 404, headers: fpJsonHeaders };
+        const fpJsonInit500 = { status: 500, headers: fpJsonHeaders };
+        const fpJsonInitByStatus: Record<
+          number,
+          { status: number; headers: Record<string, string> } | undefined
+        > = {
+          200: fpJsonInit200,
+          404: fpJsonInit404,
+          500: fpJsonInit500,
+        };
+
+        /** Build a fast Response from a handler result (bypasses buildResponse). */
+        const buildFastResponse = (
+          response: TypoKitResponse,
+          serRef: string | undefined,
+        ): Response => {
+          const body = response.body;
+          const status = response.status;
+          if (body !== null && body !== undefined && typeof body !== "string") {
+            const serFn =
+              serRef && state.serializerMap
+                ? state.serializerMap[serRef]
+                : undefined;
+            const str = serFn ? (serFn(body) as string) : JSON.stringify(body);
+            return new Response(
+              str,
+              fpJsonInitByStatus[status] ?? {
+                status,
+                headers: fpJsonHeaders,
+              },
+            );
+          }
+          return new Response(
+            typeof body === "string" ? body : null,
+            fpJsonInitByStatus[status] ?? { status, headers: fpJsonHeaders },
+          );
+        };
+
+        /**
+         * Fast-path fetch handler: bypasses normalizeRequest/buildResponse
+         * for bodyless routes (GET/HEAD/DELETE/OPTIONS) with no middleware
+         * or validators. Returns null to fall back to the normal path.
+         */
+        const fastPathFn = (
+          rawReq: Request,
+        ): Response | Promise<Response> | null => {
+          const method = rawReq.method;
+          // Only bodyless methods
+          if (
+            method !== "GET" &&
+            method !== "HEAD" &&
+            method !== "DELETE" &&
+            method !== "OPTIONS"
+          ) {
+            return null;
+          }
+          if (!state.routeTable || !state.handlerMap) return null;
+          // Routes with middleware go through normal path
+          if (state.compiledMiddleware) return null;
+
+          // Extract path from URL with indexOf/substring — no new URL()
+          const url = rawReq.url;
+          const protoEnd = url.indexOf("//");
+          const pathStart =
+            protoEnd !== -1 ? url.indexOf("/", protoEnd + 2) : 0;
+          const start = pathStart !== -1 ? pathStart : url.length;
+          const qIdx = url.indexOf("?", start);
+          let path =
+            start >= url.length
+              ? "/"
+              : qIdx === -1
+                ? url.substring(start)
+                : url.substring(start, qIdx);
+          // Strip trailing slash (keep "/" as-is) for consistent routing
+          if (path.length > 1 && path.charCodeAt(path.length - 1) === 47) {
+            path = path.substring(0, path.length - 1);
+          }
+
+          // Route lookup
+          const result = lookupRoute(state.routeTable, path);
+          if (!result) return null;
+
+          const { node, params } = result;
+          if (!node.handlers?.[method as HttpMethod]) return null;
+
+          const routeHandler = node.handlers[method as HttpMethod]!;
+          // Skip if route has validators
+          if (state.validatorMap?.[routeHandler.ref]) return null;
+          // Skip if handler needs RequestContext
+          if (state.handlerNeedsCtx.has(routeHandler.ref)) return null;
+
+          const handlerFn = state.handlerMap[routeHandler.ref];
+          if (!handlerFn) return null;
+
+          // Parse query string only if present
+          const query: Record<string, string | string[] | undefined> = {};
+          if (qIdx !== -1) {
+            const qs = url.substring(qIdx + 1);
+            if (qs) {
+              const sp = new URLSearchParams(qs);
+              for (const [key, value] of sp.entries()) {
+                const prev = query[key];
+                if (prev === undefined) {
+                  query[key] = value;
+                } else if (Array.isArray(prev)) {
+                  prev.push(value);
+                } else {
+                  query[key] = [prev, value];
+                }
+              }
+            }
+          }
+
+          // Minimal request shape — headers passed by reference from raw Request
+          const req: TypoKitRequest = {
+            method: method as HttpMethod,
+            path,
+            headers: rawReq.headers as unknown as TypoKitRequest["headers"],
+            body: undefined,
+            query,
+            params,
+          };
+
+          const serRef = routeHandler.serializer;
+          try {
+            const handlerResult = handlerFn(
+              req,
+              undefined as unknown as Parameters<typeof handlerFn>[1],
+            );
+            if (handlerResult instanceof Promise) {
+              return handlerResult
+                .then((res) => buildFastResponse(res, serRef))
+                .catch(
+                  (err: unknown) =>
+                    new Response(
+                      JSON.stringify({
+                        error: "Internal Server Error",
+                        message:
+                          err instanceof Error ? err.message : "Unknown error",
+                      }),
+                      fpJsonInit500,
+                    ),
+                );
+            }
+
+            return buildFastResponse(handlerResult, serRef);
+          } catch (err: unknown) {
+            return new Response(
+              JSON.stringify({
+                error: "Internal Server Error",
+                message: err instanceof Error ? err.message : "Unknown error",
+              }),
+              fpJsonInit500,
+            );
+          }
+        };
+
+        // Normal path: full normalize → handleRequest → buildResponse round-trip
+        const normalFetch = async (rawReq: Request): Promise<Response> => {
+          try {
+            const method = rawReq.method.toUpperCase();
+            const normalized =
+              method === "GET" ||
+              method === "HEAD" ||
+              method === "DELETE" ||
+              method === "OPTIONS"
+                ? normalizeRequestSync(rawReq)
+                : await normalizeRequestAsync(rawReq);
+            const response = await handleRequest(normalized);
+            return buildResponse(response);
+          } catch (err: unknown) {
+            return new Response(
+              JSON.stringify({
+                error: "Internal Server Error",
+                message: err instanceof Error ? err.message : "Unknown error",
+              }),
+              fpJsonInit500,
+            );
+          }
+        };
+
+        // Direct Bun.serve() — eliminates the createBunServer abstraction layer.
+        // createBunServer() remains exported from platform-bun for standalone use.
+        const bun = (
+          globalThis as unknown as {
+            Bun: {
+              serve(opts: {
+                port: number;
+                hostname: string;
+                fetch(req: Request): Response | Promise<Response>;
+              }): BunServerRef;
+            };
+          }
+        ).Bun;
+
+        const bunServer = bun.serve({
+          port,
+          hostname: "0.0.0.0",
+          fetch(rawReq: Request): Response | Promise<Response> {
+            // Fast path: bypass normalize/build for simple routes
+            try {
+              const result = fastPathFn(rawReq);
+              if (result !== null) return result;
+            } catch {
+              // Fast path error — fall through to normal path
+            }
+            return normalFetch(rawReq);
+          },
+        });
+
+        nativeServerRef = bunServer;
+        return {
+          async close(): Promise<void> {
+            bunServer.stop(true);
+            nativeServerRef = null;
+          },
+        };
       }
 
       // Node.js runtime: use node:http via platform-node

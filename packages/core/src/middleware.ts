@@ -39,6 +39,8 @@ export interface MiddlewareEntry {
   name: string;
   middleware: Middleware;
   priority?: number;
+  /** Mark as no-op at registration time — skipped during compilation */
+  noOp?: boolean;
 }
 
 /**
@@ -49,6 +51,17 @@ export function defineMiddleware<TAdded extends Record<string, unknown>>(
   handler: (input: MiddlewareInput) => Promise<TAdded>,
 ): Middleware<TAdded> {
   return { handler };
+}
+
+/**
+ * Fast check for non-empty object — for...in with early exit is faster
+ * than Object.keys().length for the common case of empty objects ({}).
+ */
+function hasOwnKeys(obj: Record<string, unknown>): boolean {
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) return true;
+  }
+  return false;
 }
 
 const NOOP = () => {};
@@ -78,17 +91,26 @@ function fail(
   throw createAppError(status, code, message, details);
 }
 
+/**
+ * Shared base context prototype — log and fail are the same for every request.
+ * Using Object.create(baseContext) avoids allocating these properties per request.
+ */
+const baseContext: Pick<RequestContext, "log" | "fail"> = {
+  log: PLACEHOLDER_LOGGER,
+  fail,
+};
+
 /** Create a RequestContext with ctx.fail() and ctx.log placeholder */
 export function createRequestContext(
   overrides?: Partial<RequestContext>,
 ): RequestContext {
-  return {
-    log: PLACEHOLDER_LOGGER,
-    fail,
-    services: {},
-    requestId: nextRequestId(),
-    ...overrides,
-  };
+  const ctx = Object.create(baseContext) as RequestContext;
+  ctx.requestId = nextRequestId();
+  ctx.services = {};
+  if (overrides) {
+    Object.assign(ctx, overrides);
+  }
+  return ctx;
 }
 
 /**
@@ -121,7 +143,9 @@ export async function executeMiddlewareChain(
       params: req.params,
       ctx,
     });
-    Object.assign(ctx, added);
+    if (added != null && typeof added === "object" && hasOwnKeys(added)) {
+      Object.assign(ctx, added);
+    }
   }
 
   return ctx;
@@ -130,11 +154,12 @@ export async function executeMiddlewareChain(
 /**
  * A pre-compiled middleware chain function.
  * Call once per request — returns the enriched context.
+ * Returns synchronously when all middleware are no-ops (no Promise overhead).
  */
 export type CompiledMiddlewareFn = (
   req: TypoKitRequest,
   ctx: RequestContext,
-) => Promise<RequestContext>;
+) => RequestContext | Promise<RequestContext>;
 
 /**
  * Compile a pre-sorted middleware chain into a single callable function.
@@ -148,14 +173,19 @@ export type CompiledMiddlewareFn = (
 export function compileMiddlewareChain(
   entries: MiddlewareEntry[],
 ): CompiledMiddlewareFn {
-  if (entries.length === 0) {
-    // No middleware — synchronous identity wrapped in a resolved promise
-    return (_req, ctx) => Promise.resolve(ctx);
+  // Filter out entries marked as no-op at registration time.
+  // When all entries are noOp, the chain is a synchronous identity.
+  // When a mix exist, only real middleware are compiled.
+  const activeEntries = entries.filter((e) => !e.noOp);
+
+  if (activeEntries.length === 0) {
+    // No active middleware — synchronous identity, no Promise, no async
+    return (_req, ctx) => ctx;
   }
 
-  if (entries.length === 1) {
+  if (activeEntries.length === 1) {
     // Single middleware — direct call, no loop
-    const handler = entries[0].middleware.handler;
+    const handler = activeEntries[0].middleware.handler;
     return async (req, ctx) => {
       const added = await handler({
         headers: req.headers,
@@ -164,7 +194,9 @@ export function compileMiddlewareChain(
         params: req.params,
         ctx,
       });
-      Object.assign(ctx, added);
+      if (added != null && typeof added === "object" && hasOwnKeys(added)) {
+        Object.assign(ctx, added);
+      }
       return ctx;
     };
   }
@@ -172,20 +204,26 @@ export function compileMiddlewareChain(
   // N middleware — flat loop over pre-extracted handler functions.
   // Avoids per-iteration property chain (.middleware.handler) and
   // for...of iterator protocol overhead.
-  const handlers = entries.map((e) => e.middleware.handler);
+  //
+  // Fields are extracted from req inline per handler call rather than
+  // pre-allocating a MiddlewareInput object. This enables V8 escape
+  // analysis / allocation sinking and ensures each handler sees the
+  // latest req properties (e.g., if a previous middleware mutated params).
+  const handlers = activeEntries.map((e) => e.middleware.handler);
   const len = handlers.length;
 
   return async (req, ctx) => {
-    const input: MiddlewareInput = {
-      headers: req.headers,
-      body: req.body,
-      query: req.query,
-      params: req.params,
-      ctx,
-    };
     for (let i = 0; i < len; i++) {
-      const added = await handlers[i](input);
-      Object.assign(ctx, added);
+      const added = await handlers[i]({
+        headers: req.headers,
+        body: req.body,
+        query: req.query,
+        params: req.params,
+        ctx,
+      });
+      if (added != null && typeof added === "object" && hasOwnKeys(added)) {
+        Object.assign(ctx, added);
+      }
     }
     return ctx;
   };
