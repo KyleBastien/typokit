@@ -206,21 +206,6 @@ export async function normalizeRequestAsync(
 }
 
 /**
- * Normalize a Web API Request into a TypoKitRequest.
- * Delegates to sync or async variant based on HTTP method.
- *
- * @deprecated Prefer normalizeRequestSync / normalizeRequestAsync directly
- * for optimal performance. This wrapper remains for backward compatibility.
- */
-export async function normalizeRequest(req: Request): Promise<TypoKitRequest> {
-  const method = req.method.toUpperCase();
-  if (BODYLESS_METHODS.has(method)) {
-    return normalizeRequestSync(req);
-  }
-  return normalizeRequestAsync(req);
-}
-
-/**
  * Convert a TypoKitResponse into a Web API Response for Bun.serve().
  *
  * Fast path: JSON object bodies with JSON-only headers use pre-allocated
@@ -414,8 +399,3 @@ export function createBunServer(
 
   return instance;
 }
-
-/**
- * @deprecated Use `createBunServer` instead. This alias is kept for backward compatibility.
- */
-export const createServer = createBunServer;

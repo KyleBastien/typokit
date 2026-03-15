@@ -2,13 +2,11 @@
 
 import { describe, it, expect } from "@rstest/core";
 import {
-  normalizeRequest,
   normalizeRequestSync,
   normalizeRequestAsync,
   buildResponse,
   getPlatformInfo,
   createBunServer,
-  createServer,
 } from "./index.js";
 import type { TypoKitResponse } from "@typokit/types";
 
@@ -32,147 +30,6 @@ describe("getPlatformInfo", () => {
     const info = getPlatformInfo();
     expect(info.runtime).toBe("bun");
     expect(info.version).toBe("unknown");
-  });
-});
-
-// ─── normalizeRequest ────────────────────────────────────────
-
-describe("normalizeRequest", () => {
-  it("parses method, path, headers, and query from Request", async () => {
-    const req = new Request("http://localhost:3000/hello?foo=bar", {
-      method: "GET",
-      headers: { "x-test": "yes" },
-    });
-
-    const normalized = await normalizeRequest(req);
-
-    expect(normalized.method).toBe("GET");
-    expect(normalized.path).toBe("/hello");
-    expect(normalized.query["foo"]).toBe("bar");
-    expect(normalized.headers["x-test"]).toBe("yes");
-    expect(normalized.params).toEqual({});
-  });
-
-  it("collects JSON body via req.json() when content-type is application/json", async () => {
-    const req = new Request("http://localhost:3000/data", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "test" }),
-    });
-
-    const normalized = await normalizeRequest(req);
-
-    expect(normalized.method).toBe("POST");
-    expect(normalized.body).toEqual({ name: "test" });
-  });
-
-  it("returns raw string body when content-type is not JSON", async () => {
-    const req = new Request("http://localhost:3000/text", {
-      method: "POST",
-      headers: { "content-type": "text/plain" },
-      body: "hello world",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.body).toBe("hello world");
-  });
-
-  it("returns undefined body for GET requests", async () => {
-    const req = new Request("http://localhost:3000/empty", {
-      method: "GET",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.body).toBeUndefined();
-  });
-
-  it("handles multiple query params with the same key", async () => {
-    const req = new Request("http://localhost:3000/multi?tag=a&tag=b", {
-      method: "GET",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.query["tag"]).toEqual(["a", "b"]);
-  });
-
-  it("strips trailing slash from path", async () => {
-    const req = new Request("http://localhost:3000/hello/", {
-      method: "GET",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.path).toBe("/hello");
-  });
-
-  it("preserves root path as /", async () => {
-    const req = new Request("http://localhost:3000/", {
-      method: "GET",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.path).toBe("/");
-  });
-
-  it("returns undefined body for malformed JSON", async () => {
-    const req = new Request("http://localhost:3000/bad-json", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "not valid json{",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.body).toBeUndefined();
-  });
-
-  it("uses lazy headers — accesses native Headers on demand", async () => {
-    const req = new Request("http://localhost:3000/lazy", {
-      method: "GET",
-      headers: { "x-lazy": "value", accept: "text/html" },
-    });
-
-    const normalized = await normalizeRequest(req);
-
-    // Individual access via native Headers API
-    expect(normalized.headers["x-lazy"]).toBe("value");
-    expect(normalized.headers["accept"]).toBe("text/html");
-    // Non-existent header returns undefined
-    expect(normalized.headers["x-missing"]).toBeUndefined();
-  });
-
-  it("lazy headers supports has check", async () => {
-    const req = new Request("http://localhost:3000/has-check", {
-      method: "GET",
-      headers: { "x-present": "yes" },
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect("x-present" in normalized.headers).toBe(true);
-    expect("x-absent" in normalized.headers).toBe(false);
-  });
-
-  it("lazy headers supports for...in iteration", async () => {
-    const req = new Request("http://localhost:3000/iterate", {
-      method: "GET",
-      headers: { "x-a": "1", "x-b": "2" },
-    });
-
-    const normalized = await normalizeRequest(req);
-    const keys: string[] = [];
-    for (const key in normalized.headers) {
-      keys.push(key);
-    }
-    expect(keys).toContain("x-a");
-    expect(keys).toContain("x-b");
-  });
-
-  it("handles HEAD requests without body", async () => {
-    const req = new Request("http://localhost:3000/head", {
-      method: "HEAD",
-    });
-
-    const normalized = await normalizeRequest(req);
-    expect(normalized.method).toBe("HEAD");
-    expect(normalized.body).toBeUndefined();
   });
 });
 
@@ -247,6 +104,53 @@ describe("normalizeRequestSync", () => {
 
     const result = normalizeRequestSync(req);
     expect(result.path).toBe("/");
+  });
+
+  it("handles multiple query params with the same key", () => {
+    const req = new Request("http://localhost:3000/multi?tag=a&tag=b", {
+      method: "GET",
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result.query["tag"]).toEqual(["a", "b"]);
+  });
+
+  it("copies headers into plain object", () => {
+    const req = new Request("http://localhost:3000/headers", {
+      method: "GET",
+      headers: { "x-custom": "value", accept: "text/html" },
+    });
+
+    const result = normalizeRequestSync(req);
+    expect(result.headers["x-custom"]).toBe("value");
+    expect(result.headers["accept"]).toBe("text/html");
+    expect(result.headers["x-missing"]).toBeUndefined();
+  });
+
+  it("headers support in operator", () => {
+    const req = new Request("http://localhost:3000/has-check", {
+      method: "GET",
+      headers: { "x-present": "yes" },
+    });
+
+    const result = normalizeRequestSync(req);
+    expect("x-present" in result.headers).toBe(true);
+    expect("x-absent" in result.headers).toBe(false);
+  });
+
+  it("headers support for...in iteration", () => {
+    const req = new Request("http://localhost:3000/iterate", {
+      method: "GET",
+      headers: { "x-a": "1", "x-b": "2" },
+    });
+
+    const result = normalizeRequestSync(req);
+    const keys: string[] = [];
+    for (const key in result.headers) {
+      keys.push(key);
+    }
+    expect(keys).toContain("x-a");
+    expect(keys).toContain("x-b");
   });
 });
 
@@ -524,13 +428,5 @@ describe("createBunServer", () => {
     } finally {
       delete g["Bun"];
     }
-  });
-});
-
-// ─── createServer (backward compat alias) ────────────────────
-
-describe("createServer", () => {
-  it("is an alias for createBunServer", () => {
-    expect(createServer).toBe(createBunServer);
   });
 });
