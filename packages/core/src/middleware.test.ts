@@ -509,6 +509,8 @@ describe("compileMiddlewareChain", () => {
     // before the loop, mutating req.params inside a middleware would NOT
     // be visible to subsequent middleware through the pre-allocated input.
     // This test verifies that each handler sees fresh req properties.
+    const req = createTestRequest({ params: { id: "1" } });
+
     const mw1 = defineMiddleware(async ({ params }) => {
       // First middleware sees original params
       expect(params["id"]).toBe("1");
@@ -516,13 +518,10 @@ describe("compileMiddlewareChain", () => {
     });
 
     // Middleware that mutates req.params via the closure
-    let capturedReq: TypoKitRequest | undefined;
-    const mw2 = defineMiddleware(async ({ params, ctx }) => {
+    const mw2 = defineMiddleware(async ({ params }) => {
       expect(params["id"]).toBe("1");
       // Simulate param mutation (e.g., from a sub-router)
-      if (capturedReq) {
-        capturedReq.params = { id: "42" };
-      }
+      req.params = { id: "42" };
       return { step2: true };
     });
 
@@ -539,8 +538,6 @@ describe("compileMiddlewareChain", () => {
       { name: "mw3", middleware: mw3 },
     ]);
 
-    const req = createTestRequest({ params: { id: "1" } });
-    capturedReq = req;
     const ctx = createRequestContext();
     const result = await compiled(req, ctx);
 
